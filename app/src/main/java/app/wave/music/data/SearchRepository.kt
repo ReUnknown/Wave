@@ -63,6 +63,10 @@ object SearchRepository {
         }
     }
 
+    suspend fun clearRecent(context: Context) {
+        context.searchStore.edit { it.clear() }
+    }
+
     suspend fun forget(context: Context, query: String) {
         context.searchStore.edit { prefs ->
             prefs[recentKey] = prefs[recentKey]?.split(SEPARATOR).orEmpty().filter { it != query }.joinToString(SEPARATOR)

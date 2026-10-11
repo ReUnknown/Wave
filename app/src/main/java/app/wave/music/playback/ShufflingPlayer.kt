@@ -29,6 +29,11 @@ class ShufflingPlayer(private val exo: ExoPlayer) : ForwardingPlayer(exo) {
         return order
     }
 
+    /** Puts back a saved shuffled order (from a restored queue). */
+    fun restoreOrder(order: List<Int>) {
+        if (order.size == exo.mediaItemCount && order.toSet().size == order.size) apply(order)
+    }
+
     private fun apply(order: List<Int>) {
         if (order.size != exo.mediaItemCount) return
         exo.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(order.toIntArray(), Random.nextLong()))

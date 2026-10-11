@@ -1,5 +1,10 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Close
+import app.wave.music.data.Updater
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.withFrameMillis
 import kotlinx.coroutines.flow.collectLatest
@@ -185,9 +190,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     var askSignOut by remember { mutableStateOf(false) }
     val settings by WaveSettings.state.collectAsState()
     LaunchedEffect(session) { PlayerConnection.loadLikes() }
+    LaunchedEffect(Unit) {
+        WaveSettings.load(context.applicationContext)
+        if (WaveSettings.state.value.checkUpdates) Updater.check(context.applicationContext)
+    }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
+    // Ctrl+F or "/" on a keyboard opens search.
+    LaunchedEffect(Unit) { app.wave.music.ui.components.Shortcuts.openSearch.collect { showSearch = true } }
     val player by PlayerConnection.state.collectAsState()
     val resume by remember { ResumeStore.observe(context.applicationContext) }.collectAsState(null)
 
@@ -429,6 +440,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             Column(
                 Modifier
                     .statusBarsPadding()
+                    .widthIn(max = 760.dp)
                     .padding(horizontal = 16.dp),
             ) {
                 Spacer(Modifier.height(8.dp))
@@ -528,6 +540,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (preparing) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
+                UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
                     visible = !showPlayer && player.current != null && !WindowInsets.isImeVisible,
@@ -537,7 +550,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     MiniPlayer(
                         player,
                         onOpen = { showPlayer = true },
-                        modifier = Modifier.sharedContainer("player", this, RoundedCornerShape(32.dp)),
+                        // A comfortable size on big screens instead of spanning the whole window.
+                        modifier = Modifier.widthIn(max = 640.dp).sharedContainer("player", this, RoundedCornerShape(32.dp)),
                     )
                 }
             }
@@ -591,6 +605,56 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
 }
 
+/** A new Wave release: a small pill above the mini player to download and install it. */
+@Composable
+private fun UpdatePill() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val update by Updater.state.collectAsState()
+    var dismissed by rememberSaveable { mutableStateOf<String?>(null) }
+    val release = when (val u = update) {
+        is Updater.State.Available -> u.release
+        is Updater.State.Downloading -> u.release
+        is Updater.State.Ready -> u.release
+        else -> null
+    }
+    AnimatedVisibility(
+        visible = release != null && dismissed != release.version,
+        enter = fadeIn(tween(180)) + slideInVertically(tween(260, easing = WaveMotion.EmphasizedDecelerate)) { it / 2 },
+        exit = fadeOut(tween(120)),
+    ) {
+        val c = MaterialTheme.colorScheme
+        Row(
+            Modifier
+                .padding(bottom = 10.dp)
+                .height(48.dp)
+                .pressable(CircleShape, c.primaryContainer, pressedScale = 0.96f) {
+                    when (val u = update) {
+                        is Updater.State.Available -> scope.launch { Updater.download(context, u.release) }
+                        is Updater.State.Ready -> Updater.install(context, u.apk)
+                        else -> Unit
+                    }
+                }
+                .padding(start = 18.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                when (val u = update) {
+                    is Updater.State.Downloading -> "Downloading Wave ${u.release.version} · ${(u.progress * 100).toInt()}%"
+                    is Updater.State.Ready -> "Wave ${u.release.version} is ready · Install"
+                    else -> "Wave ${release?.version} is available · Update"
+                },
+                color = c.onPrimaryContainer,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+            )
+            IconButton(onClick = { dismissed = release?.version }) {
+                Icon(Icons.Rounded.Close, "Not now", tint = c.onPrimaryContainer)
+            }
+        }
+    }
+}
+
 private fun greeting(): String = when (LocalTime.now().hour) {
     in 5..11 -> "Good morning,"
     in 12..16 -> "Good afternoon,"
@@ -600,7 +664,9 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 @Composable
 private fun Hero(hero: HeroContent?) {
     val c = MaterialTheme.colorScheme
-    val heightDp = 580.dp
+    // Tall on phones; on short landscape screens it leaves room to see what's below.
+    val config = LocalConfiguration.current
+    val heightDp = if (config.screenHeightDp < 600) (config.screenHeightDp * 0.8f).dp.coerceAtLeast(300.dp) else 580.dp
     val heightPx = with(LocalDensity.current) { heightDp.toPx() }
     Box(
         Modifier
@@ -624,6 +690,7 @@ private fun Hero(hero: HeroContent?) {
             Column(
                 Modifier
                     .align(Alignment.BottomStart)
+                    .widthIn(max = 600.dp)
                     .padding(horizontal = 20.dp),
             ) {
                 Text(hero.label, style = MaterialTheme.typography.labelSmall, color = c.primary)

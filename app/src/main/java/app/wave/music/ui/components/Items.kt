@@ -59,6 +59,7 @@ fun ItemCard(item: YTItem, onClick: (YTItem) -> Unit) {
     Column(
         Modifier
             .width(148.dp)
+            .onRightClick { menu.openFor(item) }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -113,6 +114,7 @@ fun ItemRow(
     Row(
         modifier
             .fillMaxWidth()
+            .onRightClick { menu.openFor(item, removeFrom) }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

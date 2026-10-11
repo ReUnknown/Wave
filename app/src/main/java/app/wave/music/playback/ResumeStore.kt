@@ -45,6 +45,10 @@ object ResumeStore {
         ResumeState(id, p[title].orEmpty(), p[artwork], list, p[index] ?: 0, p[total] ?: 0, p[position] ?: 0, p[song], p[updated] ?: 0)
     }
 
+    suspend fun clear(context: Context) {
+        context.resumeStore.edit { it.clear() }
+    }
+
     suspend fun save(context: Context, state: ResumeState) {
         context.resumeStore.edit {
             it[contextId] = state.contextId

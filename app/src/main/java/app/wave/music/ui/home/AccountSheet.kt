@@ -25,6 +25,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import app.wave.music.ui.components.pressable
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +51,10 @@ import app.wave.music.ui.detail.Destination
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 
-/** Account & settings (design board 09): your library shortcuts, look & feel, playback. */
+/**
+ * Your account (design board 09): who's signed in, shortcuts into your library, settings and
+ * sign out. Settings themselves live on their own page so this stays short.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountSheet(
@@ -56,15 +63,11 @@ fun AccountSheet(
     onOpen: (Destination) -> Unit,
     onSignOut: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val settings by WaveSettings.state.collectAsState()
     val c = MaterialTheme.colorScheme
-    fun change(block: (app.wave.music.data.Settings) -> app.wave.music.data.Settings) {
-        scope.launch { WaveSettings.update(context, block) }
-    }
+    // Opens fully in one motion: no half-open stage where the first tap is taken as a drag.
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainer) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = c.surfaceContainer) {
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
@@ -95,61 +98,22 @@ fun AccountSheet(
                 Tile(Icons.Rounded.History, "History", Modifier.weight(1f)) { onOpen(Destination.History) }
             }
 
-            Eyebrow("Look & feel")
-            Group {
-                Toggle("Match song colors", "The whole app takes on the colors of what's playing", settings.matchSongColors) { on ->
-                    change { it.copy(matchSongColors = on) }
+            Row(
+                Modifier
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .pressable(RoundedCornerShape(24.dp), c.surfaceContainerHighest, pressedScale = 0.97f) { onOpen(Destination.Settings) }
+                    .padding(horizontal = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Icon(Icons.Rounded.Settings, null, tint = c.primary)
+                Column(Modifier.weight(1f)) {
+                    Text("Settings", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = c.onSurface)
+                    Text("Look & feel, playback, battery, updates", fontSize = 13.sp, color = c.onSurfaceVariant)
                 }
-                Divider()
-                Toggle("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
-                    change { it.copy(moveWithMusic = on) }
-                }
-            }
-
-            Eyebrow("Playback")
-            Group {
-                Column(Modifier.padding(horizontal = 8.dp, vertical = 14.dp)) {
-                    Text("Audio quality", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
-                    Text(
-                        when (settings.audioQuality) {
-                            AudioQuality.HIGH -> "Best available, about 160 kbps"
-                            AudioQuality.AUTO -> "High on Wi-Fi, lower on mobile data"
-                            AudioQuality.LOW -> "Saves data, about 50 kbps"
-                        },
-                        fontSize = 13.sp,
-                        color = c.onSurfaceVariant,
-                    )
-                    // Connected segmented choice
-                    Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        listOf(AudioQuality.LOW to "Low", AudioQuality.AUTO to "Auto", AudioQuality.HIGH to "High").forEachIndexed { i, (q, label) ->
-                            val selected = settings.audioQuality == q
-                            val shape = when (i) {
-                                0 -> RoundedCornerShape(22.dp, 8.dp, 8.dp, 22.dp)
-                                2 -> RoundedCornerShape(8.dp, 22.dp, 22.dp, 8.dp)
-                                else -> RoundedCornerShape(8.dp)
-                            }
-                            Box(
-                                Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .clip(shape)
-                                    .background(if (selected) c.primary else c.surfaceContainerHighest)
-                                    .clickable { change { it.copy(audioQuality = q) } },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(label, color = if (selected) c.onPrimary else c.onSurface, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                }
-                Divider()
-                Toggle("Skip silence", "Trim quiet gaps between songs", settings.skipSilence) { on ->
-                    change { it.copy(skipSilence = on) }
-                }
-                Divider()
-                Toggle("Autoplay", "When a playlist ends, keep going with similar songs", settings.autoplay) { on ->
-                    change { it.copy(autoplay = on) }
-                }
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onSurfaceVariant)
             }
 
             Box(
@@ -183,9 +147,7 @@ private fun Tile(icon: ImageVector, label: String, modifier: Modifier, onClick: 
     Column(
         modifier
             .height(92.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(c.surfaceContainerHighest)
-            .clickable(onClick = onClick)
+            .pressable(RoundedCornerShape(24.dp), c.surfaceContainerHighest, pressedScale = 0.95f, onClick = onClick)
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -194,36 +156,5 @@ private fun Tile(icon: ImageVector, label: String, modifier: Modifier, onClick: 
     }
 }
 
-@Composable
-private fun Group(content: @Composable () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(horizontal = 12.dp),
-    ) { content() }
-}
 
-@Composable
-private fun Divider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-}
 
-@Composable
-private fun Toggle(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onChange(!checked) }
-            .padding(horizontal = 8.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(description, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}

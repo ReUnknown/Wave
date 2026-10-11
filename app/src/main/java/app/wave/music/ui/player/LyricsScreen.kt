@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import androidx.compose.foundation.layout.widthIn
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.rememberUpdatedState
 import app.wave.music.ui.components.ArtSize
@@ -130,8 +132,14 @@ private suspend fun LazyListState.centerOn(index: Int, animate: Boolean) {
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    val back = predictiveBack(onBack = onClose)
+fun LyricsScreen(
+    state: PlayerUiState,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Shown inside the player on wide screens: no backdrop, header or controls of its own. */
+    embedded: Boolean = false,
+) {
+    val back = predictiveBack(enabled = !embedded, onBack = onClose)
     val song = state.current ?: return
     val scope = rememberCoroutineScope()
     var ui by remember(song.videoId) { mutableStateOf<LyricsUi>(LyricsUi.Loading) }
@@ -173,16 +181,18 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
 
     // Move with the music: the sung line swells slightly on each beat and glows with loudness.
     val settings by WaveSettings.state.collectAsState()
-    val beat by BeatBus.beat.collectAsState()
-    val level by BeatBus.level.collectAsState()
+    // Beats and loudness are read while drawing, not here, so they never re-run this screen.
     val pulse = remember { Animatable(0f) }
-    LaunchedEffect(beat) {
-        if (settings.moveWithMusic && beat != 0L) {
-            pulse.snapTo(1f)
-            pulse.animateTo(0f, tween(320))
+    LaunchedEffect(settings.moveWithMusic) {
+        if (!settings.moveWithMusic) return@LaunchedEffect
+        BeatBus.beat.collectLatest { beat ->
+            if (beat != 0L) {
+                pulse.snapTo(1f)
+                pulse.animateTo(0f, tween(320))
+            }
         }
     }
-    val levelNow: () -> Float = { if (settings.moveWithMusic) level else 0f }
+    val levelNow: () -> Float = { if (settings.moveWithMusic) BeatBus.level.value else 0f }
     val pulseNow: () -> Float = { if (settings.moveWithMusic) pulse.value else 0f }
 
     LaunchedEffect(active, ui) {
@@ -193,18 +203,20 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
         modifier
             .backGesture(back)
             .fillMaxSize()
-            .blocksTouchesBelow()
-            .background(MaterialTheme.colorScheme.background),
+            .then(if (embedded) Modifier else Modifier.blocksTouchesBelow().background(MaterialTheme.colorScheme.background)),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        // Backdrop: the art, blurred hard and darkened, so the page glows in the song's colors.
-        BlurredImage(
-            model = song.artworkUrl?.atSize(ArtSize.BLUR),
-            radius = 90.dp,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { scaleX = 1.4f; scaleY = 1.4f },
-        )
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)))
+        if (!embedded) {
+            // Backdrop: the art, blurred hard and darkened, so the page glows in the song's colors.
+            BlurredImage(
+                model = song.artworkUrl?.atSize(ArtSize.BLUR),
+                radius = 90.dp,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { scaleX = 1.4f; scaleY = 1.4f },
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)))
+        }
 
         when (val current = ui) {
             LyricsUi.Loading -> LoadingIndicator(Modifier.size(72.dp).align(Alignment.Center))
@@ -214,7 +226,8 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
             }
             is LyricsUi.Ready -> LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                // Lines stay a readable width on big screens.
+                modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
                 contentPadding = PaddingValues(top = maxHeight / 2, bottom = maxHeight / 2),
             ) {
                 itemsIndexed(current.lyrics.lines) { index, line ->
@@ -246,6 +259,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
             }
         }
 
+        if (!embedded) {
         // Header fade + controls
         Box(
             Modifier
@@ -307,6 +321,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
                 )
             }
             Spacer(Modifier.height(4.dp))
+        }
         }
     }
 }

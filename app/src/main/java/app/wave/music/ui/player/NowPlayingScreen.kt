@@ -1,5 +1,12 @@
 package app.wave.music.ui.player
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.Crossfade
+import androidx.compose.ui.platform.LocalConfiguration
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -165,6 +172,20 @@ fun NowPlayingScreen(
                 .blocksTouchesBelow()
                 .background(c.background),
         ) {
+        // Wide windows (landscape phones, tablets, Fold, Googlebook) get a side-by-side player.
+        val config = LocalConfiguration.current
+        val wide = config.screenWidthDp >= 600 && config.screenWidthDp > config.screenHeightDp
+        if (wide) {
+            WideNowPlaying(
+                state, song, position,
+                roomy = config.screenWidthDp >= 840 && config.screenHeightDp >= 560,
+                showQueue = showQueue,
+                showLyrics = showLyrics,
+                onClose = onClose,
+                onQueue = { showQueue = true },
+                onLyrics = { showLyrics = true },
+            )
+        } else
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -241,195 +262,15 @@ fun NowPlayingScreen(
                     ),
             )
 
-            Row(
-                Modifier
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                GlassCircle(Icons.Rounded.KeyboardArrowDown, "Collapse player", onClose)
-                state.context?.let {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                        Text("PLAYING FROM", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
-                        Text(it.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                val menu = LocalItemMenu.current
-                GlassCircle(Icons.Rounded.MoreVert, "More options") {
-                    menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl))
-                }
-            }
+            Header(state, song, onClose, Modifier.statusBarsPadding())
 
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
             ) {
-                Column(Modifier.padding(horizontal = 20.dp)) {
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // The title slides the way you're going: next comes in from the right, back from the left.
-                        AnimatedContent(
-                            targetState = song,
-                            contentKey = { it.videoId },
-                            transitionSpec = {
-                                fun spot(s: NowPlaying) = state.playOrder.indexOf(state.queue.indexOfFirst { it.videoId == s.videoId })
-                                val dir = if (spot(targetState) >= spot(initialState)) 1 else -1
-                                (slideInHorizontally(tween(280, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 3 } + fadeIn(tween(180, delayMillis = 40))) togetherWith
-                                    (slideOutHorizontally(tween(180, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 3 } + fadeOut(tween(110))) using
-                                    SizeTransform(clip = false)
-                            },
-                            modifier = Modifier.weight(1f),
-                            label = "title",
-                        ) { shown ->
-                            Column {
-                                Text(shown.title, color = c.onBackground, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(shown.artist, color = c.onSurfaceVariant, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                        LikeButton(state.liked) {
-                            haptics.performHapticFeedback(if (state.liked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
-                            PlayerConnection.toggleLike()
-                        }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-                    WavyProgress(
-                        progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
-                        playing = state.isPlaying,
-                        energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },
-                        color = c.onBackground,
-                        trackColor = c.onBackground.copy(alpha = 0.25f),
-                        stroke = 5.dp,
-                        amplitude = 4.dp,
-                        wavelength = 24.dp,
-                        showThumb = true,
-                        onSeek = { PlayerConnection.seekTo((it * state.durationMs).toLong()) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(32.dp),
-                    )
-                    Times(position, state.durationMs, c.onSurfaceVariant)
-
-                    // Connected group: previous · play/pause · next
-                    Row(
-                        Modifier
-                            .padding(top = 14.dp)
-                            .fillMaxWidth()
-                            .height(92.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(46.dp, 14.dp, 14.dp, 46.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
-                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            PlayerConnection.previous()
-                        }
-                        // Playing: a firm squircle. Paused: it relaxes into a pill, and the icon morphs.
-                        val playCorner by animateDpAsState(if (state.isPlaying) 30.dp else 46.dp, WaveMotion.bouncy(), label = "playShape")
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .pressable(RoundedCornerShape(playCorner), c.primary, pressedScale = 0.94f) {
-                                    haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
-                                    PlayerConnection.togglePlay()
-                                }
-                                .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            PlayPauseIcon(state.isPlaying, c.onPrimary, size = 46.dp)
-                        }
-                        GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(14.dp, 46.dp, 46.dp, 14.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
-                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            PlayerConnection.next()
-                        }
-                    }
-
-                    // Labeled play modes
-                    Row(
-                        Modifier
-                            .padding(top = 10.dp)
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        ModeButton(
-                            Icons.Rounded.Shuffle,
-                            if (state.shuffle) "Shuffle on" else "Shuffle off",
-                            on = state.shuffle,
-                            modifier = Modifier.weight(1f),
-                        ) { PlayerConnection.toggleShuffle() }
-                        ModeButton(
-                            if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                            when (state.repeatMode) {
-                                Player.REPEAT_MODE_ALL -> "Repeat all"
-                                Player.REPEAT_MODE_ONE -> "Repeat one"
-                                else -> "Repeat off"
-                            },
-                            on = state.repeatMode != Player.REPEAT_MODE_OFF,
-                            modifier = Modifier.weight(1f),
-                        ) { PlayerConnection.cycleRepeat() }
-                    }
-                }
-
-                // Bottom tray: what's next + lyrics
-                // Song-colored tray that runs down behind the gesture bar.
-                Row(
-                    Modifier
-                        .padding(top = 16.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                        .background(c.primaryContainer.copy(alpha = 0.92f))
-                        .navigationBarsPadding()
-                        .height(68.dp)
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // What actually plays next, shuffle included.
-                    val next = state.upcoming.firstOrNull()?.let(state.queue::getOrNull)
-                    // Up next and Lyrics grow out of these buttons, and shrink back into them.
-                    Box(Modifier.weight(1f)) {
-                    MorphVisibility(!showQueue) {
-                    Row(
-                        Modifier
-                            .sharedContainer("queue", this, RoundedCornerShape(20.dp))
-                            .fillMaxWidth()
-                            .pressable(RoundedCornerShape(20.dp), pressedScale = 0.96f) { showQueue = true }
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onPrimaryContainer)
-                        Column {
-                            Text("Up next", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text(
-                                next?.let { "${it.title} · ${it.artist}" } ?: "End of queue",
-                                color = c.onPrimaryContainer.copy(alpha = 0.75f),
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    }
-                    }
-                    Box(Modifier.width(1.dp).height(32.dp).background(c.onPrimaryContainer.copy(alpha = 0.2f)))
-                    Box(Modifier.width(128.dp)) {
-                    MorphVisibility(!showLyrics) {
-                    Row(
-                        Modifier
-                            .sharedContainer("lyrics", this, RoundedCornerShape(20.dp))
-                            .fillMaxWidth()
-                            .pressable(RoundedCornerShape(20.dp), pressedScale = 0.94f) { showLyrics = true }
-                            .padding(10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Rounded.Lyrics, null, tint = c.onPrimaryContainer)
-                        Text("  Lyrics", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
-                    }
-                    }
-                }
+                Controls(state, song, position, Modifier.padding(horizontal = 20.dp))
+                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true })
             }
         }
         AnimatedVisibility(visible = showQueue, enter = EnterTransition.None, exit = ExitTransition.None) {
@@ -437,6 +278,343 @@ fun NowPlayingScreen(
         }
         AnimatedVisibility(visible = showLyrics, enter = EnterTransition.None, exit = ExitTransition.None) {
             LyricsScreen(state, onClose = { showLyrics = false }, modifier = Modifier.sharedContainer("lyrics", this, RoundedCornerShape(28.dp), fromTop = true))
+        }
+        }
+    }
+}
+
+@Composable
+private fun Header(state: PlayerUiState, song: NowPlaying, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        GlassCircle(Icons.Rounded.KeyboardArrowDown, "Collapse player", onClose)
+        state.context?.let {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                Text("PLAYING FROM", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
+                Text(it.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        val menu = LocalItemMenu.current
+        GlassCircle(Icons.Rounded.MoreVert, "More options") {
+            menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl))
+        }
+    }
+}
+
+/**
+ * The player on wide screens. The song's art, blurred, fills the window behind everything.
+ * - Roomy (tablets, unfolded Fold, Googlebook): the cover above the controls on the left, and
+ *   Lyrics / Up next always open in a panel on the right.
+ * - Short (landscape phones, small windows): the cover on the left, the controls on the right,
+ *   with Up next and Lyrics opening over the player like on a phone.
+ */
+@Composable
+private fun WideNowPlaying(
+    state: PlayerUiState,
+    song: NowPlaying,
+    position: androidx.compose.runtime.State<Long>,
+    roomy: Boolean,
+    showQueue: Boolean,
+    showLyrics: Boolean,
+    onClose: () -> Unit,
+    onQueue: () -> Unit,
+    onLyrics: () -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxSize()) {
+        Crossfade(song.artworkUrl?.atSize(ArtSize.BLUR), Modifier.fillMaxSize(), animationSpec = tween(320), label = "wideBackdrop") { art ->
+            BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.45f), 1f to c.background.copy(alpha = 0.82f))))
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Header(state, song, onClose)
+            Row(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(32.dp),
+            ) {
+                if (roomy) {
+                    Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Cover(song, minOf(maxWidth, maxHeight))
+                        }
+                        Controls(state, song, position, Modifier.widthIn(max = 560.dp).padding(top = 20.dp))
+                    }
+                    SidePanel(state, Modifier.weight(1f).fillMaxHeight())
+                } else {
+                    BoxWithConstraints(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
+                        Cover(song, minOf(maxWidth, maxHeight))
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                        Controls(state, song, position, dense = true)
+                        Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", showQueue, Modifier.weight(1f), onQueue)
+                            PanelButton(Icons.Rounded.Lyrics, "Lyrics", "lyrics", showLyrics, Modifier.weight(1f), onLyrics)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The cover as a big rounded card; a new song's cover fades in over the old one. */
+@Composable
+private fun Cover(song: NowPlaying, side: androidx.compose.ui.unit.Dp) {
+    AnimatedContent(
+        targetState = song.artworkUrl,
+        transitionSpec = { fadeIn(tween(320, easing = WaveMotion.Emphasized)) togetherWith fadeOut(tween(1, delayMillis = 320)) },
+        label = "cover",
+    ) { art ->
+        AsyncImage(
+            model = art,
+            contentDescription = song.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(side)
+                .shadow(28.dp, RoundedCornerShape(40.dp))
+                .clip(RoundedCornerShape(40.dp)),
+        )
+    }
+}
+
+/** Up next / Lyrics as buttons that grow into their pages (short wide layout). */
+@Composable
+private fun PanelButton(icon: ImageVector, label: String, key: String, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Box(modifier.fillMaxHeight()) {
+        MorphVisibility(!open) {
+            Row(
+                Modifier
+                    .sharedContainer(key, this, RoundedCornerShape(22.dp))
+                    .fillMaxSize()
+                    .pressable(RoundedCornerShape(22.dp), c.primaryContainer.copy(alpha = 0.92f), pressedScale = 0.95f, onClick = onClick),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(icon, null, tint = c.onPrimaryContainer)
+                Text("  $label", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+/** Roomy wide layout: Lyrics and Up next live side by side with the player, one tap apart. */
+@Composable
+private fun SidePanel(state: PlayerUiState, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    var tab by rememberSaveable { mutableStateOf(0) }
+    Column(
+        modifier
+            .clip(RoundedCornerShape(32.dp))
+            .background(Color.Black.copy(alpha = 0.2f)),
+    ) {
+        Row(Modifier.padding(12.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            listOf("Lyrics", "Up next").forEachIndexed { i, label ->
+                val on = tab == i
+                val fill by animateColorAsState(if (on) c.primary else c.surfaceContainerHighest.copy(alpha = 0.6f), tween(160), label = "panelTab")
+                val ink by animateColorAsState(if (on) c.onPrimary else c.onSurface, tween(160), label = "panelTabInk")
+                val shape = if (i == 0) RoundedCornerShape(22.dp, 8.dp, 8.dp, 22.dp) else RoundedCornerShape(8.dp, 22.dp, 22.dp, 8.dp)
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .pressable(shape, fill, pressedScale = 0.95f) { tab = i },
+                    contentAlignment = Alignment.Center,
+                ) { Text(label, color = ink, fontWeight = FontWeight.SemiBold) }
+            }
+        }
+        Crossfade(tab, Modifier.weight(1f).fillMaxWidth(), animationSpec = tween(200), label = "panel") { shown ->
+            if (shown == 0) {
+                LyricsScreen(state, onClose = {}, embedded = true)
+            } else {
+                QueueScreen(state, onClose = {}, embedded = true)
+            }
+        }
+    }
+}
+
+/** Title, like, progress, the play controls and the play modes. [dense] for short landscape screens. */
+@Composable
+private fun Controls(
+    state: PlayerUiState,
+    song: NowPlaying,
+    position: androidx.compose.runtime.State<Long>,
+    modifier: Modifier = Modifier,
+    dense: Boolean = false,
+) {
+    val c = MaterialTheme.colorScheme
+    val haptics = LocalHapticFeedback.current
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // The title slides the way you're going: next comes in from the right, back from the left.
+            AnimatedContent(
+                targetState = song,
+                contentKey = { it.videoId },
+                transitionSpec = {
+                    fun spot(s: NowPlaying) = state.playOrder.indexOf(state.queue.indexOfFirst { it.videoId == s.videoId })
+                    val dir = if (spot(targetState) >= spot(initialState)) 1 else -1
+                    (slideInHorizontally(tween(280, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 3 } + fadeIn(tween(180, delayMillis = 40))) togetherWith
+                        (slideOutHorizontally(tween(180, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 3 } + fadeOut(tween(110))) using
+                        SizeTransform(clip = false)
+                },
+                modifier = Modifier.weight(1f),
+                label = "title",
+            ) { shown ->
+                Column {
+                    Text(shown.title, color = c.onBackground, fontSize = if (dense) 24.sp else 32.sp, lineHeight = if (dense) 28.sp else 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(shown.artist, color = c.onSurfaceVariant, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            LikeButton(state.liked) {
+                haptics.performHapticFeedback(if (state.liked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                PlayerConnection.toggleLike()
+            }
+        }
+
+        Spacer(Modifier.height(if (dense) 8.dp else 16.dp))
+        WavyProgress(
+            progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
+            playing = state.isPlaying,
+            energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },
+            color = c.onBackground,
+            trackColor = c.onBackground.copy(alpha = 0.25f),
+            stroke = 5.dp,
+            amplitude = 4.dp,
+            wavelength = 24.dp,
+            showThumb = true,
+            onSeek = { PlayerConnection.seekTo((it * state.durationMs).toLong()) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(32.dp),
+        )
+        Times(position, state.durationMs, c.onSurfaceVariant)
+
+        // Connected group: previous · play/pause · next
+        Row(
+            Modifier
+                .padding(top = if (dense) 8.dp else 14.dp)
+                .fillMaxWidth()
+                .height(if (dense) 68.dp else 92.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(46.dp, 14.dp, 14.dp, 46.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
+                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                PlayerConnection.previous()
+            }
+            // Playing: a firm squircle. Paused: it relaxes into a pill, and the icon morphs.
+            val playCorner by animateDpAsState(if (state.isPlaying) 30.dp else 46.dp, WaveMotion.bouncy(), label = "playShape")
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .pressable(RoundedCornerShape(playCorner), c.primary, pressedScale = 0.94f) {
+                        haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                        PlayerConnection.togglePlay()
+                    }
+                    .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
+                contentAlignment = Alignment.Center,
+            ) {
+                PlayPauseIcon(state.isPlaying, c.onPrimary, size = if (dense) 36.dp else 46.dp)
+            }
+            GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(14.dp, 46.dp, 46.dp, 14.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
+                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                PlayerConnection.next()
+            }
+        }
+
+        // Labeled play modes
+        Row(
+            Modifier
+                .padding(top = if (dense) 6.dp else 10.dp)
+                .fillMaxWidth()
+                .height(if (dense) 40.dp else 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ModeButton(
+                Icons.Rounded.Shuffle,
+                if (state.shuffle) "Shuffle on" else "Shuffle off",
+                on = state.shuffle,
+                modifier = Modifier.weight(1f),
+            ) { PlayerConnection.toggleShuffle() }
+            ModeButton(
+                if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                when (state.repeatMode) {
+                    Player.REPEAT_MODE_ALL -> "Repeat all"
+                    Player.REPEAT_MODE_ONE -> "Repeat one"
+                    else -> "Repeat off"
+                },
+                on = state.repeatMode != Player.REPEAT_MODE_OFF,
+                modifier = Modifier.weight(1f),
+            ) { PlayerConnection.cycleRepeat() }
+        }
+    }
+}
+
+/** Song-colored tray behind the gesture bar: what's next, and lyrics. Each grows into its page. */
+@Composable
+private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, onQueue: () -> Unit, onLyrics: () -> Unit, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(c.primaryContainer.copy(alpha = 0.92f))
+            .navigationBarsPadding()
+            .height(68.dp)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // What actually plays next, shuffle included.
+        val next = state.upcoming.firstOrNull()?.let(state.queue::getOrNull)
+        // Up next and Lyrics grow out of these buttons, and shrink back into them.
+        Box(Modifier.weight(1f)) {
+        MorphVisibility(!showQueue) {
+        Row(
+            Modifier
+                .sharedContainer("queue", this, RoundedCornerShape(20.dp))
+                .fillMaxWidth()
+                .pressable(RoundedCornerShape(20.dp), pressedScale = 0.96f, onClick = onQueue)
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onPrimaryContainer)
+            Column {
+                Text("Up next", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    next?.let { "${it.title} · ${it.artist}" } ?: "End of queue",
+                    color = c.onPrimaryContainer.copy(alpha = 0.75f),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        }
+        }
+        Box(Modifier.width(1.dp).height(32.dp).background(c.onPrimaryContainer.copy(alpha = 0.2f)))
+        Box(Modifier.width(128.dp)) {
+        MorphVisibility(!showLyrics) {
+        Row(
+            Modifier
+                .sharedContainer("lyrics", this, RoundedCornerShape(20.dp))
+                .fillMaxWidth()
+                .pressable(RoundedCornerShape(20.dp), pressedScale = 0.94f, onClick = onLyrics)
+                .padding(10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Lyrics, null, tint = c.onPrimaryContainer)
+            Text("  Lyrics", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
         }
         }
     }

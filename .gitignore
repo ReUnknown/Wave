@@ -7,3 +7,6 @@ local.properties
 .DS_Store
 captures/
 dist/
+
+# Release signing key and its passwords: never commit, back up privately.
+keystore/

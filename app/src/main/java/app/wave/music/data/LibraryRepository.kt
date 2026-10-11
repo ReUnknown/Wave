@@ -18,6 +18,10 @@ object LibraryRepository {
     private val _version = MutableStateFlow(0)
     val version: StateFlow<Int> = _version.asStateFlow()
 
+    fun clear() {
+        _playlists.value = emptyList()
+    }
+
     /** Playlist id as the edit endpoints expect it (no "VL" prefix). */
     fun idOf(playlist: PlaylistItem) = playlist.id.removePrefix("VL")
 

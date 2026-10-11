@@ -1,5 +1,15 @@
 package app.wave.music.ui.detail
 
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.BlurredImage
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -111,6 +121,7 @@ sealed interface Destination {
     data object History : Destination { override val id = "history" }
     data object Playlists : Destination { override val id = "playlists" }
     data object Saved : Destination { override val id = "saved" }
+    data object Settings : Destination { override val id = "settings" }
 
     companion object {
         fun of(item: YTItem): Destination? = when (item) {
@@ -151,10 +162,15 @@ private sealed interface Load<out T> {
  * Pages you opened recently, so going back to one is instant instead of reloading it. Memory
  * only (nothing is written to storage), at most [MAX] pages, each trusted for [FRESH_MS].
  */
+/** Sign-out: forget pages the last account opened. */
+fun clearPageCache() = PageCache.clear()
+
 private object PageCache {
     private const val MAX = 12
     private const val FRESH_MS = 10 * 60_000L
     private val entries = android.util.LruCache<Any, Pair<Long, Any?>>(MAX)
+
+    fun clear() = entries.evictAll()
 
     fun get(key: Any): Any? = entries.get(key)?.takeIf { System.currentTimeMillis() - it.first < FRESH_MS }?.second
 
@@ -164,15 +180,15 @@ private object PageCache {
 }
 
 @Composable
-private fun <T> rememberLoad(key: Any, block: suspend () -> Result<T>): Pair<Load<T>, () -> Unit> {
+private fun <T> rememberLoad(key: Any, cache: Boolean = true, block: suspend () -> Result<T>): Pair<Load<T>, () -> Unit> {
     var attempt by remember { mutableIntStateOf(0) }
     @Suppress("UNCHECKED_CAST")
-    var state by remember(key) { mutableStateOf<Load<T>>(PageCache.get(key)?.let { Load.Ready(it as T) } ?: Load.Loading) }
+    var state by remember(key) { mutableStateOf<Load<T>>((if (cache) PageCache.get(key) else null)?.let { Load.Ready(it as T) } ?: Load.Loading) }
     LaunchedEffect(key, attempt) {
         // Already here from a recent visit: show it as it was, no reload.
         if (attempt == 0 && state is Load.Ready) return@LaunchedEffect
         state = Load.Loading
-        state = block().fold({ PageCache.put(key, it); Load.Ready(it) }, { Load.Failed })
+        state = block().fold({ if (cache) PageCache.put(key, it); Load.Ready(it) }, { Load.Failed })
     }
     return state to { attempt++ }
 }
@@ -194,6 +210,7 @@ fun DetailScreen(
         Destination.History -> HistoryScreen(actions)
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
+        Destination.Settings -> app.wave.music.ui.settings.SettingsScreen(onBack = actions.back)
     }
     }
 }
@@ -256,9 +273,23 @@ private fun <T> PageFrame(
                     }
                     is Load.Ready -> {
                         val info = header(load.value)
-                        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 140.dp)) {
-                            item { Hero(info) }
-                            content(load.value)
+                        val config = LocalConfiguration.current
+                        if (config.screenWidthDp >= 600 && config.screenWidthDp > config.screenHeightDp) {
+                            // Side by side on wide screens, over the art blurred across the window.
+                            BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
+                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.55f), 1f to c.background.copy(alpha = 0.88f))))
+                            Row(Modifier.fillMaxSize()) {
+                                SideHero(info, Modifier.weight(0.42f).fillMaxHeight())
+                                LazyColumn(
+                                    Modifier.weight(0.58f).fillMaxHeight(),
+                                    contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = 140.dp, end = 16.dp),
+                                ) { content(load.value) }
+                            }
+                        } else {
+                            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 140.dp)) {
+                                item { Hero(info) }
+                                content(load.value)
+                            }
                         }
                     }
                 }
@@ -297,6 +328,72 @@ private fun <T> PageFrame(
     }
 }
 
+/** Play and shuffle (or the page's own two actions) as a connected pair. */
+@Composable
+private fun HeroButtons(info: HeaderInfo) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            Modifier
+                .weight(1f)
+                .fillMaxSize()
+                .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = info.onPrimary),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(info.primary.second, null, tint = c.onPrimary)
+            Text("  ${info.primary.first}", color = c.onPrimary, fontWeight = FontWeight.Bold)
+        }
+        Row(
+            Modifier
+                .weight(1f)
+                .fillMaxSize()
+                .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.95f, onClick = info.onSecondary),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(info.secondary.second, null, tint = c.onBackground)
+            Text("  ${info.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/** Wide screens: the page's cover, title and actions in a column beside its songs. */
+@Composable
+private fun SideHero(info: HeaderInfo, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    Column(
+        modifier
+            .statusBarsPadding()
+            .padding(start = 32.dp, end = 16.dp, top = 72.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        BoxWithConstraints(Modifier.weight(1f, fill = false)) {
+            val side = minOf(maxWidth, maxHeight, 380.dp)
+            AsyncImage(
+                model = info.art?.atSize(ArtSize.CARD),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(side)
+                    .shadow(24.dp, RoundedCornerShape(36.dp))
+                    .clip(RoundedCornerShape(36.dp)),
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(info.eyebrow, style = MaterialTheme.typography.labelSmall, color = c.primary)
+        Text(info.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        info.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.widthIn(max = 420.dp)) { HeroButtons(info) }
+    }
+}
+
 @Composable
 private fun Hero(info: HeaderInfo) {
     val c = MaterialTheme.colorScheme
@@ -320,35 +417,7 @@ private fun Hero(info: HeaderInfo) {
             Text(info.title, style = MaterialTheme.typography.displayMedium, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
             info.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             Spacer(Modifier.height(16.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                        .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = info.onPrimary),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(info.primary.second, null, tint = c.onPrimary)
-                    Text("  ${info.primary.first}", color = c.onPrimary, fontWeight = FontWeight.Bold)
-                }
-                Row(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                        .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.95f, onClick = info.onSecondary),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(info.secondary.second, null, tint = c.onBackground)
-                    Text("  ${info.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold)
-                }
-            }
+            HeroButtons(info)
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -562,7 +631,7 @@ private fun PlaylistScreen(playlistId: String, actions: PageActions) {
 
 @Composable
 private fun HistoryScreen(actions: PageActions) {
-    val (load, retry) = rememberLoad("history") {
+    val (load, retry) = rememberLoad("history", cache = false) {
         YouTube.musicHistory().map { page -> page.sections.orEmpty().map { it.title to it.songs.filter(::isMusic) }.filter { it.second.isNotEmpty() } }
     }
     val sections = (load as? Load.Ready)?.value

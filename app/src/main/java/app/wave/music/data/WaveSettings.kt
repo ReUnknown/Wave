@@ -20,6 +20,14 @@ data class Settings(
     val skipSilence: Boolean = false,
     /** When the queue runs out, keep going with songs like the last one. */
     val autoplay: Boolean = true,
+    /** Turn down songs mastered louder than YouTube's reference, so everything plays at an even volume. */
+    val evenVolume: Boolean = true,
+    /** Seconds songs overlap as one fades into the next; 0 = off. */
+    val crossfadeSeconds: Int = 0,
+    /** In the background, let the phone's audio chip decode music (saves battery). */
+    val lowPowerPlayback: Boolean = true,
+    /** Look for a new version of Wave on GitHub once a day. */
+    val checkUpdates: Boolean = true,
 )
 
 private val Context.settingsStore by preferencesDataStore("settings")
@@ -31,6 +39,10 @@ object WaveSettings {
     private val quality = stringPreferencesKey("audio_quality")
     private val silence = booleanPreferencesKey("skip_silence")
     private val auto = booleanPreferencesKey("autoplay")
+    private val even = booleanPreferencesKey("even_volume")
+    private val crossfade = androidx.datastore.preferences.core.intPreferencesKey("crossfade_seconds")
+    private val lowPower = booleanPreferencesKey("low_power_playback")
+    private val updates = booleanPreferencesKey("check_updates")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -45,6 +57,10 @@ object WaveSettings {
             audioQuality = p[quality]?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: AudioQuality.HIGH,
             skipSilence = p[silence] ?: false,
             autoplay = p[auto] ?: true,
+            evenVolume = p[even] ?: true,
+            crossfadeSeconds = p[crossfade] ?: 0,
+            lowPowerPlayback = p[lowPower] ?: true,
+            checkUpdates = p[updates] ?: true,
         )
         loaded = true
     }
@@ -58,6 +74,10 @@ object WaveSettings {
             it[quality] = next.audioQuality.name
             it[silence] = next.skipSilence
             it[auto] = next.autoplay
+            it[even] = next.evenVolume
+            it[crossfade] = next.crossfadeSeconds
+            it[lowPower] = next.lowPowerPlayback
+            it[updates] = next.checkUpdates
         }
     }
 }

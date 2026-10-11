@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.foundation.layout.widthIn
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
 import androidx.activity.compose.BackHandler
@@ -40,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,8 +90,14 @@ private fun entriesFor(indices: List<Int>, queue: List<NowPlaying>): List<QueueE
  * Below, the songs coming up, drag to reorder.
  */
 @Composable
-fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    val back = predictiveBack(onBack = onClose)
+fun QueueScreen(
+    state: PlayerUiState,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Shown inside the player on wide screens: no backdrop or close button of its own. */
+    embedded: Boolean = false,
+) {
+    val back = predictiveBack(enabled = !embedded, onBack = onClose)
     val current = state.current ?: return
     val c = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -98,20 +106,22 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
     val order = state.playOrder
     val currentPage = order.indexOf(state.index).coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = currentPage) { order.size }
-    var userSwiping by remember { mutableStateOf(false) }
 
     // Follow the player when the song changes on its own.
     LaunchedEffect(currentPage) {
         if (pager.currentPage != currentPage && !pager.isScrollInProgress) pager.animateScrollToPage(currentPage)
     }
-    // Swiping to a cover and letting it settle plays that song.
+    // Swiping to a cover with your finger and letting it settle plays that song. Only real drags
+    // count: the coverflow sliding by itself to follow the player must never pick a song.
     LaunchedEffect(pager) {
+        var dragged = false
+        launch {
+            pager.interactionSource.interactions.collect { if (it is DragInteraction.Start) dragged = true }
+        }
         snapshotFlow { pager.isScrollInProgress }.collect { scrolling ->
-            if (scrolling) {
-                userSwiping = true
-            } else if (userSwiping) {
-                userSwiping = false
-                val target = order.getOrNull(pager.settledPage)
+            if (!scrolling && dragged) {
+                dragged = false
+                val target = PlayerConnection.state.value.playOrder.getOrNull(pager.settledPage)
                 if (target != null && target != PlayerConnection.state.value.index) {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     PlayerConnection.skipTo(target)
@@ -149,18 +159,19 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
         modifier
             .backGesture(back)
             .fillMaxSize()
-            .blocksTouchesBelow()
-            .background(c.background),
+            .then(if (embedded) Modifier else Modifier.blocksTouchesBelow().background(c.background)),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        BlurredImage(
+        if (!embedded) BlurredImage(
             model = current.artworkUrl?.atSize(ArtSize.BLUR),
             radius = 80.dp,
+            fadeBottom = 0.4f,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(600.dp)
                 .graphicsLayer { scaleX = 1.3f; scaleY = 1.3f },
         )
-        Box(
+        if (!embedded) Box(
             Modifier
                 .fillMaxSize()
                 .background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.25f), 0.45f to c.background.copy(alpha = 0.7f), 0.75f to c.background)),
@@ -168,11 +179,12 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
 
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            // A readable width on big screens.
+            modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item {
-                Column(Modifier.statusBarsPadding()) {
+                Column(if (embedded) Modifier else Modifier.statusBarsPadding()) {
                     Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text("Up next", color = c.onBackground, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)
@@ -184,7 +196,7 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        Box(
+                        if (!embedded) Box(
                             Modifier
                                 .size(48.dp)
                                 .pressable(CircleShape, Color.Black.copy(alpha = 0.28f), pressedScale = 0.86f, onClick = onClose),
@@ -222,7 +234,16 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
                                     }
                                     .shadow(22.dp, RoundedCornerShape(38.dp))
                                     .clip(RoundedCornerShape(38.dp))
-                                    .clickable { scope.launch { pager.animateScrollToPage(page) } },
+                                    .clickable {
+                                        // Tapping a cover plays it; the coverflow then follows the player there.
+                                        order.getOrNull(page)?.let { target ->
+                                            if (target != state.index) {
+                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                PlayerConnection.skipTo(target)
+                                                PlayerConnection.play()
+                                            }
+                                        }
+                                    },
                             )
                         }
                     }

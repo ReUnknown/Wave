@@ -34,6 +34,10 @@ object HomeRepository {
     @Volatile private var cached: Pair<Long, HomeFeed>? = null
     private const val FRESH_FOR_MS = 15 * 60_000L
 
+    fun clear() {
+        cached = null
+    }
+
     /**
      * Home, as fast as possible: a recent cached feed right away; otherwise the first page as soon
      * as it arrives (with history fetched alongside), then again once the extra pages are in.

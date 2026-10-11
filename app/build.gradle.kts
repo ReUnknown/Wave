@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -11,25 +13,34 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 100
-        versionName = "0.9.9"
+        versionCode = 101
+        versionName = "1.0.0-beta"
+    }
+
+    // Wave's own signing key (keystore/, never committed). Release builds must always use the
+    // same key, or Android won't install them as updates.
+    val keystoreProps = rootProject.file("keystore/keystore.properties")
+    signingConfigs {
+        if (keystoreProps.exists()) {
+            val props = Properties().apply { keystoreProps.inputStream().use { load(it) } }
+            create("release") {
+                storeFile = rootProject.file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
+        // The real build: code shrunk and optimized by R8, not debuggable (so Android runs it fully
+        // optimized), Compose's startup profiles installed, signed with Wave's own key.
         release {
-            isMinifyEnabled = false
-        }
-        // A test build with release-level speed: code shrunk and optimized by R8, not debuggable
-        // (so Android runs it fully optimized), Compose's startup profiles installed. Signed with
-        // the debug key, so it installs over (and keeps the data of) the debug build.
-        // 1.0 will get a real release build with its own key.
-        create("fast") {
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

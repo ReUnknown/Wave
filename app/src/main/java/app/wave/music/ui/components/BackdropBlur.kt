@@ -136,10 +136,16 @@ fun ProgressiveBlurImage(
     }
 }
 
-/** The whole image blurred evenly (drawn small and scaled up, so it's cheap). */
+/**
+ * The whole image blurred evenly (drawn small and scaled up, so it's cheap). [fadeBottom] fades
+ * out that fraction of its height, for backdrops that shouldn't end in a hard edge.
+ */
 @Composable
-fun BlurredImage(model: Any?, modifier: Modifier = Modifier, radius: Dp = 64.dp) {
-    LowResBlur(radius, modifier) {
+fun BlurredImage(model: Any?, modifier: Modifier = Modifier, radius: Dp = 64.dp, fadeBottom: Float = 0f) {
+    val fade = if (fadeBottom > 0f) {
+        Modifier.maskedBy(Brush.verticalGradient(0f to Color.Black, (1f - fadeBottom) to Color.Black, 1f to Color.Transparent))
+    } else Modifier
+    LowResBlur(radius, modifier.then(fade)) {
         AsyncImage(model, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
     }
 }

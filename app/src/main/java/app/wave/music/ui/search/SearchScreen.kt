@@ -1,5 +1,6 @@
 package app.wave.music.ui.search
 
+import androidx.compose.foundation.layout.widthIn
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
 import androidx.activity.compose.BackHandler
@@ -61,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -219,6 +221,7 @@ fun SearchScreen(
                         .clipToBounds()
                         .graphicsLayer { scaleX = 1.3f; scaleY = 1.3f },
                     radius = 90.dp,
+                    fadeBottom = 0.4f,
                 )
                 Box(
                     Modifier
@@ -250,6 +253,8 @@ fun SearchScreen(
 
             LazyColumn(
                 Modifier
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 900.dp)
                     .fillMaxSize()
                     .nestedScroll(hideKeyboardOnScroll)
                     .imePadding(),
@@ -340,7 +345,7 @@ fun SearchScreen(
                     .height(statusTop + if (showingResults) 132.dp else 80.dp)
                     .background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.7f), 0.7f to c.background.copy(alpha = 0.35f), 1f to Color.Transparent)),
             )
-            Column(Modifier.statusBarsPadding()) {
+            Column(Modifier.align(Alignment.TopCenter).widthIn(max = 900.dp).statusBarsPadding()) {
                 Row(
                     Modifier
                         .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -366,7 +371,9 @@ fun SearchScreen(
                             keyboardActions = KeyboardActions(onSearch = { submit(query) }),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .focusRequester(focus),
+                                .focusRequester(focus)
+                                // Space types here instead of pausing the music.
+                                .onFocusChanged { app.wave.music.ui.components.Shortcuts.typing = it.isFocused },
                         )
                     }
                     if (query.isNotEmpty()) {

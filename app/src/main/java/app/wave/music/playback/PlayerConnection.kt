@@ -49,7 +49,6 @@ object PlayerConnection {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
     private lateinit var appContext: Context
-    private val liked = mutableSetOf<String>()
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
@@ -86,6 +85,7 @@ object PlayerConnection {
                 })
             }
             publish()
+            scope.launch { app.wave.music.data.Likes.ids.collect { publish() } }
             // Keep the saved position fresh while playing, in case Android closes the app.
             scope.launch {
                 while (true) {
@@ -96,8 +96,8 @@ object PlayerConnection {
         }, MoreExecutors.directExecutor())
     }
 
-    private val queueFile get() = java.io.File(appContext.filesDir, "queue.json")
-    private val queueStateFile get() = java.io.File(appContext.filesDir, "queue-state.json")
+    private val queueFile get() = QueueStore.itemsFile(appContext)
+    private val queueStateFile get() = QueueStore.stateFile(appContext)
 
     /** The song list only needs rewriting when it changed; position saves are tiny. */
     private var itemsSaved = false
@@ -111,6 +111,7 @@ object PlayerConnection {
             put("position", c.currentPosition)
             put("shuffle", c.shuffleModeEnabled)
             put("repeat", c.repeatMode)
+            if (c.shuffleModeEnabled && orderCache.size == c.mediaItemCount) put("order", org.json.JSONArray(orderCache))
         }.toString()
         if (itemsSaved) {
             scope.launch(Dispatchers.IO) { runCatching { queueStateFile.writeText(state) } }
@@ -144,36 +145,27 @@ object PlayerConnection {
 
     /** Puts the last queue back (paused) when the app starts with nothing playing. */
     private fun restoreQueue(c: MediaController) {
-        val json = runCatching { org.json.JSONObject(queueFile.readText()) }.getOrNull() ?: return
-        // Where you were lives in its own small file (older saves kept it in queue.json).
-        val spot = runCatching { org.json.JSONObject(queueStateFile.readText()) }.getOrNull() ?: json
-        val array = json.optJSONArray("items") ?: return
-        val items = (0 until array.length()).map { i ->
-            val o = array.getJSONObject(i)
-            WaveService.mediaItem(
-                videoId = o.getString("id"),
-                title = o.optString("title"),
-                artist = o.optString("artist"),
-                artworkUrl = o.optString("art").ifBlank { null },
-                album = o.optString("album").ifBlank { null },
-                durationMs = o.optLong("duration", -1L).takeIf { it > 0 },
-            )
-        }
-        if (items.isEmpty()) return
-        json.optJSONObject("context")?.let { o ->
-            playbackContext = PlaybackContext(
-                id = o.optString("id"),
-                title = o.optString("title"),
-                artworkUrl = o.optString("art").ifBlank { null },
-                playlistId = o.optString("playlistId").ifBlank { null },
-                isCollection = o.optBoolean("collection"),
-            )
-        }
-        c.shuffleModeEnabled = spot.optBoolean("shuffle")
-        c.repeatMode = spot.optInt("repeat")
-        c.setMediaItems(items, spot.optInt("index").coerceIn(0, items.size - 1), spot.optLong("position"))
+        val saved = QueueStore.read(appContext) ?: return
+        playbackContext = saved.context
+        c.shuffleModeEnabled = saved.shuffle
+        c.repeatMode = saved.repeatMode
+        c.setMediaItems(saved.items, saved.index, saved.positionMs)
+        // Shuffled: play on in the same shuffled order as before.
+        if (saved.shuffle && saved.order != null) c.sendCustomCommand(WaveService.setOrderCommand, WaveService.orderArgs(saved.order))
         itemsSaved = true
         c.prepare()
+    }
+
+    /** Sign-out: stop, and forget the queue and where you were. */
+    fun reset() {
+        controller?.run {
+            stop()
+            clearMediaItems()
+        }
+        playbackContext = null
+        QueueStore.clear(appContext)
+        itemsSaved = false
+        queueChanged()
     }
 
     val position: Long get() = controller?.currentPosition ?: 0L
@@ -220,7 +212,7 @@ object PlayerConnection {
             index = c.currentMediaItemIndex,
             queue = queueCache,
             context = playbackContext,
-            liked = current?.videoId in liked,
+            liked = current != null && app.wave.music.data.Likes.isLiked(current.videoId),
             upcoming = if (spot >= 0) orderCache.subList(spot + 1, orderCache.size) else upcomingOrder(c),
             playOrder = orderCache,
         )
@@ -299,46 +291,8 @@ object PlayerConnection {
         }
     }
 
-    /** Learns which songs you've already liked, from your Liked music playlist. */
-    private val likesFile get() = java.io.File(appContext.filesDir, "likes.txt")
-    private const val LIKES_FRESH_MS = 6 * 60 * 60_000L
-
-    /**
-     * Learns which songs you've already liked. The list is kept on the phone, so it's there
-     * instantly, and only re-read from YouTube (up to 50 pages) when it's more than 6 hours old.
-     */
-    suspend fun loadLikes() {
-        val file = likesFile
-        val saved = withContext(Dispatchers.IO) { runCatching { file.readLines().filter { it.isNotBlank() } }.getOrNull() }
-        if (saved != null) {
-            liked += saved
-            publish()
-            if (System.currentTimeMillis() - file.lastModified() < LIKES_FRESH_MS) return
-        }
-        val ids = withContext(Dispatchers.IO) {
-            runCatching {
-                val first = YouTube.playlist("LM").getOrThrow()
-                val all = first.songs.map { it.id }.toMutableList()
-                var next = first.songsContinuation ?: first.continuation
-                var pages = 0
-                while (next != null && pages++ < 50) {
-                    val more = YouTube.playlistContinuation(next).getOrNull() ?: break
-                    all += more.songs.map { it.id }
-                    next = more.continuation
-                }
-                all
-            }.getOrNull()
-        } ?: return
-        liked.clear()
-        liked += ids
-        publish()
-        saveLikes()
-    }
-
-    private fun saveLikes() {
-        val snapshot = liked.toList()
-        scope.launch(Dispatchers.IO) { runCatching { likesFile.writeText(snapshot.joinToString("\n")) } }
-    }
+    /** Learns which songs you've already liked (see [app.wave.music.data.Likes]). */
+    suspend fun loadLikes() = app.wave.music.data.Likes.load(appContext)
 
     private fun saveResume() {
         val c = controller ?: return
@@ -378,8 +332,11 @@ object PlayerConnection {
             scope.launch {
                 val extra = withContext(Dispatchers.IO) { runCatching { loadMore() }.getOrDefault(emptyList()) }
                 // Only append if you're still listening to the same thing.
-                if (extra.isNotEmpty() && playbackContext?.id == contextId) {
-                    controller?.addMediaItems(extra)
+                val ctl = controller
+                val have = ctl?.let { (0 until it.mediaItemCount).map { i -> it.getMediaItemAt(i).mediaId }.toSet() }.orEmpty()
+                val fresh = extra.filter { it.mediaId !in have }
+                if (fresh.isNotEmpty() && playbackContext?.id == contextId) {
+                    ctl?.addMediaItems(fresh)
                     queueChanged()
                 }
             }
@@ -430,15 +387,10 @@ object PlayerConnection {
 
     fun toggleLike() {
         val id = _state.value.current?.videoId ?: return
-        setLiked(id, id !in liked)
+        setLiked(id, !app.wave.music.data.Likes.isLiked(id))
     }
 
-    fun isLiked(videoId: String) = videoId in liked
+    fun isLiked(videoId: String) = app.wave.music.data.Likes.isLiked(videoId)
 
-    fun setLiked(videoId: String, like: Boolean) {
-        if (like) liked += videoId else liked -= videoId
-        publish()
-        saveLikes()
-        scope.launch(Dispatchers.IO) { YouTube.likeVideo(videoId, like) }
-    }
+    fun setLiked(videoId: String, like: Boolean) = app.wave.music.data.Likes.set(appContext, videoId, like)
 }

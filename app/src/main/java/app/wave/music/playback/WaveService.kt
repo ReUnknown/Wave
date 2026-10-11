@@ -34,7 +34,16 @@ import androidx.media3.extractor.mp4.FragmentedMp4Extractor
 import androidx.media3.extractor.mp4.Mp4Extractor
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.CommandButton
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import androidx.media3.common.TrackSelectionParameters
+import android.os.Bundle
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.flow.distinctUntilChanged
 import app.wave.music.MainActivity
+import app.wave.music.widget.WaveWidget
 import com.metrolist.innertube.YouTube
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +71,94 @@ class WaveService : MediaSessionService() {
 
     private val streams = ConcurrentHashMap<String, ResolvedStream>()
     private val reported = ConcurrentHashMap.newKeySet<String>()
+    /** Each song's loudness vs. YouTube's reference (dB), for even volume. */
+    private val loudness = ConcurrentHashMap<String, Double>()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private lateinit var player: ExoPlayer
+    private lateinit var shuffling: ShufflingPlayer
+    private lateinit var crossfader: Crossfader
+
+    /**
+     * Even volume: songs mastered louder than the reference are turned down to it (quieter ones
+     * are left alone; boosting would clip). Works the same with low-power playback.
+     */
+    private fun gainFor(id: String?): Float {
+        if (id == null || !WaveSettings.state.value.evenVolume) return 1f
+        val db = loudness[id] ?: return 1f
+        if (db <= 0.0) return 1f
+        return Math.pow(10.0, -db / 20.0).toFloat().coerceIn(0.2f, 1f)
+    }
+
+    private fun applyGain() {
+        if (::crossfader.isInitialized && crossfader.isFading) return
+        player.volume = gainFor(player.currentMediaItem?.mediaId)
+    }
+
+    private val likeCommand = SessionCommand(ACTION_LIKE, Bundle.EMPTY)
+    private val shuffleCommand = SessionCommand(ACTION_SHUFFLE, Bundle.EMPTY)
+
+    /** Like and shuffle on the lock screen, notification and Pixel's media controls. */
+    private fun updateButtons() {
+        val id = player.currentMediaItem?.mediaId
+        val liked = id != null && app.wave.music.data.Likes.isLiked(id)
+        val like = CommandButton.Builder(if (liked) CommandButton.ICON_THUMB_UP_FILLED else CommandButton.ICON_THUMB_UP_UNFILLED)
+            .setDisplayName(if (liked) "Liked" else "Like")
+            .setSessionCommand(likeCommand)
+            .setSlots(CommandButton.SLOT_OVERFLOW)
+            .build()
+        val shuffle = CommandButton.Builder(if (player.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF)
+            .setDisplayName(if (player.shuffleModeEnabled) "Shuffle on" else "Shuffle off")
+            .setSessionCommand(shuffleCommand)
+            .setSlots(CommandButton.SLOT_OVERFLOW)
+            .build()
+        session?.setMediaButtonPreferences(listOf(like, shuffle))
+    }
+
+    private val callback = object : MediaSession.Callback {
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                .add(likeCommand)
+                .add(shuffleCommand)
+                .add(setOrderCommand)
+                .build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands).build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            when (customCommand.customAction) {
+                ACTION_LIKE -> player.currentMediaItem?.mediaId?.let { id ->
+                    app.wave.music.data.Likes.set(this@WaveService, id, !app.wave.music.data.Likes.isLiked(id))
+                }
+                ACTION_SHUFFLE -> shuffling.shuffleModeEnabled = !player.shuffleModeEnabled
+                ACTION_SET_ORDER -> args.getIntArray(KEY_ORDER)?.let { shuffling.restoreOrder(it.toList()) }
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+
+        /** Play pressed on the widget, lock screen or Pixel's media controls with nothing loaded: bring back the last queue. */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val saved = QueueStore.read(this@WaveService)
+                ?: return Futures.immediateFailedFuture(UnsupportedOperationException("Nothing to resume"))
+            main.post {
+                player.repeatMode = saved.repeatMode
+                if (saved.shuffle) {
+                    shuffling.shuffleModeEnabled = true
+                    saved.order?.let(shuffling::restoreOrder)
+                }
+            }
+            return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(saved.items, saved.index, saved.positionMs))
+        }
+    }
+
 
     override fun onCreate() {
         super.onCreate()
@@ -80,6 +177,11 @@ class WaveService : MediaSessionService() {
             .setUpstreamDataSourceFactory(DefaultDataSource.Factory(this, StreamDataSource.Factory(http)))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val resolving = ResolvingDataSource.Factory(cached, ::resolve)
+        val sources = DefaultMediaSourceFactory(
+            resolving,
+            ExtractorsFactory { arrayOf(MatroskaExtractor(), FragmentedMp4Extractor(), Mp4Extractor()) },
+        )
+        val musicAttributes = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
 
         // Measures loudness and beats on the way to the speaker, for "Move with the music".
         val renderers = object : DefaultRenderersFactory(this) {
@@ -89,24 +191,28 @@ class WaveService : MediaSessionService() {
                     .build()
         }
         val player = ExoPlayer.Builder(this, renderers)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(
-                    resolving,
-                    ExtractorsFactory { arrayOf(MatroskaExtractor(), FragmentedMp4Extractor(), Mp4Extractor()) },
-                ),
-            )
-            .setAudioAttributes(
-                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
-                true,
-            )
+            .setMediaSourceFactory(sources)
+            .setAudioAttributes(musicAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        this.player = player
+        // The crossfade's second voice: no audio focus of its own, it only ever plays a fading tail.
+        val tail = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(sources)
+            .setAudioAttributes(musicAttributes, false)
+            .build()
+        crossfader = Crossfader(player, tail, ::gainFor)
+        scope.launch(Dispatchers.Main) {
+            while (true) delay(crossfader.tick())
+        }
 
         var lastQuality = WaveSettings.state.value.audioQuality
         scope.launch(Dispatchers.Main) {
             WaveSettings.state.collect { settings ->
                 player.skipSilenceEnabled = settings.skipSilence
+                crossfader.seconds = settings.crossfadeSeconds
+                applyGain()
                 if (settings.audioQuality != lastQuality) {
                     lastQuality = settings.audioQuality
                     streams.clear() // new quality applies from the next song
@@ -114,11 +220,49 @@ class WaveService : MediaSessionService() {
             }
         }
 
+        // Low-power playback: while Wave isn't on screen, the phone's audio chip decodes the music
+        // (Media3 audio offload) and the main processor can sleep. On screen, audio goes through
+        // the normal path so "Move with the music" can listen to it. Skip silence needs the normal
+        // path too. Phones that can't offload a format just keep using the normal path.
+        scope.launch(Dispatchers.Main) {
+            kotlinx.coroutines.flow.combine(WaveSettings.state, BeatBus.visibleFlow) { s, visible ->
+                s.lowPowerPlayback && !visible && !s.skipSilence
+            }.distinctUntilChanged().collect { offload ->
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setAudioOffloadPreferences(
+                        TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                            .setAudioOffloadMode(
+                                if (offload) TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                                else TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED,
+                            )
+                            .build(),
+                    )
+                    .build()
+                Timber.d("Low-power playback %s", if (offload) "on" else "off")
+            }
+        }
+        scope.launch(Dispatchers.Main) {
+            app.wave.music.data.Likes.ids.collect {
+                if (session != null) updateButtons()
+                WaveWidget.update(this@WaveService, player)
+            }
+        }
+
         player.addListener(object : Player.Listener {
             private var failures = 0
 
+            override fun onEvents(player: Player, events: Player.Events) {
+                if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) updateButtons()
+                if (events.containsAny(
+                        Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED,
+                        Player.EVENT_MEDIA_METADATA_CHANGED, Player.EVENT_TIMELINE_CHANGED,
+                    )
+                ) WaveWidget.update(this@WaveService, this@WaveService.player)
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 failures = 0
+                applyGain()
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) recoverIfCutShort(player, ended = false)
             }
 
@@ -159,7 +303,12 @@ class WaveService : MediaSessionService() {
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        session = MediaSession.Builder(this, ShufflingPlayer(player)).setSessionActivity(openApp).build()
+        shuffling = ShufflingPlayer(player)
+        session = MediaSession.Builder(this, shuffling)
+            .setSessionActivity(openApp)
+            .setCallback(callback)
+            .build()
+        updateButtons()
     }
 
     private var watchedId: String? = null
@@ -206,7 +355,16 @@ class WaveService : MediaSessionService() {
         // still needs its real URL for the rest, or playback stops where the saved part ends.
         val total = ContentMetadata.getContentLength(cache.getContentMetadata(videoId))
         val wanted = if (spec.length >= 0) spec.length else if (total > 0) total - spec.position else -1L
-        if (wanted > 0 && cache.isCached(videoId, spec.position, wanted)) return spec
+        if (wanted > 0 && cache.isCached(videoId, spec.position, wanted)) {
+            // Fully saved: its loudness was saved alongside it.
+            if (!loudness.containsKey(videoId)) {
+                cache.getContentMetadata(videoId).get(LOUDNESS_KEY, null as String?)?.toDoubleOrNull()?.let {
+                    loudness[videoId] = it
+                    main.post { if (player.currentMediaItem?.mediaId == videoId) applyGain() }
+                }
+            }
+            return spec
+        }
 
         val now = System.currentTimeMillis()
         val stream = streams[videoId]?.takeIf { it.expiresAt > now } ?: runBlocking {
@@ -219,6 +377,13 @@ class WaveService : MediaSessionService() {
             data.playbackTracking?.videostatsPlaybackUrl?.baseUrl?.let { tracking ->
                 // Count the play on YouTube Music so history and recommendations stay accurate.
                 if (reported.add(videoId)) scope.launch { YouTube.registerPlayback(playbackTracking = tracking) }
+            }
+            data.format.loudnessDb?.let { db ->
+                loudness[videoId] = db
+                runCatching {
+                    cache.applyContentMetadataMutations(videoId, ContentMetadataMutations().set(LOUDNESS_KEY, db.toString()))
+                }
+                main.post { if (player.currentMediaItem?.mediaId == videoId) applyGain() }
             }
             ResolvedStream(
                 url = data.streamUrl,
@@ -259,6 +424,7 @@ class WaveService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        if (::crossfader.isInitialized) crossfader.release()
         session?.run {
             player.release()
             release()
@@ -269,6 +435,16 @@ class WaveService : MediaSessionService() {
     }
 
     companion object {
+        private const val ACTION_LIKE = "wave.like"
+        private const val ACTION_SHUFFLE = "wave.shuffle"
+        private const val ACTION_SET_ORDER = "wave.set_order"
+        private const val KEY_ORDER = "order"
+        private const val LOUDNESS_KEY = "wave_loudness"
+
+        /** From the app: put back a restored queue's shuffled order. */
+        val setOrderCommand = SessionCommand(ACTION_SET_ORDER, Bundle.EMPTY)
+        fun orderArgs(order: List<Int>) = Bundle().apply { putIntArray(KEY_ORDER, order.toIntArray()) }
+
         @Volatile private var simpleCache: SimpleCache? = null
 
         fun cache(context: Context): SimpleCache = simpleCache ?: synchronized(this) {

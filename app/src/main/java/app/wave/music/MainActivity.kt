@@ -37,6 +37,32 @@ class MainActivity : ComponentActivity() {
         app.wave.music.playback.BeatBus.visible = true
     }
 
+    /**
+     * Keyboard shortcuts (Googlebook, ChromeOS, tablets with keyboards): Space plays/pauses,
+     * Ctrl+→/← skip, Ctrl+F or / search, Ctrl+L likes, Esc goes back. Ignored while typing.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            !app.wave.music.ui.components.Shortcuts.typing
+        ) {
+            val handled = when {
+                event.keyCode == android.view.KeyEvent.KEYCODE_SPACE && !event.isCtrlPressed -> { PlayerConnection.togglePlay(); true }
+                event.isCtrlPressed && event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> { PlayerConnection.next(); true }
+                event.isCtrlPressed && event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT -> { PlayerConnection.previous(); true }
+                event.isCtrlPressed && event.keyCode == android.view.KeyEvent.KEYCODE_L -> { PlayerConnection.toggleLike(); true }
+                (event.isCtrlPressed && event.keyCode == android.view.KeyEvent.KEYCODE_F) ||
+                    event.keyCode == android.view.KeyEvent.KEYCODE_SLASH -> { app.wave.music.ui.components.Shortcuts.requestSearch(); true }
+                else -> false
+            }
+            if (handled) return true
+        }
+        if (event.action == android.view.KeyEvent.ACTION_UP && event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
+            onBackPressedDispatcher.onBackPressed()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onStop() {
         app.wave.music.playback.BeatBus.visible = false
         super.onStop()
@@ -90,7 +116,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         HomeScreen(
                             session = current,
-                            onSignOut = { scope.launch { SessionRepository.signOut(context.applicationContext) } },
+                            onSignOut = { scope.launch { app.wave.music.data.signOutAndForget(context.applicationContext) } },
                         )
                     }
                 }
