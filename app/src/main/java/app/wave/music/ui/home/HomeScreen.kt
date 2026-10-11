@@ -749,7 +749,7 @@ private fun LeadTile(
     Column(
         Modifier
             .width(148.dp)
-            .pressable(RoundedCornerShape(24.dp), pressedScale = 0.95f, onClick = onClick),
+            .pressable(RoundedCornerShape(24.dp), pressedScale = 0.95f, clipAndRipple = false, onClick = onClick),
     ) {
         Box(Modifier.size(148.dp), contentAlignment = Alignment.Center) {
             Box(
@@ -784,7 +784,7 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
     Column(
         Modifier
             .width(148.dp)
-            .pressable(RoundedCornerShape(24.dp), pressedScale = 0.95f, onClick = onClick),
+            .pressable(RoundedCornerShape(24.dp), pressedScale = 0.95f, clipAndRipple = false, onClick = onClick),
     ) {
         Box(
             Modifier

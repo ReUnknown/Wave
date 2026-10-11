@@ -147,6 +147,8 @@ fun Modifier.pressable(
     color: Color = Color.Transparent,
     enabled: Boolean = true,
     pressedScale: Float = 0.92f,
+    /** Off for things with their own shape inside (tiles with a caption): no clip, no ripple box. */
+    clipAndRipple: Boolean = true,
     onClick: () -> Unit,
 ): Modifier = composed {
     val source = remember { MutableInteractionSource() }
@@ -157,9 +159,8 @@ fun Modifier.pressable(
             scaleX = scale
             scaleY = scale
         }
-        .clip(shape)
-        .background(color)
-        .clickable(interactionSource = source, indication = ripple(), enabled = enabled, onClick = onClick)
+        .then(if (clipAndRipple) Modifier.clip(shape).background(color, shape) else Modifier)
+        .clickable(interactionSource = source, indication = if (clipAndRipple) ripple() else null, enabled = enabled, onClick = onClick)
 }
 
 /**

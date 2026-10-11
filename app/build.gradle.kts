@@ -11,8 +11,8 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 98
-        versionName = "0.9.8"
+        versionCode = 99
+        versionName = "0.9.8.1"
     }
 
     buildTypes {
