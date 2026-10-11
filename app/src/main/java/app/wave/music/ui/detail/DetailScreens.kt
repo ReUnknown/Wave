@@ -1,5 +1,6 @@
 package app.wave.music.ui.detail
 
+import app.wave.music.ui.components.WheelRow
 import androidx.compose.ui.draw.clipToBounds
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
@@ -583,7 +584,7 @@ private fun ArtistScreen(browseId: String, actions: PageActions) {
                     }
                 } else {
                     item {
-                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        WheelRow {
                             items(section.items) { ItemCard(it, onClick = actions.open) }
                         }
                     }
@@ -636,7 +637,7 @@ private fun AlbumScreen(browseId: String, actions: PageActions) {
         if (others.isNotEmpty()) {
             item { SectionTitle("Other versions") }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                WheelRow {
                     items(others) { ItemCard(it, onClick = actions.open) }
                 }
             }
@@ -808,7 +809,7 @@ private fun SavedScreen(actions: PageActions) {
         if (d.artists.isNotEmpty()) {
             item { SectionTitle("Artists") }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                WheelRow {
                     items(d.artists) { ItemCard(it, onClick = actions.open) }
                 }
             }

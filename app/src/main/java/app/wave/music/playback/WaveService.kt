@@ -70,7 +70,6 @@ class WaveService : MediaSessionService() {
     )
 
     private val streams = ConcurrentHashMap<String, ResolvedStream>()
-    private val reported = ConcurrentHashMap.newKeySet<String>()
     /** Each song's loudness vs. YouTube's reference (dB), for even volume. */
     private val loudness = ConcurrentHashMap<String, Double>()
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
@@ -83,11 +82,20 @@ class WaveService : MediaSessionService() {
      * are left alone; boosting would clip). Works the same with low-power playback.
      */
     private fun gainFor(id: String?): Float {
+        // Wave's own volume slider, on a curve so the middle of the slider sounds like the middle.
+        val user = WaveSettings.state.value.appVolume.coerceIn(0f, 1f).let { it * it }
+        return evenGain(id) * user * duck
+    }
+
+    private fun evenGain(id: String?): Float {
         if (id == null || !WaveSettings.state.value.evenVolume) return 1f
         val db = loudness[id] ?: return 1f
         if (db <= 0.0) return 1f
         return Math.pow(10.0, -db / 20.0).toFloat().coerceIn(0.2f, 1f)
     }
+
+    /** Briefly dips to 0 while the audio path switches (see [switchOffload]), so there's no click. */
+    private var duck = 1f
 
     private fun applyGain() {
         if (::crossfader.isInitialized && crossfader.isFading) return
@@ -224,21 +232,18 @@ class WaveService : MediaSessionService() {
         // (Media3 audio offload) and the main processor can sleep. On screen, audio goes through
         // the normal path so "Move with the music" can listen to it. Skip silence needs the normal
         // path too. Phones that can't offload a format just keep using the normal path.
+        // Switching paths restarts the audio output, so it never happens mid-song unannounced:
+        // going to the background waits for the next song or a pause; coming back to the screen
+        // switches right away under a quick fade, so you don't hear a gap or a click.
         scope.launch(Dispatchers.Main) {
             kotlinx.coroutines.flow.combine(WaveSettings.state, BeatBus.visibleFlow) { s, visible ->
                 s.lowPowerPlayback && !visible && !s.skipSilence
-            }.distinctUntilChanged().collect { offload ->
-                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                    .setAudioOffloadPreferences(
-                        TrackSelectionParameters.AudioOffloadPreferences.Builder()
-                            .setAudioOffloadMode(
-                                if (offload) TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
-                                else TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED,
-                            )
-                            .build(),
-                    )
-                    .build()
-                Timber.d("Low-power playback %s", if (offload) "on" else "off")
+            }.distinctUntilChanged().collect { want ->
+                offloadWanted = want
+                when {
+                    !want -> switchOffload(false, fade = true)
+                    !player.isPlaying -> switchOffload(true, fade = false)
+                }
             }
         }
         scope.launch(Dispatchers.Main) {
@@ -263,7 +268,16 @@ class WaveService : MediaSessionService() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 failures = 0
                 applyGain()
+                reportPlay(mediaItem)
+                // A song boundary is the seamless moment to move to the audio chip.
+                if (offloadWanted != offloadOn && !crossfader.isFading) switchOffload(offloadWanted, fade = false)
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) recoverIfCutShort(player, ended = false)
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!isPlaying && offloadWanted != offloadOn) switchOffload(offloadWanted, fade = false)
+                // Same song played again from the start (repeat one) counts again too.
+                if (isPlaying && reportJob?.isActive != true && reportedId != player.currentMediaItem?.mediaId) reportPlay(player.currentMediaItem)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -309,6 +323,96 @@ class WaveService : MediaSessionService() {
             .setCallback(callback)
             .build()
         updateButtons()
+    }
+
+    private var offloadWanted = false
+    private var offloadOn = false
+    private var switchJob: kotlinx.coroutines.Job? = null
+
+    /** Moves playback onto (or off) the audio chip; [fade] dips the volume around the switch. */
+    private fun switchOffload(on: Boolean, fade: Boolean) {
+        if (on == offloadOn && switchJob?.isActive != true) return
+        switchJob?.cancel()
+        switchJob = scope.launch(Dispatchers.Main) {
+            val audible = fade && player.isPlaying
+            if (audible) rampDuck(0f, 120)
+            offloadOn = on
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setAudioOffloadPreferences(
+                    TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                        .setAudioOffloadMode(
+                            if (on) TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                            else TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED,
+                        )
+                        .build(),
+                )
+                .build()
+            Timber.d("Low-power playback %s", if (on) "on" else "off")
+            if (audible) {
+                // Let the new output start before bringing the sound back up.
+                var waited = 0
+                while (player.playbackState == Player.STATE_BUFFERING && waited < 1_500) { delay(20); waited += 20 }
+                delay(60)
+                rampDuck(1f, 280)
+            } else {
+                duck = 1f
+                applyGain()
+            }
+        }
+    }
+
+    private suspend fun rampDuck(to: Float, ms: Int) {
+        val from = duck
+        val steps = (ms / 16).coerceAtLeast(1)
+        for (i in 1..steps) {
+            val t = i.toFloat() / steps
+            duck = from + (to - from) * t * t * (3 - 2 * t)
+            applyGain()
+            delay(16)
+        }
+    }
+
+    private var reportedId: String? = null
+    private var reportJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Counts a play on your YouTube Music account, so it shows in History, "Recently played" and
+     * shapes recommendations. Like YouTube, a song counts once it has played for a few seconds.
+     * The report needs a playback link made for your account (the audio itself may come from a
+     * signed-out client, or straight from the saved copy), so it asks for one as YouTube Music
+     * on the web does.
+     */
+    private fun reportPlay(item: MediaItem?) {
+        reportJob?.cancel()
+        val id = item?.mediaId ?: return
+        reportJob = scope.launch(Dispatchers.Main) {
+            var heard = 0
+            while (heard < 4_000) {
+                delay(500)
+                if (player.currentMediaItem?.mediaId != id) return@launch
+                if (player.isPlaying) heard += 500
+            }
+            reportedId = id
+            val meta = item.mediaMetadata
+            app.wave.music.data.RecentPlays.add(
+                id, meta.title?.toString().orEmpty(), meta.artist?.toString().orEmpty(),
+                meta.artworkUri?.toString(), meta.albumTitle?.toString(), meta.durationMs,
+            )
+            kotlinx.coroutines.withContext(Dispatchers.IO) {
+                // Started from the widget or lock screen without the app: load the saved sign-in first.
+                if (!app.wave.music.data.SessionRepository.restored.value) app.wave.music.data.SessionRepository.restore(this@WaveService)
+                if (YouTube.cookie.isNullOrEmpty()) return@withContext
+                val tracking = YouTube.player(id, client = com.metrolist.innertube.models.YouTubeClient.WEB_REMIX).getOrNull()
+                    ?.playbackTracking?.videostatsPlaybackUrl?.baseUrl
+                if (tracking == null) {
+                    Timber.w("No playback link to count %s", id)
+                    return@withContext
+                }
+                YouTube.registerPlayback(playbackTracking = tracking)
+                    .onSuccess { app.wave.music.data.HomeRepository.clear() }
+                    .onFailure { Timber.w(it, "Couldn't count the play of %s", id) }
+            }
+        }
     }
 
     private var watchedId: String? = null
@@ -374,10 +478,6 @@ class WaveService : MediaSessionService() {
                 audioQuality = WaveSettings.state.value.audioQuality,
                 connectivityManager = connectivity,
             ).getOrThrow()
-            data.playbackTracking?.videostatsPlaybackUrl?.baseUrl?.let { tracking ->
-                // Count the play on YouTube Music so history and recommendations stay accurate.
-                if (reported.add(videoId)) scope.launch { YouTube.registerPlayback(playbackTracking = tracking) }
-            }
             data.format.loudnessDb?.let { db ->
                 loudness[videoId] = db
                 runCatching {

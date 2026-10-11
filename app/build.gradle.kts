@@ -13,8 +13,20 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 105
-        versionName = "1.0.0-beta.3"
+        versionCode = 106
+        versionName = "1.0.0-beta.4"
+        // Every phone, tablet and Googlebook Wave targets is 64-bit: no 32-bit native code.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+    }
+
+    // Wave is in English; drop other languages' strings that libraries bring along.
+    androidResources { localeFilters += "en" }
+
+    packaging {
+        resources.excludes += listOf(
+            "META-INF/*.txt", "META-INF/*.md", "META-INF/*.version", "META-INF/*.kotlin_module",
+            "META-INF/androidx/**", "DebugProbesKt.bin", "kotlin-tooling-metadata.json",
+        )
     }
 
     // Wave's own signing key (keystore/, never committed). Release builds must always use the

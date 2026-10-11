@@ -19,8 +19,11 @@
 -keep,includedescriptorclasses class **$$serializer { *; }
 -keepclasseswithmembers class * { kotlinx.serialization.KSerializer serializer(...); }
 
-# Ktor finds its engine and plugins through ServiceLoader and reflection.
--keep class io.ktor.** { *; }
+# Ktor finds its engine and JSON support through ServiceLoader (R8 keeps META-INF/services
+# entries); the rest of it shrinks like any other library.
+-keep class * implements io.ktor.client.HttpClientEngineContainer
+-keep class io.ktor.client.engine.okhttp.** { *; }
+-keep class io.ktor.serialization.kotlinx.** { *; }
 -dontwarn io.ktor.**
 
 # QuickJS (JavaScript for stream deciphering) calls back into Kotlin from native code.

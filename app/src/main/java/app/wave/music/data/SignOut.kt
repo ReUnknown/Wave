@@ -18,6 +18,7 @@ suspend fun signOutAndForget(context: Context) {
     ResumeStore.clear(app)
     SearchRepository.clearRecent(app)
     HomeRepository.clear()
+    RecentPlays.clear()
     LibraryRepository.clear()
     clearPageCache()
     WaveWidget.update(app, null)

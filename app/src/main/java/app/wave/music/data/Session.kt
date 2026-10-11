@@ -45,7 +45,11 @@ object SessionRepository {
     private val _restored = MutableStateFlow(false)
     val restored: StateFlow<Boolean> = _restored.asStateFlow()
 
+    /** Debug preview session in use: nothing may replace it with the (empty) saved one. */
+    @Volatile private var previewing = false
+
     suspend fun restore(context: Context) {
+        if (previewing) return
         val prefs = context.sessionStore.data.first()
         val cookie = prefs[Keys.cookie]?.let(SecretBox::decrypt)
         val session = if (cookie != null) {
@@ -61,6 +65,7 @@ object SessionRepository {
         } else {
             null
         }
+        if (previewing) return
         apply(session)
         _restored.value = true
     }
@@ -70,6 +75,7 @@ object SessionRepository {
      * guest, without signing in. Nothing is saved.
      */
     fun startPreview() {
+        previewing = true
         applyToClient(null, null, null, "0")
         _session.value = Session(cookie = "", visitorData = "", dataSyncId = "", authUser = "0", name = "Preview", email = null, photoUrl = null)
         _restored.value = true

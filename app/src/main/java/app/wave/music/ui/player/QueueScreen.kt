@@ -45,6 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -227,28 +230,35 @@ fun QueueScreen(
                         beyondViewportPageCount = 3,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(250.dp),
+                            .height(250.dp)
+                            .pointerInput(pager) {
+                                // Computers: the mouse wheel (or a touchpad swipe) flips through the
+                                // covers one at a time to look around; click one to play it.
+                                var pending = 0f
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        if (event.type != PointerEventType.Scroll) continue
+                                        val d = event.changes.firstOrNull()?.scrollDelta ?: continue
+                                        event.changes.forEach { it.consume() }
+                                        pending += if (abs(d.x) > abs(d.y)) d.x else d.y
+                                        if (abs(pending) < 1f) continue
+                                        val step = if (pending > 0) 1 else -1
+                                        pending = 0f
+                                        val to = (pager.targetPage + step).coerceIn(0, (order.size - 1).coerceAtLeast(0))
+                                        scope.launch { pager.animateScrollToPage(to) }
+                                    }
+                                }
+                            },
                     ) { page ->
                         val offset = pager.getOffsetDistanceInPages(page).coerceIn(-2f, 2f)
                         val song = state.queue.getOrNull(order[page])
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            AsyncImage(
-                                model = song?.artworkUrl?.atSize(ArtSize.CARD),
-                                contentDescription = song?.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(226.dp)
-                                    .graphicsLayer {
-                                        rotationY = offset * -42f
-                                        val s = 1f - abs(offset) * 0.2f
-                                        scaleX = s
-                                        scaleY = s
-                                        alpha = 1f - abs(offset) * 0.28f
-                                        cameraDistance = 14f * density
-                                    }
-                                    .shadow(22.dp, RoundedCornerShape(38.dp))
-                                    .clip(RoundedCornerShape(38.dp))
-                                    .clickable {
+                        // Clicks land on the flat slot, not the tilted cover: hit-testing through a
+                        // cover turned nearly edge-on maps a click onto a song several places away.
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .clickable(interactionSource = null, indication = null, enabled = abs(offset) < 1.5f) {
                                         // Tapping a cover plays it, just like next / previous for the
                                         // ones beside it; the coverflow then follows the player there.
                                         val live = PlayerConnection.state.value
@@ -264,6 +274,24 @@ fun QueueScreen(
                                             PlayerConnection.play()
                                         }
                                     },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            AsyncImage(
+                                model = song?.artworkUrl?.atSize(ArtSize.CARD),
+                                contentDescription = song?.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(226.dp)
+                                    .graphicsLayer {
+                                        rotationY = offset * -42f
+                                        val s = 1f - abs(offset) * 0.2f
+                                        scaleX = s
+                                        scaleY = s
+                                        alpha = 1f - abs(offset) * 0.28f
+                                        cameraDistance = 14f * density
+                                    }
+                                    .shadow(22.dp, RoundedCornerShape(38.dp))
+                                    .clip(RoundedCornerShape(38.dp)),
                             )
                         }
                     }

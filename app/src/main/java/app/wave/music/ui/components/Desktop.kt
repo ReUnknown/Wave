@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Desktop-class Android: Googlebook OS (Android + ChromeOS), ChromeOS, and anything Android itself
@@ -83,4 +84,60 @@ object AppFocus {
     fun onStarted(value: Boolean) { started = value; update() }
     fun onFocus(value: Boolean) { focused = value; update() }
     private fun update() { _active.value = started && focused }
+}
+
+/**
+ * Computers: an ordinary mouse wheel scrolls sideways lists too (not everyone has a touchpad or a
+ * tilting wheel). Only while the list can still move that way; at either end the page scrolls.
+ */
+fun Modifier.wheelScrollsSideways(state: androidx.compose.foundation.gestures.ScrollableState): Modifier = pointerInput(state) {
+    kotlinx.coroutines.coroutineScope {
+        var remaining = 0f
+        var job: kotlinx.coroutines.Job? = null
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent()
+                if (event.type != PointerEventType.Scroll) continue
+                val change = event.changes.firstOrNull() ?: continue
+                if (change.isConsumed) continue
+                val d = change.scrollDelta
+                val notch = if (kotlin.math.abs(d.x) > kotlin.math.abs(d.y)) d.x else d.y
+                val px = notch * 96.dp.toPx()
+                if (px == 0f || (px > 0 && !state.canScrollForward) || (px < 0 && !state.canScrollBackward)) continue
+                change.consume()
+                remaining += px
+                job?.cancel()
+                job = launch {
+                    state.scroll {
+                        var done = 0f
+                        val total = remaining
+                        androidx.compose.animation.core.animate(0f, total, animationSpec = androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) { v, _ ->
+                            val used = scrollBy(v - done)
+                            done = v
+                            remaining -= used
+                        }
+                        remaining = 0f
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A sideways row of cards that a mouse wheel can scroll too. */
+@androidx.compose.runtime.Composable
+fun WheelRow(
+    modifier: Modifier = Modifier,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+    spacing: androidx.compose.ui.unit.Dp = 12.dp,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+) {
+    val state = androidx.compose.foundation.lazy.rememberLazyListState()
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier.wheelScrollsSideways(state),
+        state = state,
+        contentPadding = contentPadding,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
+        content = content,
+    )
 }

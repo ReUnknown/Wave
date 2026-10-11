@@ -42,6 +42,8 @@ data class PlayerUiState(
     val upcoming: List<Int> = emptyList(),
     /** Every queue index in actual play order (respects shuffle); the current song is in here too. */
     val playOrder: List<Int> = emptyList(),
+    /** Playback speed (1 = normal). */
+    val speed: Float = 1f,
 )
 
 /** The app's handle on the playback service. UI reads [state] and calls these actions. */
@@ -218,6 +220,7 @@ object PlayerConnection {
             liked = current != null && app.wave.music.data.Likes.isLiked(current.videoId),
             upcoming = if (spot >= 0) orderCache.subList(spot + 1, orderCache.size) else upcomingOrder(c),
             playOrder = orderCache,
+            speed = c.playbackParameters.speed,
         )
     }
 
@@ -380,6 +383,14 @@ object PlayerConnection {
     fun skipTo(index: Int) = controller?.seekToDefaultPosition(index)
     fun removeAt(index: Int) = controller?.removeMediaItem(index)
     fun move(from: Int, to: Int) = controller?.moveMediaItem(from, to)
+
+    fun setSpeed(speed: Float) = controller?.setPlaybackSpeed(speed)
+
+    /** Wave's own volume (not the device's). Saved when [done], i.e. when you let go of the slider. */
+    fun setVolume(level: Float, done: Boolean) {
+        app.wave.music.data.WaveSettings.preview { it.copy(appVolume = level.coerceIn(0f, 1f)) }
+        if (done) scope.launch { app.wave.music.data.WaveSettings.update(appContext) { it } }
+    }
 
     fun toggleShuffle() = controller?.run { shuffleModeEnabled = !shuffleModeEnabled }
 

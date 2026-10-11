@@ -1,15 +1,14 @@
 package app.wave.music.ui.player
 
-import kotlin.math.roundToInt
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import android.content.Context
-import android.media.AudioManager
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -31,7 +30,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.OpenInFull
@@ -46,7 +44,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,7 +53,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -88,11 +84,34 @@ fun PlayerBar(
     onLyrics: () -> Unit,
     onQueue: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Being dragged to a side (it fades back while a card of the song follows your finger). */
+    lifted: Boolean = false,
+    /** Tablets: drag the bar up toward a side to dock the player there. Gets the finger's window position. */
+    onDockDrag: ((Offset) -> Unit)? = null,
+    /** The drag ended: [dropped] is false when it was cancelled. */
+    onDockEnd: (dropped: Boolean) -> Unit = {},
 ) {
     val song = state.current ?: return
     val position = rememberPosition(song.videoId, state.isPlaying, everyMs = 250)
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val fade by animateFloatAsState(if (lifted) 0.35f else 1f, tween(160), label = "barLift")
     Box(
-        modifier
+        Modifier
+            .onGloballyPositioned { origin = it.positionInRoot() }
+            .then(
+                if (onDockDrag == null) Modifier else Modifier.pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { onDockDrag(origin + it) },
+                        onDragEnd = { onDockEnd(true) },
+                        onDragCancel = { onDockEnd(false) },
+                    ) { change, _ ->
+                        change.consume()
+                        onDockDrag(origin + change.position)
+                    }
+                },
+            )
+            .graphicsLayer { alpha = fade }
+            .then(modifier)
             .fillMaxWidth()
             .background(Color.Black),
     ) {
@@ -190,7 +209,8 @@ fun PlayerBar(
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 BarIcon(Icons.Rounded.Lyrics, "Lyrics", onClick = onLyrics)
                 BarIcon(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", onClick = onQueue)
-                Volume(Modifier.padding(horizontal = 6.dp))
+                SpeedButton(state.speed)
+                SlimVolume(Color.White, Modifier.padding(end = 6.dp))
                 BarIcon(Icons.Rounded.OpenInFull, "Open the player", onClick = onOpen)
             }
         }
@@ -221,42 +241,37 @@ private fun BarIcon(icon: ImageVector, label: String, tint: Color = Color.White,
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }
 
-/** The device's music volume, as a small slider. */
+/** Playback speed: shows the current speed; click for the choices. */
 @Composable
-private fun Volume(modifier: Modifier) {
-    val context = LocalContext.current
-    val audio = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val max = remember { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
-    var level by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max) }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, tint = Color.White, modifier = Modifier.size(22.dp))
-        // A slim line with a small knob: tap or drag anywhere on it.
+private fun SpeedButton(speed: Float) {
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val label = if (speed == 1f) "1×" else "${speed.toString().trimEnd('0').trimEnd('.')}×"
+    Box {
         Box(
             Modifier
-                .padding(start = 10.dp)
-                .width(110.dp)
-                .height(28.dp)
-                .semantics { contentDescription = "Volume" }
-                .pointerInput(Unit) {
-                    fun set(x: Float) {
-                        level = (x / size.width).coerceIn(0f, 1f)
-                        audio.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).roundToInt(), 0)
-                    }
-                    detectTapGestures { set(it.x) }
-                }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { change, _ ->
-                        level = (change.position.x / size.width).coerceIn(0f, 1f)
-                        audio.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).roundToInt(), 0)
-                    }
-                }
-                .drawBehind {
-                    val cy = size.height / 2
-                    val track = 4.dp.toPx()
-                    drawLine(Color.White.copy(alpha = 0.25f), Offset(0f, cy), Offset(size.width, cy), track, StrokeCap.Round)
-                    drawLine(Color.White, Offset(0f, cy), Offset(size.width * level, cy), track, StrokeCap.Round)
-                    drawCircle(Color.White, 6.dp.toPx(), Offset(size.width * level, cy))
-                },
-        )
+                .height(32.dp)
+                .pressable(CircleShape, Color.White.copy(alpha = if (speed == 1f) 0f else 0.16f), pressedScale = 0.9f) { open = true }
+                .padding(horizontal = 10.dp)
+                .semantics { contentDescription = "Playback speed $label" },
+            contentAlignment = Alignment.Center,
+        ) { Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+        androidx.compose.material3.DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (s == 1f) "Normal" else "${s.toString().trimEnd('0').trimEnd('.')}×",
+                            fontWeight = if (kotlin.math.abs(s - speed) < 0.01f) FontWeight.Bold else FontWeight.Normal,
+                        )
+                    },
+                    onClick = { PlayerConnection.setSpeed(s); open = false },
+                )
+            }
+        }
     }
 }

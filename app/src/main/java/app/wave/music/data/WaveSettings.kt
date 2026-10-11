@@ -28,6 +28,10 @@ data class Settings(
     val lowPowerPlayback: Boolean = true,
     /** Look for a new version of Wave on GitHub once a day. */
     val checkUpdates: Boolean = true,
+    /** Computers: the player opens beside the app (half the window) instead of filling it. */
+    val splitPlayer: Boolean = false,
+    /** Wave's own volume (0..1), separate from the device's, like YouTube's volume slider. */
+    val appVolume: Float = 1f,
 )
 
 private val Context.settingsStore by preferencesDataStore("settings")
@@ -43,6 +47,8 @@ object WaveSettings {
     private val crossfade = androidx.datastore.preferences.core.intPreferencesKey("crossfade_seconds")
     private val lowPower = booleanPreferencesKey("low_power_playback")
     private val updates = booleanPreferencesKey("check_updates")
+    private val split = booleanPreferencesKey("split_player")
+    private val volume = androidx.datastore.preferences.core.floatPreferencesKey("app_volume")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -61,6 +67,8 @@ object WaveSettings {
             crossfadeSeconds = p[crossfade] ?: 0,
             lowPowerPlayback = p[lowPower] ?: true,
             checkUpdates = p[updates] ?: true,
+            splitPlayer = p[split] ?: false,
+            appVolume = p[volume] ?: 1f,
         )
         loaded = true
     }
@@ -78,6 +86,13 @@ object WaveSettings {
             it[crossfade] = next.crossfadeSeconds
             it[lowPower] = next.lowPowerPlayback
             it[updates] = next.checkUpdates
+            it[split] = next.splitPlayer
+            it[volume] = next.appVolume
         }
+    }
+
+    /** Changes a setting for this session only (a slider mid-drag); [update] saves it. */
+    fun preview(change: (Settings) -> Settings) {
+        _state.value = change(_state.value)
     }
 }

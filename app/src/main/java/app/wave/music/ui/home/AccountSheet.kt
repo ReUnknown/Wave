@@ -154,6 +154,8 @@ fun AccountMenu(
     onOpen: (Destination) -> Unit,
     onSettings: () -> Unit,
     onSignOut: () -> Unit,
+    /** Off when the sidebar already lists your library. */
+    library: Boolean = true,
 ) {
     val c = MaterialTheme.colorScheme
     androidx.compose.material3.DropdownMenu(
@@ -168,11 +170,13 @@ fun AccountMenu(
             Text(session.email ?: "Signed in with Google", fontSize = 13.sp, color = c.onSurfaceVariant)
         }
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
-        MenuRow(Icons.Rounded.LibraryMusic, "Playlists") { onOpen(Destination.Playlists) }
-        MenuRow(Icons.Rounded.Album, "Albums & artists") { onOpen(Destination.Saved) }
-        MenuRow(Icons.Rounded.History, "History") { onOpen(Destination.History) }
-        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
-        MenuRow(Icons.Rounded.Settings, "Settings…", onSettings)
+        if (library) {
+            MenuRow(Icons.Rounded.LibraryMusic, "Playlists") { onOpen(Destination.Playlists) }
+            MenuRow(Icons.Rounded.Album, "Albums & artists") { onOpen(Destination.Saved) }
+            MenuRow(Icons.Rounded.History, "History") { onOpen(Destination.History) }
+            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
+        }
+        MenuRow(Icons.Rounded.Settings, "Settings", onSettings)
         MenuRow(Icons.AutoMirrored.Rounded.Logout, "Sign out", onSignOut)
     }
 }

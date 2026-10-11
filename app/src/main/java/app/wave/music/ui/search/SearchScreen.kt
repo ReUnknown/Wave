@@ -1,5 +1,6 @@
 package app.wave.music.ui.search
 
+import app.wave.music.ui.components.WheelRow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.widthIn
 import app.wave.music.ui.components.ArtSize
@@ -320,7 +321,7 @@ fun SearchScreen(
                                 } else {
                                     item { Label(group.title) }
                                     item {
-                                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        WheelRow {
                                             items(group.items) { ItemCard(it, onClick = onOpen) }
                                         }
                                     }
@@ -387,7 +388,7 @@ fun SearchScreen(
                     }
                 }
                 if (showingResults) {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WheelRow(contentPadding = PaddingValues(horizontal = 12.dp), spacing = 8.dp) {
                         items(SearchTab.entries) { t ->
                             val selected = t == tab
                             // The chosen filter fills in and rounds out; the rest relax back.

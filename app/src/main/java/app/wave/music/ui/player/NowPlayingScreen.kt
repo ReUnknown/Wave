@@ -145,7 +145,9 @@ fun NowPlayingScreen(
     visibility: AnimatedVisibilityScope? = null,
     /** Docked in the right half of a big computer window, beside the rest of the app. */
     docked: Boolean = false,
-    /** Computers: switch between docked and the full window. */
+    /** Which side it's docked on: -1 left, 1 right. */
+    dockSide: Int = 1,
+    /** Big screens: switch between docked and the full window (or back to the player bar). */
     onToggleSize: (() -> Unit)? = null,
     /** Open straight to "lyrics" or "queue" (from the player bar's buttons). */
     openTo: String? = null,
@@ -178,7 +180,11 @@ fun NowPlayingScreen(
                 .graphicsLayer {
                     val pulled = ((drag / dismissAt) + back()).coerceIn(0f, 1f)
                     // Docked: a panel with rounded inner corners against the app beside it.
-                    shape = if (docked) RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp) else RoundedCornerShape(36.dp.toPx() * pulled)
+                    shape = when {
+                        docked && dockSide < 0 -> RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
+                        docked -> RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)
+                        else -> RoundedCornerShape(36.dp.toPx() * pulled)
+                    }
                     clip = docked || pulled > 0f
                 }
                 .blocksTouchesBelow()
@@ -329,7 +335,7 @@ private fun Header(
         onToggleSize?.let { toggle ->
             GlassCircle(
                 if (docked) Icons.Rounded.OpenInFull else Icons.Rounded.CloseFullscreen,
-                if (docked) "Expand player" else "Dock player to the side",
+                if (docked) "Expand player" else "Shrink player",
                 toggle,
             )
             Spacer(Modifier.width(8.dp))
@@ -382,7 +388,10 @@ private fun WideNowPlaying(
                         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                             Cover(song, minOf(maxWidth, maxHeight))
                         }
-                        Controls(state, song, position, Modifier.widthIn(max = 560.dp).padding(top = 20.dp))
+                        Column(Modifier.widthIn(max = 560.dp).padding(top = 20.dp)) {
+                            Controls(state, song, position)
+                            ExtrasDrawer(state, Modifier.padding(top = 6.dp))
+                        }
                     }
                     SidePanel(state, Modifier.weight(1f).fillMaxHeight(), startOnQueue = openTo == "queue")
                 } else {
@@ -395,6 +404,7 @@ private fun WideNowPlaying(
                             PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", showQueue, Modifier.weight(1f), onQueue)
                             PanelButton(Icons.Rounded.Lyrics, "Lyrics", "lyrics", showLyrics, Modifier.weight(1f), onLyrics)
                         }
+                        ExtrasDrawer(state, Modifier.padding(top = 2.dp))
                     }
                 }
             }
@@ -419,6 +429,19 @@ private fun Cover(song: NowPlaying, side: androidx.compose.ui.unit.Dp) {
                 .shadow(28.dp, RoundedCornerShape(40.dp))
                 .clip(RoundedCornerShape(40.dp)),
         )
+    }
+}
+
+/** Wide layouts: a handle under the controls that pulls out volume and speed. */
+@Composable
+private fun ExtrasDrawer(state: PlayerUiState, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val reveal = rememberReveal()
+    Column(modifier.fillMaxWidth().revealDrag(reveal)) {
+        RevealHandle(reveal, c.onBackground.copy(alpha = 0.35f))
+        RevealBox(reveal) {
+            PlaybackExtras(state.speed, c.onBackground, c.primary, c.onPrimary, Modifier.padding(top = 4.dp, bottom = 4.dp))
+        }
     }
 }
 
@@ -595,18 +618,27 @@ private fun Controls(
     }
 }
 
-/** Song-colored tray behind the gesture bar: what's next, and lyrics. Each grows into its page. */
+/**
+ * Song-colored tray behind the gesture bar: what's next, and lyrics. Each grows into its page.
+ * Swipe the tray up (or tap its handle) and it rises to show Wave's volume and playback speed.
+ */
 @Composable
 private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, onQueue: () -> Unit, onLyrics: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
-    Row(
+    val reveal = rememberReveal()
+    Column(
         modifier
             .padding(top = 16.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             .background(c.primaryContainer.copy(alpha = 0.92f))
-            .navigationBarsPadding()
-            .height(68.dp)
+            .revealDrag(reveal)
+            .navigationBarsPadding(),
+    ) {
+    RevealHandle(reveal, c.onPrimaryContainer.copy(alpha = 0.35f), Modifier.padding(top = 4.dp))
+    Row(
+        Modifier
+            .height(60.dp)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -655,6 +687,10 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
         }
         }
         }
+    }
+    RevealBox(reveal) {
+        PlaybackExtras(state.speed, c.onPrimaryContainer, c.primary, c.onPrimary, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp))
+    }
     }
 }
 

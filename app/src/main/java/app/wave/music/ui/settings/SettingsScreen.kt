@@ -77,6 +77,13 @@ fun SettingsContent() {
         Toggle("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
             change { it.copy(moveWithMusic = on) }
         }
+        // Computers: the player can open beside the app instead of over it.
+        if (app.wave.music.ui.components.LocalDesktop.current) {
+            Divider()
+            Toggle("Player beside the app", "Opens in half the window so you can keep browsing; expand it any time", settings.splitPlayer) { on ->
+                change { it.copy(splitPlayer = on) }
+            }
+        }
     }
 
     Eyebrow("Playback")

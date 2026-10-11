@@ -1,12 +1,6 @@
 package app.wave.music.ui.home
 
-import androidx.compose.ui.draw.clipToBounds
-import app.wave.music.ui.components.BlurredImage
-import app.wave.music.ui.components.ArtSize
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -73,13 +67,12 @@ fun Sidebar(
     modifier: Modifier = Modifier,
 ) {
     val c = MaterialTheme.colorScheme
-    // No panel of its own: the song's blurred art runs behind the whole window, so the sidebar is
-    // just a light tint over it that fades out to the right instead of ending in an edge.
+    // No panel of its own: it sits on the same background as home (the song's art fading into
+    // the solid color), so the window reads as one surface.
     Box(
         modifier
             .width(264.dp)
-            .fillMaxHeight()
-            .background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.32f), Color.Black.copy(alpha = 0.18f), Color.Transparent))),
+            .fillMaxHeight(),
     ) {
     Column(
         Modifier
