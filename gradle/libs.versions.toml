@@ -21,6 +21,7 @@ palette = "1.0.0"
 reorderable = "3.1.0"
 
 [libraries]
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version = "1.4.1" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }

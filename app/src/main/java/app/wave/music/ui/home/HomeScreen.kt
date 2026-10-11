@@ -132,6 +132,10 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import app.wave.music.ui.components.LocalSharedTransition
+import app.wave.music.ui.components.LocalPeeking
+import app.wave.music.ui.components.rememberCovered
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.draw.drawWithContent
 import app.wave.music.ui.components.MorphVisibility
 import app.wave.music.ui.components.WaveMotion
 import app.wave.music.ui.components.pressable
@@ -218,9 +222,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         forward = true
         stack.add(dest)
     }
+    // Each open page keeps its scroll spot while it's in the stack; leaving a page for good drops it.
+    val pageStates = rememberSaveableStateHolder()
     fun pop() {
         forward = false
-        if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex)
+        if (stack.isEmpty()) return
+        val gone = stack.removeAt(stack.lastIndex)
+        if (gone !in stack) pageStates.removeState(gone.toString())
     }
     // Songs play; artists, albums and playlists open their page.
     val openItem: (YTItem) -> Unit = { item -> Destination.of(item)?.let { push(it) } ?: playItem(item, false) }
@@ -299,8 +307,17 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
 
     // The whole page takes its colors from the hero art.
+    val peeking = remember { mutableStateOf(false) }
+    val pageCovers = rememberCovered(stack.isNotEmpty())
+    val playerCovers = rememberCovered(showPlayer && player.current != null)
+    val searchCovers = rememberCovered(showSearch)
+
     SharedTransitionLayout {
-    CompositionLocalProvider(LocalItemMenu provides MenuOpener { menuTarget = it }, LocalSharedTransition provides this) {
+    CompositionLocalProvider(
+        LocalItemMenu provides MenuOpener { menuTarget = it },
+        LocalSharedTransition provides this,
+        LocalPeeking provides peeking,
+    ) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
     MaterialTheme(colorScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)) {
         val c = MaterialTheme.colorScheme
@@ -318,6 +335,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 .fillMaxSize()
                 .background(c.background),
         ) {
+            // Home (feed + frosted header) stops drawing while a page, search or the player fully
+            // covers it, and is drawn again the moment a back swipe could reveal it.
+            val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
+            Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
             // Loading, failure and the feed fade into each other instead of snapping.
             AnimatedContent(
                 targetState = ui,
@@ -454,7 +475,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
 
-            AnimatedVisibility(visible = showSearch, enter = fadeIn(tween(180)), exit = fadeOut(tween(150, delayMillis = 70))) {
+            }
+
+            AnimatedVisibility(
+                visible = showSearch,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(150, delayMillis = 70)),
+                // Same for search when a page opened from it covers it.
+                modifier = Modifier.drawWithContent { if (!(pageCovers && !peeking.value)) drawContent() },
+            ) {
                 SearchScreen(
                     onClose = { showSearch = false },
                     onPlay = playItem,
@@ -475,7 +504,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 },
                 label = "pages",
             ) { dest ->
-                if (dest != null) {
+                if (dest != null) pageStates.SaveableStateProvider(dest.toString()) {
                     DetailScreen(
                         dest,
                         active = transition.targetState == androidx.compose.animation.EnterExitState.Visible,

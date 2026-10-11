@@ -4,6 +4,7 @@ import android.os.Bundle
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.request.crossfade
+import okio.Path.Companion.toPath
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -47,7 +48,18 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
         PlayerConnection.connect(this)
         // Covers fade in as they load instead of popping in.
-        SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).crossfade(200).build() }
+        // Covers are saved for reuse, but never more than 200 MB of them.
+        SingletonImageLoader.setSafe { context ->
+            ImageLoader.Builder(context)
+                .crossfade(200)
+                .diskCache {
+                    coil3.disk.DiskCache.Builder()
+                        .directory(context.cacheDir.resolve("image_cache").absolutePath.toPath())
+                        .maxSizeBytes(200L * 1024 * 1024)
+                        .build()
+                }
+                .build()
+        }
         setContent {
             WaveTheme {
                 val context = LocalContext.current

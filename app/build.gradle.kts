@@ -11,13 +11,25 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 99
-        versionName = "0.9.8.1"
+        versionCode = 100
+        versionName = "0.9.9"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+        }
+        // A test build with release-level speed: code shrunk and optimized by R8, not debuggable
+        // (so Android runs it fully optimized), Compose's startup profiles installed. Signed with
+        // the debug key, so it installs over (and keeps the data of) the debug build.
+        // 1.0 will get a real release build with its own key.
+        create("fast") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
         }
     }
 
@@ -58,5 +70,6 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.palette)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.profileinstaller)
     debugImplementation(libs.compose.ui.tooling)
 }

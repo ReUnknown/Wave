@@ -144,6 +144,7 @@ fun NowPlayingScreen(
     val dismissAt = with(density) { 140.dp.toPx() }
     val dragState = rememberDraggableState { delta -> drag = (drag + delta).coerceAtLeast(0f) }
     val dragScope = rememberCoroutineScope()
+    val peeking = app.wave.music.ui.components.LocalPeeking.current
     // Only the progress line and the times read this, so only they update as the song plays.
     val position = rememberPosition(song.videoId, state.isPlaying, everyMs = 200)
     var showQueue by remember { mutableStateOf(false) }
@@ -170,12 +171,18 @@ fun NowPlayingScreen(
                 .draggable(
                     dragState,
                     Orientation.Vertical,
+                    // Dragging down uncovers home, so home must be drawn while you do.
+                    onDragStarted = { peeking?.value = true },
                     onDragStopped = { velocity ->
                         if (drag > dismissAt || velocity > 2_000f) {
                             haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                            peeking?.value = false
                             onClose()
                         } else {
-                            dragScope.launch { animate(drag, 0f, animationSpec = WaveMotion.bouncy()) { v, _ -> drag = v } }
+                            dragScope.launch {
+                                animate(drag, 0f, animationSpec = WaveMotion.bouncy()) { v, _ -> drag = v }
+                                peeking?.value = false
+                            }
                         }
                     },
                 ),

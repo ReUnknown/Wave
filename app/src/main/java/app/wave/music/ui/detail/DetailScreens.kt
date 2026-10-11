@@ -147,13 +147,32 @@ private sealed interface Load<out T> {
     data class Ready<T>(val value: T) : Load<T>
 }
 
+/**
+ * Pages you opened recently, so going back to one is instant instead of reloading it. Memory
+ * only (nothing is written to storage), at most [MAX] pages, each trusted for [FRESH_MS].
+ */
+private object PageCache {
+    private const val MAX = 12
+    private const val FRESH_MS = 10 * 60_000L
+    private val entries = android.util.LruCache<Any, Pair<Long, Any?>>(MAX)
+
+    fun get(key: Any): Any? = entries.get(key)?.takeIf { System.currentTimeMillis() - it.first < FRESH_MS }?.second
+
+    fun put(key: Any, value: Any?) {
+        entries.put(key, System.currentTimeMillis() to value)
+    }
+}
+
 @Composable
 private fun <T> rememberLoad(key: Any, block: suspend () -> Result<T>): Pair<Load<T>, () -> Unit> {
     var attempt by remember { mutableIntStateOf(0) }
-    var state by remember(key) { mutableStateOf<Load<T>>(Load.Loading) }
+    @Suppress("UNCHECKED_CAST")
+    var state by remember(key) { mutableStateOf<Load<T>>(PageCache.get(key)?.let { Load.Ready(it as T) } ?: Load.Loading) }
     LaunchedEffect(key, attempt) {
+        // Already here from a recent visit: show it as it was, no reload.
+        if (attempt == 0 && state is Load.Ready) return@LaunchedEffect
         state = Load.Loading
-        state = block().fold({ Load.Ready(it) }, { Load.Failed })
+        state = block().fold({ PageCache.put(key, it); Load.Ready(it) }, { Load.Failed })
     }
     return state to { attempt++ }
 }

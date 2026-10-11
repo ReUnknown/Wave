@@ -18,6 +18,9 @@ import androidx.compose.animation.fadeOut
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
@@ -106,16 +109,47 @@ fun Modifier.sharedContainer(
 fun predictiveBack(enabled: Boolean = true, onBack: () -> Unit): () -> Float {
     var progress by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
+    val peeking = LocalPeeking.current
     PredictiveBackHandler(enabled) { events ->
         try {
-            events.collect { progress = it.progress }
+            events.collect {
+                // The screen underneath is about to show: make sure it's drawn.
+                peeking?.value = true
+                progress = it.progress
+            }
             onBack()
         } catch (e: CancellationException) {
             scope.launch { animate(progress, 0f, animationSpec = WaveMotion.settle()) { v, _ -> progress = v } }
             throw e
+        } finally {
+            peeking?.value = false
         }
     }
     return { progress }
+}
+
+/**
+ * True while a back swipe or drag-to-close is uncovering the screen underneath. Screens that are
+ * fully covered stop drawing, but must draw again the moment they might be seen.
+ */
+val LocalPeeking = compositionLocalOf<MutableState<Boolean>?> { null }
+
+/**
+ * Whether something has fully covered a screen for a moment (past its opening animation), so the
+ * screen underneath can skip drawing. Turns false the instant [covering] does, so the screen is
+ * back before anything slides away from in front of it.
+ */
+@Composable
+fun rememberCovered(covering: Boolean, settleMs: Long = 450): Boolean {
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(covering) {
+        settled = false
+        if (covering) {
+            kotlinx.coroutines.delay(settleMs)
+            settled = true
+        }
+    }
+    return covering && settled
 }
 
 /** A page being swiped back: shrinks a little, rounds its corners and leans toward the edge. */
