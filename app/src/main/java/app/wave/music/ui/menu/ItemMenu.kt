@@ -95,7 +95,8 @@ sealed interface MenuTarget {
         val removeFrom: RemoveFrom? = null,
     ) : MenuTarget
 
-    data class Collection(val item: YTItem) : MenuTarget
+    /** [onItsPage]: opened from that item's own page, so "Open …" would go nowhere. */
+    data class Collection(val item: YTItem, val onItsPage: Boolean = false) : MenuTarget
 }
 
 fun SongItem.menuTarget(removeFrom: RemoveFrom? = null) =
@@ -246,7 +247,7 @@ fun ItemMenuHost(
                                 QuickAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { choose { actions.addToQueue(item) } }
                             }
                         }
-                        val open = Destination.of(item)
+                        val open = Destination.of(item)?.takeUnless { target.onItsPage }
                         val albumArtist = (item as? AlbumItem)?.artists?.firstOrNull { it.id != null }
                         val editable = item is PlaylistItem && item.isEditable && LibraryRepository.idOf(item) != "LM"
                         if (open != null || albumArtist != null || editable) {

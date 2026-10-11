@@ -1,5 +1,9 @@
 package app.wave.music.ui.player
 
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.rememberUpdatedState
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.atSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -143,8 +147,17 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
             ?.let { LyricsUi.Ready(it) } ?: LyricsUi.Missing
     }
     // Smooth, per-frame position for the word fill.
+    // Every frame while playing; paused, just often enough to catch a seek.
+    val playingNow by rememberUpdatedState(state.isPlaying)
     LaunchedEffect(song.videoId) {
-        while (true) withFrameMillis { position = PlayerConnection.position }
+        while (true) {
+            if (playingNow) {
+                withFrameMillis { position = PlayerConnection.position }
+            } else {
+                position = PlayerConnection.position
+                delay(300)
+            }
+        }
     }
     // Only real finger drags pause auto-follow; taps don't.
     LaunchedEffect(listState) {
@@ -185,7 +198,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
     ) {
         // Backdrop: the art, blurred hard and darkened, so the page glows in the song's colors.
         BlurredImage(
-            model = song.artworkUrl,
+            model = song.artworkUrl?.atSize(ArtSize.BLUR),
             radius = 90.dp,
             modifier = Modifier
                 .fillMaxSize()
@@ -254,7 +267,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
                     .pressable(CircleShape, Color.Black.copy(alpha = 0.3f), pressedScale = 0.86f, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.KeyboardArrowDown, "Close lyrics", tint = Color.White) }
-            AsyncImage(song.artworkUrl, null, Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
+            AsyncImage(song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
             Column(Modifier.weight(1f)) {
                 Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -281,7 +294,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier =
                     PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary)
                 }
                 WavyProgress(
-                    progress = if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f,
+                    progress = { if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f },
                     playing = state.isPlaying,
                     color = Color.White,
                     trackColor = Color.White.copy(alpha = 0.3f),

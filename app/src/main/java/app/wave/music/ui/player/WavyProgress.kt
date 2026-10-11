@@ -10,6 +10,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableLongStateOf
+import app.wave.music.playback.PlayerConnection
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -30,12 +36,29 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 /**
+ * Where playback is, refreshed every [everyMs] while playing (and slowly while paused, so seeks
+ * show up). Read it inside drawing or small composables so only those update as it moves.
+ */
+@Composable
+fun rememberPosition(songId: String, playing: Boolean, everyMs: Long): State<Long> {
+    val position = remember { mutableLongStateOf(PlayerConnection.position) }
+    LaunchedEffect(songId, playing) {
+        while (true) {
+            position.longValue = PlayerConnection.position
+            delay(if (playing) everyMs else 500L)
+        }
+    }
+    return position
+}
+
+/**
  * Wave's progress line: the played part is a travelling wave while music plays and springs flat
  * when paused. Optionally draggable to seek.
  */
 @Composable
 fun WavyProgress(
-    progress: Float,
+    /** Read while drawing, so a moving position only redraws the line, nothing else. */
+    progress: () -> Float,
     playing: Boolean,
     color: Color,
     trackColor: Color,
@@ -48,16 +71,17 @@ fun WavyProgress(
     /** 0..1 loudness; the wave grows with it when "Move with the music" is on. */
     energy: () -> Float = { -1f },
 ) {
-    val phase by rememberInfiniteTransition(label = "wave").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
-        label = "phase",
-    )
-    val waveScale by animateFloatAsState(if (playing) 1f else 0f, label = "amp")
+    // The wave only travels while music plays; paused, nothing animates and no frames are drawn.
+    val phase = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(playing) {
+        if (!playing) return@LaunchedEffect
+        val start = withFrameMillis { it } - (phase.floatValue * 1400f).toLong()
+        while (true) withFrameMillis { phase.floatValue = ((it - start) % 1400L) / 1400f }
+    }
+    val waveScale = animateFloatAsState(if (playing) 1f else 0f, label = "amp")
     var dragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
-    val shown = if (dragging) dragFraction else progress.coerceIn(0f, 1f)
+    val path = remember { Path() }
 
     var input = modifier
     if (onSeek != null) {
@@ -81,6 +105,9 @@ fun WavyProgress(
     }
 
     Canvas(input) {
+        val shown = if (dragging) dragFraction else progress().coerceIn(0f, 1f)
+        val phase = phase.floatValue
+        val waveScale = waveScale.value
         val w = size.width
         val cy = size.height / 2
         val strokePx = stroke.toPx()
@@ -91,12 +118,17 @@ fun WavyProgress(
         val x = (w * shown).coerceIn(strokePx, w)
 
         if (x > strokePx) {
-            val path = Path().apply {
-                var px = strokePx / 2
-                moveTo(px, cy + amp * sin(2 * PI * (px / wl - phase)).toFloat())
+            path.rewind()
+            var px = strokePx / 2
+            if (amp < 0.05f) {
+                // Flat: one straight segment instead of hundreds of points.
+                path.moveTo(px, cy)
+                path.lineTo(x, cy)
+            } else {
+                path.moveTo(px, cy + amp * sin(2 * PI * (px / wl - phase)).toFloat())
                 while (px < x) {
-                    px = (px + 2f).coerceAtMost(x)
-                    lineTo(px, cy + amp * sin(2 * PI * (px / wl - phase)).toFloat())
+                    px = (px + 3f).coerceAtMost(x)
+                    path.lineTo(px, cy + amp * sin(2 * PI * (px / wl - phase)).toFloat())
                 }
             }
             drawPath(path, color, style = Stroke(width = strokePx, cap = StrokeCap.Round))

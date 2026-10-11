@@ -1,5 +1,10 @@
 package app.wave.music.ui.home
 
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameMillis
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import android.Manifest
 import android.os.Build
 import android.widget.Toast
@@ -96,6 +101,7 @@ import app.wave.music.ui.components.ItemCard
 import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.ProgressiveBlurImage
 import app.wave.music.ui.components.backdropSource
+import app.wave.music.ui.components.rememberBackdrop
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import app.wave.music.ui.components.WaveMark
 import app.wave.music.ui.components.subtitle
@@ -186,8 +192,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         if (Build.VERSION.SDK_INT >= 33) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     LaunchedEffect(session, attempt) {
-        ui = HomeUi.Loading
-        ui = HomeRepository.load().fold({ HomeUi.Ready(it) }, { HomeUi.Failed })
+        if (ui !is HomeUi.Ready) ui = HomeUi.Loading
+        // First page shows as soon as it lands; more sections fill in underneath.
+        runCatching { HomeRepository.feed(refresh = attempt > 0).collect { ui = HomeUi.Ready(it) } }
+            .onFailure {
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                if (ui !is HomeUi.Ready) ui = HomeUi.Failed
+            }
     }
 
     fun start(build: suspend () -> Result<PlayRequest>, startPositionMs: Long = 0) {
@@ -293,7 +304,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
     MaterialTheme(colorScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)) {
         val c = MaterialTheme.colorScheme
-        val backdrop = rememberGraphicsLayer()
+        val backdrop = rememberBackdrop()
         val listState = rememberLazyListState()
         val greetingAlpha by remember {
             derivedStateOf {
@@ -311,7 +322,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             AnimatedContent(
                 targetState = ui,
                 contentKey = { it::class },
-                transitionSpec = { fadeIn(tween(420, delayMillis = 80)) togetherWith fadeOut(tween(180)) },
+                transitionSpec = { fadeIn(tween(260, delayMillis = 40)) togetherWith fadeOut(tween(120)) },
                 label = "home",
             ) { state ->
             Box(Modifier.fillMaxSize()) {
@@ -337,14 +348,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     item {
                         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             item { NewPlaylistTile { createPlaylist = true } }
-                            items(myPlaylists) { ItemCard(it, onClick = openItem) }
+                            items(myPlaylists, key = { it.id }) { ItemCard(it, onClick = openItem) }
                         }
                     }
                     if (state.feed.recent.isNotEmpty()) {
                         item { SectionHeader("Your recent spins", "Recently played") }
                         item {
                             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                items(state.feed.recent) { song -> ItemCard(song) { playItem(it, false) } }
+                                items(state.feed.recent, key = { it.id }) { song -> ItemCard(song) { playItem(it, false) } }
                             }
                         }
                     }
@@ -376,7 +387,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // Real backdrop blur behind the sticky header: fully frosted behind the search bar and
             // greeting, then easing off in stages until the content is sharp again.
             ProgressiveBackdropBlur(
-                layer = backdrop,
+                backdrop = backdrop,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(statusTop + 230.dp),
@@ -443,7 +454,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
 
-            AnimatedVisibility(visible = showSearch, enter = fadeIn(tween(260)), exit = fadeOut(tween(220, delayMillis = 120))) {
+            AnimatedVisibility(visible = showSearch, enter = fadeIn(tween(180)), exit = fadeOut(tween(150, delayMillis = 70))) {
                 SearchScreen(
                     onClose = { showSearch = false },
                     onPlay = playItem,
@@ -458,8 +469,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 targetState = stack.lastOrNull(),
                 transitionSpec = {
                     val dir = if (forward) 1 else -1
-                    (slideInHorizontally(tween(440, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 4 } + fadeIn(tween(260, delayMillis = 60))) togetherWith
-                        (slideOutHorizontally(tween(300, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 8 } + fadeOut(tween(180))) using
+                    (slideInHorizontally(tween(300, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 4 } + fadeIn(tween(180, delayMillis = 30))) togetherWith
+                        (slideOutHorizontally(tween(200, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 8 } + fadeOut(tween(120))) using
                         SizeTransform(clip = false)
                 },
                 label = "pages",
@@ -696,7 +707,7 @@ private fun SectionRow(
                 onClick = { onPlayAll(!songsOnly) },
             )
         }
-        items(section.items) { ItemCard(it, onClick = onItem) }
+        items(section.items, key = { it.id }) { ItemCard(it, onClick = onItem) }
     }
 }
 
@@ -711,20 +722,28 @@ private fun LeadTile(
     detail: String,
     onClick: () -> Unit,
 ) {
-    val spin by rememberInfiniteTransition(label = "lead").animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(30_000, easing = LinearEasing), RepeatMode.Restart),
-        label = "spin",
-    )
-    // Move with the music: the shape turns and kicks on each beat.
+    // Move with the music: while something plays, the shape turns slowly and kicks on each beat.
+    // Nothing playing (or the setting off), it holds still and costs nothing: no frames at all.
     val moving = WaveSettings.state.collectAsState().value.moveWithMusic
-    val beat by BeatBus.beat.collectAsState()
+    val playing by remember { PlayerConnection.state.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(false)
+    val spinState = remember { mutableFloatStateOf(0f) }
+    val spin by spinState
+    LaunchedEffect(moving, playing) {
+        if (!moving || !playing) return@LaunchedEffect
+        var last = withFrameMillis { it }
+        while (true) withFrameMillis { now ->
+            spinState.floatValue = (spinState.floatValue + (now - last) * 360f / 30_000f) % 360f
+            last = now
+        }
+    }
     val kick = remember { Animatable(0f) }
-    LaunchedEffect(beat) {
-        if (moving && beat != 0L) {
-            kick.snapTo(1f)
-            kick.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 300f))
+    LaunchedEffect(moving) {
+        if (!moving) return@LaunchedEffect
+        BeatBus.beat.collectLatest { beat ->
+            if (beat != 0L) {
+                kick.snapTo(1f)
+                kick.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 300f))
+            }
         }
     }
     Column(

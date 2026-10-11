@@ -28,6 +28,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import app.wave.music.playback.NowPlaying
 import app.wave.music.ui.components.PlayPauseIcon
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.atSize
 import app.wave.music.ui.components.MorphVisibility
 import app.wave.music.ui.components.WaveMotion
 import app.wave.music.ui.components.predictiveBack
@@ -108,6 +110,7 @@ import app.wave.music.ui.menu.LocalItemMenu
 import app.wave.music.ui.menu.MenuTarget
 import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.backdropSource
+import app.wave.music.ui.components.rememberBackdrop
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -141,15 +144,10 @@ fun NowPlayingScreen(
     val dismissAt = with(density) { 140.dp.toPx() }
     val dragState = rememberDraggableState { delta -> drag = (drag + delta).coerceAtLeast(0f) }
     val dragScope = rememberCoroutineScope()
-    var position by remember { mutableLongStateOf(0L) }
+    // Only the progress line and the times read this, so only they update as the song plays.
+    val position = rememberPosition(song.videoId, state.isPlaying, everyMs = 200)
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
-    LaunchedEffect(song.videoId) {
-        while (true) {
-            position = PlayerConnection.position
-            delay(200)
-        }
-    }
 
     MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl)) {
         val c = MaterialTheme.colorScheme
@@ -186,20 +184,21 @@ fun NowPlayingScreen(
             val artPx = with(LocalDensity.current) { artHeight.toPx() }
             // Art fills the top and blurs progressively; a mirrored, fully blurred copy continues it
             // under the controls, so there's no edge where the picture ends.
-            val topBlur = rememberGraphicsLayer()
+            val topBlur = rememberBackdrop()
             val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             // A new song's art fades in over the old one instead of popping.
             AnimatedContent(
                 targetState = song.artworkUrl,
-                transitionSpec = { fadeIn(tween(520, easing = WaveMotion.Emphasized)) togetherWith fadeOut(tween(1, delayMillis = 520)) },
+                transitionSpec = { fadeIn(tween(320, easing = WaveMotion.Emphasized)) togetherWith fadeOut(tween(1, delayMillis = 320)) },
                 modifier = Modifier
                     .fillMaxSize()
                     .backdropSource(topBlur),
                 label = "art",
             ) { art ->
             Box(Modifier.fillMaxSize()) {
+                // Fully blurred, so a small copy of the art is plenty.
                 BlurredImage(
-                    art,
+                    art?.atSize(ArtSize.BLUR),
                     Modifier
                         .offset(y = artHeight)
                         .fillMaxWidth()
@@ -269,8 +268,8 @@ fun NowPlayingScreen(
                             transitionSpec = {
                                 fun spot(s: NowPlaying) = state.playOrder.indexOf(state.queue.indexOfFirst { it.videoId == s.videoId })
                                 val dir = if (spot(targetState) >= spot(initialState)) 1 else -1
-                                (slideInHorizontally(tween(420, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 3 } + fadeIn(tween(260, delayMillis = 60))) togetherWith
-                                    (slideOutHorizontally(tween(260, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 3 } + fadeOut(tween(160))) using
+                                (slideInHorizontally(tween(280, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 3 } + fadeIn(tween(180, delayMillis = 40))) togetherWith
+                                    (slideOutHorizontally(tween(180, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 3 } + fadeOut(tween(110))) using
                                     SizeTransform(clip = false)
                             },
                             modifier = Modifier.weight(1f),
@@ -289,7 +288,7 @@ fun NowPlayingScreen(
 
                     Spacer(Modifier.height(16.dp))
                     WavyProgress(
-                        progress = if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f,
+                        progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
                         playing = state.isPlaying,
                         energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },
                         color = c.onBackground,
@@ -303,10 +302,7 @@ fun NowPlayingScreen(
                             .fillMaxWidth()
                             .height(32.dp),
                     )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatTime(position), color = c.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text("−" + formatTime(state.durationMs - position), color = c.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    Times(position, state.durationMs, c.onSurfaceVariant)
 
                     // Connected group: previous · play/pause · next
                     Row(
@@ -439,6 +435,17 @@ fun NowPlayingScreen(
     }
 }
 
+/** Elapsed and remaining time; its own scope, so ticking seconds don't redraw the player. */
+@Composable
+private fun Times(position: androidx.compose.runtime.State<Long>, durationMs: Long, color: Color) {
+    // Only changes once a second, however often the position ticks.
+    val seconds by remember(position) { androidx.compose.runtime.derivedStateOf { position.value / 1000 } }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(formatTime(seconds * 1000), color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text("−" + formatTime(durationMs - seconds * 1000), color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
 /** Like, with a little pop when you like it. */
 @Composable
 private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
@@ -448,12 +455,12 @@ private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
     LaunchedEffect(liked) {
         if (first) { first = false; return@LaunchedEffect }
         if (liked) {
-            pop.animateTo(1.3f, tween(110, easing = WaveMotion.EmphasizedDecelerate))
+            pop.animateTo(1.3f, tween(90, easing = WaveMotion.EmphasizedDecelerate))
             pop.animateTo(1f, WaveMotion.bouncy())
         }
     }
-    val container by animateColorAsState(if (liked) c.primary else c.primaryContainer, tween(300), label = "likeBg")
-    val content by animateColorAsState(if (liked) c.onPrimary else c.onPrimaryContainer, tween(300), label = "likeFg")
+    val container by animateColorAsState(if (liked) c.primary else c.primaryContainer, tween(200), label = "likeBg")
+    val content by animateColorAsState(if (liked) c.onPrimary else c.onPrimaryContainer, tween(200), label = "likeFg")
     val corner by animateDpAsState(if (liked) 26.dp else 18.dp, WaveMotion.bouncy(), label = "likeShape")
     Box(
         Modifier
@@ -489,9 +496,9 @@ private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: 
     val c = MaterialTheme.colorScheme
     // Turning a mode on fills it in and firms up its corners; off, it relaxes back to an outline.
     val corner by animateDpAsState(if (on) 18.dp else 24.dp, WaveMotion.bouncy(), label = "modeShape")
-    val fill by animateColorAsState(if (on) c.primary else Color.Transparent, tween(260), label = "modeFill")
-    val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground, tween(260), label = "modeInk")
-    val outline by animateColorAsState(if (on) Color.Transparent else c.onBackground.copy(alpha = 0.2f), tween(260), label = "modeLine")
+    val fill by animateColorAsState(if (on) c.primary else Color.Transparent, tween(170), label = "modeFill")
+    val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground, tween(170), label = "modeInk")
+    val outline by animateColorAsState(if (on) Color.Transparent else c.onBackground.copy(alpha = 0.2f), tween(170), label = "modeLine")
     val shape = RoundedCornerShape(corner)
     val haptics = LocalHapticFeedback.current
     Row(
@@ -506,7 +513,7 @@ private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = ink)
-        AnimatedContent(label, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) using SizeTransform(clip = false) }, label = "modeLabel") {
+        AnimatedContent(label, transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(90)) using SizeTransform(clip = false) }, label = "modeLabel") {
             Text("  $it", color = ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }

@@ -1,5 +1,7 @@
 package app.wave.music.ui.search
 
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.atSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -99,9 +101,9 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import app.wave.music.ui.components.backdropSource
+import app.wave.music.ui.components.rememberBackdrop
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import app.wave.music.ui.components.ItemRow
-import app.wave.music.ui.components.atSize
 import app.wave.music.ui.components.rememberArtColorScheme
 import app.wave.music.ui.components.subtitle
 import coil3.compose.AsyncImage
@@ -198,7 +200,7 @@ fun SearchScreen(
     MaterialTheme(colorScheme = rememberArtColorScheme(if (showingResults && matchColors) topResult?.thumbnail?.atSize(600) else null)) {
         val c = MaterialTheme.colorScheme
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        val backdrop = rememberGraphicsLayer()
+        val backdrop = rememberBackdrop()
         Box(
             Modifier
                 .backGesture(back)
@@ -210,7 +212,7 @@ fun SearchScreen(
             Box(Modifier.fillMaxSize().backdropSource(backdrop)) {
             if (!showingResults && ambientArt != null) {
                 BlurredImage(
-                    ambientArt,
+                    ambientArt.atSize(ArtSize.BLUR),
                     Modifier
                         .fillMaxWidth()
                         .height(520.dp)
@@ -327,7 +329,7 @@ fun SearchScreen(
 
             // Frosted header: real progressive blur behind the search field and filter chips.
             ProgressiveBackdropBlur(
-                layer = backdrop,
+                backdrop = backdrop,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(statusTop + if (showingResults) 132.dp else 80.dp),
@@ -381,8 +383,8 @@ fun SearchScreen(
                         items(SearchTab.entries) { t ->
                             val selected = t == tab
                             // The chosen filter fills in and rounds out; the rest relax back.
-                            val fill by animateColorAsState(if (selected) c.primary else Color.White.copy(alpha = 0.1f), tween(240), label = "chip")
-                            val ink by animateColorAsState(if (selected) c.onPrimary else c.onBackground, tween(240), label = "chipInk")
+                            val fill by animateColorAsState(if (selected) c.primary else Color.White.copy(alpha = 0.1f), tween(160), label = "chip")
+                            val ink by animateColorAsState(if (selected) c.onPrimary else c.onBackground, tween(160), label = "chipInk")
                             val corner by animateDpAsState(if (selected) 20.dp else 12.dp, WaveMotion.bouncy(), label = "chipShape")
                             Box(
                                 Modifier

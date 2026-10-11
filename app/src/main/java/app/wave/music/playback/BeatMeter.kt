@@ -19,6 +19,9 @@ object BeatBus {
     /** 0..1 loudness relative to the song's recent average. */
     val level: StateFlow<Float> = _level.asStateFlow()
 
+    /** Wave is on screen. Off screen (or with "Move with the music" off) nothing is measured. */
+    @Volatile var visible = false
+
     internal val _beat = MutableStateFlow(0L)
     /** Changes (to the time it happened) on every detected beat. */
     val beat: StateFlow<Long> = _beat.asStateFlow()
@@ -44,6 +47,14 @@ class BeatMeter : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
+        if (!BeatBus.visible || !app.wave.music.data.WaveSettings.state.value.moveWithMusic) {
+            // Nobody's watching: pass the audio straight through without measuring it.
+            average = 0.0
+            val out = replaceOutputBuffer(remaining)
+            out.put(inputBuffer)
+            out.flip()
+            return
+        }
         val shorts = inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         var sum = 0.0
         val count = shorts.remaining()

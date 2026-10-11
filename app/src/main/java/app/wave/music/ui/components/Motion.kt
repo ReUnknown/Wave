@@ -53,11 +53,11 @@ object WaveMotion {
 
     /** Containers growing out of (and back into) the thing you tapped. */
     @OptIn(ExperimentalSharedTransitionApi::class)
-    val ContainerTransform = BoundsTransform { _, _ -> tween(520, easing = Emphasized) }
+    val ContainerTransform = BoundsTransform { _, _ -> tween(360, easing = Emphasized) }
 
     /** Small, physical feedback: presses, toggles, icons. */
-    fun <T> bouncy() = spring<T>(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)
-    fun <T> settle() = spring<T>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+    fun <T> bouncy() = spring<T>(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)
+    fun <T> settle() = spring<T>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
 }
 
 /** The shared-transition scope that home sets up, so screens can grow out of what you tapped. */
@@ -90,8 +90,8 @@ fun Modifier.sharedContainer(
             },
             // The big side appears right away and only fades at the very end of shrinking back;
             // the small side does the opposite. So the container always has something in it.
-            enter = if (fromTop) fadeIn(tween(160)) else fadeIn(tween(200, delayMillis = 320)),
-            exit = if (fromTop) fadeOut(tween(200, delayMillis = 320)) else fadeOut(tween(120)),
+            enter = if (fromTop) fadeIn(tween(110)) else fadeIn(tween(140, delayMillis = 210)),
+            exit = if (fromTop) fadeOut(tween(140, delayMillis = 210)) else fadeOut(tween(90)),
             clipInOverlayDuringTransition = OverlayClip(shape),
         )
     }
@@ -174,31 +174,30 @@ fun PlayPauseIcon(playing: Boolean, tint: Color, modifier: Modifier = Modifier, 
         val k = this.size.minDimension / 24f
         fun lerp(a: Float, b: Float) = a + (b - a) * t
         fun pt(pause: Offset, play: Offset) = Offset(lerp(pause.x, play.x) * k, lerp(pause.y, play.y) * k)
-        fun quad(a: Offset, b: Offset, c: Offset, d: Offset) = Path().apply {
-            val points = listOf(a, b, c, d)
-            moveTo(points[0].x, points[0].y)
-            for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
-            close()
+        // Both halves go in one path and overlap a little where they meet, so there's never a
+        // hairline seam (in the button's color) down the middle of the triangle.
+        val path = Path()
+        fun quad(a: Offset, b: Offset, c: Offset, d: Offset) {
+            path.moveTo(a.x, a.y)
+            path.lineTo(b.x, b.y)
+            path.lineTo(c.x, c.y)
+            path.lineTo(d.x, d.y)
+            path.close()
         }
-        // Left bar → left half of the triangle.
-        drawPath(
-            quad(
-                pt(Offset(6f, 5f), Offset(8f, 5f)),
-                pt(Offset(10f, 5f), Offset(13.5f, 8.5f)),
-                pt(Offset(10f, 19f), Offset(13.5f, 15.5f)),
-                pt(Offset(6f, 19f), Offset(8f, 19f)),
-            ),
-            tint,
+        // Left bar → left half of the triangle (reaching slightly past the middle).
+        quad(
+            pt(Offset(6f, 5f), Offset(8f, 5f)),
+            pt(Offset(10f, 5f), Offset(14.2f, 8.95f)),
+            pt(Offset(10f, 19f), Offset(14.2f, 15.05f)),
+            pt(Offset(6f, 19f), Offset(8f, 19f)),
         )
         // Right bar → right half (the point).
-        drawPath(
-            quad(
-                pt(Offset(14f, 5f), Offset(13.5f, 8.5f)),
-                pt(Offset(18f, 5f), Offset(19f, 12f)),
-                pt(Offset(18f, 19f), Offset(19f, 12f)),
-                pt(Offset(14f, 19f), Offset(13.5f, 15.5f)),
-            ),
-            tint,
+        quad(
+            pt(Offset(14f, 5f), Offset(13.5f, 8.5f)),
+            pt(Offset(18f, 5f), Offset(19f, 12f)),
+            pt(Offset(18f, 19f), Offset(19f, 12f)),
+            pt(Offset(14f, 19f), Offset(13.5f, 15.5f)),
         )
+        drawPath(path, tint)
     }
 }

@@ -66,6 +66,13 @@ object PlayerConnection {
                 if (c.mediaItemCount == 0) restoreQueue(c)
                 c.addListener(object : Player.Listener {
                     override fun onEvents(player: Player, events: Player.Events) {
+                        if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) {
+                            orderStale = true
+                            if (events.contains(Player.EVENT_TIMELINE_CHANGED)) {
+                                queueStale = true
+                                itemsSaved = false
+                            }
+                        }
                         if (events.containsAny(
                                 Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_TIMELINE_CHANGED,
                                 Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_REPEAT_MODE_CHANGED,
@@ -90,16 +97,27 @@ object PlayerConnection {
     }
 
     private val queueFile get() = java.io.File(appContext.filesDir, "queue.json")
+    private val queueStateFile get() = java.io.File(appContext.filesDir, "queue-state.json")
+
+    /** The song list only needs rewriting when it changed; position saves are tiny. */
+    private var itemsSaved = false
 
     /** Saves the whole queue, where you are in it, and its modes, so it survives the app closing. */
     private fun saveQueue() {
         val c = controller ?: return
         if (c.mediaItemCount == 0) return
-        val json = org.json.JSONObject().apply {
+        val state = org.json.JSONObject().apply {
             put("index", c.currentMediaItemIndex)
             put("position", c.currentPosition)
             put("shuffle", c.shuffleModeEnabled)
             put("repeat", c.repeatMode)
+        }.toString()
+        if (itemsSaved) {
+            scope.launch(Dispatchers.IO) { runCatching { queueStateFile.writeText(state) } }
+            return
+        }
+        itemsSaved = true
+        val json = org.json.JSONObject().apply {
             playbackContext?.let { ctx ->
                 put("context", org.json.JSONObject().apply {
                     put("id", ctx.id); put("title", ctx.title); put("art", ctx.artworkUrl ?: "")
@@ -116,12 +134,19 @@ object PlayerConnection {
                 }
             })
         }.toString()
-        scope.launch(Dispatchers.IO) { runCatching { queueFile.writeText(json) } }
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                queueFile.writeText(json)
+                queueStateFile.writeText(state)
+            }
+        }
     }
 
     /** Puts the last queue back (paused) when the app starts with nothing playing. */
     private fun restoreQueue(c: MediaController) {
         val json = runCatching { org.json.JSONObject(queueFile.readText()) }.getOrNull() ?: return
+        // Where you were lives in its own small file (older saves kept it in queue.json).
+        val spot = runCatching { org.json.JSONObject(queueStateFile.readText()) }.getOrNull() ?: json
         val array = json.optJSONArray("items") ?: return
         val items = (0 until array.length()).map { i ->
             val o = array.getJSONObject(i)
@@ -144,9 +169,10 @@ object PlayerConnection {
                 isCollection = o.optBoolean("collection"),
             )
         }
-        c.shuffleModeEnabled = json.optBoolean("shuffle")
-        c.repeatMode = json.optInt("repeat")
-        c.setMediaItems(items, json.optInt("index").coerceIn(0, items.size - 1), json.optLong("position"))
+        c.shuffleModeEnabled = spot.optBoolean("shuffle")
+        c.repeatMode = spot.optInt("repeat")
+        c.setMediaItems(items, spot.optInt("index").coerceIn(0, items.size - 1), spot.optLong("position"))
+        itemsSaved = true
         c.prepare()
     }
 
@@ -163,9 +189,27 @@ object PlayerConnection {
         durationMs = durationMs,
     )
 
+    /** The queue as the UI sees it, rebuilt only when the song list changes (it can be thousands long). */
+    private var queueCache: List<NowPlaying> = emptyList()
+    private var queueStale = true
+    /** Play order, rebuilt only when the list or shuffle changes. */
+    private var orderCache: List<Int> = emptyList()
+    private var orderStale = true
+
     private fun publish() {
         val c = controller ?: return
-        val current = c.currentMediaItem?.toNowPlaying()
+        if (queueStale || queueCache.size != c.mediaItemCount) {
+            queueCache = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toNowPlaying() }
+            queueStale = false
+            orderStale = true
+        }
+        if (orderStale) {
+            orderCache = fullOrder(c)
+            orderStale = false
+        }
+        val index = c.currentMediaItemIndex
+        val spot = orderCache.indexOf(index)
+        val current = queueCache.getOrNull(index)
         _state.value = PlayerUiState(
             current = current,
             isPlaying = c.isPlaying,
@@ -174,11 +218,11 @@ object PlayerConnection {
             shuffle = c.shuffleModeEnabled,
             repeatMode = c.repeatMode,
             index = c.currentMediaItemIndex,
-            queue = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toNowPlaying() },
+            queue = queueCache,
             context = playbackContext,
             liked = current?.videoId in liked,
-            upcoming = upcomingOrder(c),
-            playOrder = fullOrder(c),
+            upcoming = if (spot >= 0) orderCache.subList(spot + 1, orderCache.size) else upcomingOrder(c),
+            playOrder = orderCache,
         )
     }
 
@@ -238,7 +282,7 @@ object PlayerConnection {
                 .map { with(QueueBuilder) { it.toMediaItem() } }
             if (fresh.isNotEmpty()) {
                 ctl.addMediaItems(fresh)
-                publish()
+                queueChanged()
             }
         }
     }
@@ -256,8 +300,22 @@ object PlayerConnection {
     }
 
     /** Learns which songs you've already liked, from your Liked music playlist. */
+    private val likesFile get() = java.io.File(appContext.filesDir, "likes.txt")
+    private const val LIKES_FRESH_MS = 6 * 60 * 60_000L
+
+    /**
+     * Learns which songs you've already liked. The list is kept on the phone, so it's there
+     * instantly, and only re-read from YouTube (up to 50 pages) when it's more than 6 hours old.
+     */
     suspend fun loadLikes() {
-        val ids = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val file = likesFile
+        val saved = withContext(Dispatchers.IO) { runCatching { file.readLines().filter { it.isNotBlank() } }.getOrNull() }
+        if (saved != null) {
+            liked += saved
+            publish()
+            if (System.currentTimeMillis() - file.lastModified() < LIKES_FRESH_MS) return
+        }
+        val ids = withContext(Dispatchers.IO) {
             runCatching {
                 val first = YouTube.playlist("LM").getOrThrow()
                 val all = first.songs.map { it.id }.toMutableList()
@@ -271,8 +329,15 @@ object PlayerConnection {
                 all
             }.getOrNull()
         } ?: return
+        liked.clear()
         liked += ids
         publish()
+        saveLikes()
+    }
+
+    private fun saveLikes() {
+        val snapshot = liked.toList()
+        scope.launch(Dispatchers.IO) { runCatching { likesFile.writeText(snapshot.joinToString("\n")) } }
     }
 
     private fun saveResume() {
@@ -294,6 +359,12 @@ object PlayerConnection {
         scope.launch(Dispatchers.IO) { ResumeStore.save(appContext, state) }
     }
 
+    private fun queueChanged() {
+        queueStale = true
+        itemsSaved = false
+        publish()
+    }
+
     fun play(request: PlayRequest, startPositionMs: Long = 0) {
         val c = controller ?: return
         playbackContext = request.context
@@ -301,7 +372,7 @@ object PlayerConnection {
         c.setMediaItems(request.items, request.startIndex, startPositionMs)
         c.prepare()
         c.play()
-        publish()
+        queueChanged()
         request.more?.let { loadMore ->
             val contextId = request.context.id
             scope.launch {
@@ -309,7 +380,7 @@ object PlayerConnection {
                 // Only append if you're still listening to the same thing.
                 if (extra.isNotEmpty() && playbackContext?.id == contextId) {
                     controller?.addMediaItems(extra)
-                    publish()
+                    queueChanged()
                 }
             }
         }
@@ -323,7 +394,7 @@ object PlayerConnection {
             return
         }
         c.addMediaItems(c.currentMediaItemIndex + 1, request.items)
-        publish()
+        queueChanged()
     }
 
     /** Adds songs to the end of the queue (or starts playing if nothing is). */
@@ -334,7 +405,7 @@ object PlayerConnection {
             return
         }
         c.addMediaItems(request.items)
-        publish()
+        queueChanged()
     }
 
     fun play() = controller?.play()
@@ -367,6 +438,7 @@ object PlayerConnection {
     fun setLiked(videoId: String, like: Boolean) {
         if (like) liked += videoId else liked -= videoId
         publish()
+        saveLikes()
         scope.launch(Dispatchers.IO) { YouTube.likeVideo(videoId, like) }
     }
 }

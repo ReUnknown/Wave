@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.atSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -68,13 +70,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val song = state.current ?: return
-    var position by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(song.videoId, state.isPlaying) {
-        while (true) {
-            position = PlayerConnection.position
-            delay(250)
-        }
-    }
+    val position = rememberPosition(song.videoId, state.isPlaying, everyMs = 250)
     val shape = RoundedCornerShape(32.dp)
     val haptics = LocalHapticFeedback.current
     Box(
@@ -85,7 +81,7 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             .pressable(shape, pressedScale = 0.97f, onClick = onOpen)
             .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
     ) {
-        Crossfade(song.artworkUrl, Modifier.matchParentSize(), animationSpec = tween(500), label = "miniBackdrop") { art ->
+        Crossfade(song.artworkUrl?.atSize(ArtSize.BLUR), Modifier.matchParentSize(), animationSpec = tween(320), label = "miniBackdrop") { art ->
             BlurredImage(art, Modifier.fillMaxSize(), radius = 28.dp)
         }
         Box(
@@ -100,7 +96,7 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Crossfade(song.artworkUrl, animationSpec = tween(400), label = "miniArt") { art ->
+            Crossfade(song.artworkUrl?.atSize(ArtSize.THUMB), animationSpec = tween(260), label = "miniArt") { art ->
                 AsyncImage(
                     model = art,
                     contentDescription = null,
@@ -116,8 +112,8 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
                 targetState = song,
                 contentKey = { it.videoId },
                 transitionSpec = {
-                    (slideInVertically(tween(360, easing = WaveMotion.EmphasizedDecelerate)) { it / 2 } + fadeIn(tween(220, delayMillis = 60))) togetherWith
-                        (slideOutVertically(tween(220, easing = WaveMotion.EmphasizedAccelerate)) { -it / 2 } + fadeOut(tween(140)))
+                    (slideInVertically(tween(260, easing = WaveMotion.EmphasizedDecelerate)) { it / 2 } + fadeIn(tween(160, delayMillis = 40))) togetherWith
+                        (slideOutVertically(tween(160, easing = WaveMotion.EmphasizedAccelerate)) { -it / 2 } + fadeOut(tween(100)))
                 },
                 modifier = Modifier.weight(1f),
                 label = "miniTitle",
@@ -153,7 +149,7 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             }
         }
         WavyProgress(
-            progress = if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f,
+            progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
             playing = state.isPlaying,
             energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },
             color = Color.White,

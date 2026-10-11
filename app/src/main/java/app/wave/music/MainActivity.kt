@@ -31,13 +31,23 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        app.wave.music.playback.BeatBus.visible = true
+    }
+
+    override fun onStop() {
+        app.wave.music.playback.BeatBus.visible = false
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
         PlayerConnection.connect(this)
         // Covers fade in as they load instead of popping in.
-        SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).crossfade(320).build() }
+        SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).crossfade(200).build() }
         setContent {
             WaveTheme {
                 val context = LocalContext.current

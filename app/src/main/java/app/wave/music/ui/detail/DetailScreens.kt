@@ -90,6 +90,7 @@ import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.ProgressiveBlurImage
 import app.wave.music.ui.components.atSize
 import app.wave.music.ui.components.backdropSource
+import app.wave.music.ui.components.rememberBackdrop
 import app.wave.music.ui.components.rememberArtColorScheme
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.models.AlbumItem
@@ -207,7 +208,7 @@ private fun <T> PageFrame(
     val matchColors = WaveSettings.state.collectAsState().value.matchSongColors
     MaterialTheme(colorScheme = rememberArtColorScheme(if (matchColors) art?.atSize(600) else null)) {
         val c = MaterialTheme.colorScheme
-        val backdrop = rememberGraphicsLayer()
+        val backdrop = rememberBackdrop()
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Box(
             Modifier
@@ -223,7 +224,7 @@ private fun <T> PageFrame(
                 AnimatedContent(
                     targetState = load,
                     contentKey = { it::class },
-                    transitionSpec = { fadeIn(tween(380, delayMillis = 60)) togetherWith fadeOut(tween(160)) },
+                    transitionSpec = { fadeIn(tween(240, delayMillis = 30)) togetherWith fadeOut(tween(110)) },
                     label = "page",
                 ) { load ->
                 Box(Modifier.fillMaxSize()) {
@@ -269,7 +270,7 @@ private fun <T> PageFrame(
                         .statusBarsPadding()
                         .padding(12.dp)
                         .size(48.dp)
-                        .pressable(CircleShape, Color.White.copy(alpha = 0.14f), pressedScale = 0.86f) { menu.open(MenuTarget.Collection(pageItem)) },
+                        .pressable(CircleShape, Color.White.copy(alpha = 0.14f), pressedScale = 0.86f) { menu.open(MenuTarget.Collection(pageItem, onItsPage = true)) },
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.MoreVert, "More options", tint = Color.White) }
             }

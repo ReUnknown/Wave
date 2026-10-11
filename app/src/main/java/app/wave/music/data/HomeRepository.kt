@@ -1,5 +1,9 @@
 package app.wave.music.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.models.AlbumItem
 import com.metrolist.innertube.models.EpisodeItem
@@ -26,33 +30,53 @@ object HomeRepository {
     /** How many extra pages of home sections to pull after the first. */
     private const val EXTRA_PAGES = 2
 
-    suspend fun load(): Result<HomeFeed> = runCatching {
+    /** The last feed, so coming back to the app (or a rotated screen) shows home instantly. */
+    @Volatile private var cached: Pair<Long, HomeFeed>? = null
+    private const val FRESH_FOR_MS = 15 * 60_000L
+
+    /**
+     * Home, as fast as possible: a recent cached feed right away; otherwise the first page as soon
+     * as it arrives (with history fetched alongside), then again once the extra pages are in.
+     * Throws if even the first page fails.
+     */
+    fun feed(refresh: Boolean = false): Flow<HomeFeed> = flow {
+        val recentCache = cached?.takeIf { !refresh && System.currentTimeMillis() - it.first < FRESH_FOR_MS }
+        if (recentCache != null) {
+            emit(recentCache.second)
+            return@flow
+        }
         coroutineScope {
             val historyCall = async { YouTube.musicHistory() }
             val first = YouTube.home().getOrThrow()
-
             val sections = first.sections.toMutableList()
-            var continuation = first.continuation
-            repeat(EXTRA_PAGES) {
-                val next = continuation?.let { YouTube.home(continuation = it).getOrNull() } ?: return@repeat
-                sections += next.sections
-                continuation = next.continuation
-            }
-
-            val music = sections
-                .map { section -> section.copy(items = section.items.filterNot(::isPodcast).distinctBy { it.id }) }
-                .filter { it.items.isNotEmpty() }
-                .distinctBy { it.title }
-
             val recent = historyCall.await().getOrNull()
                 ?.sections.orEmpty()
                 .flatMap { it.songs }
                 .filterNot(::isPodcast)
                 .distinctBy { it.id }
                 .take(12)
+            emit(build(sections, recent))
 
-            HomeFeed(hero = pickHero(music), recent = recent, sections = music)
+            var continuation = first.continuation
+            var added = false
+            repeat(EXTRA_PAGES) {
+                val next = continuation?.let { YouTube.home(continuation = it).getOrNull() } ?: return@repeat
+                sections += next.sections
+                continuation = next.continuation
+                added = true
+            }
+            val full = build(sections, recent)
+            cached = System.currentTimeMillis() to full
+            if (added) emit(full)
         }
+    }.flowOn(Dispatchers.IO)
+
+    private fun build(sections: List<HomePage.Section>, recent: List<SongItem>): HomeFeed {
+        val music = sections
+            .map { section -> section.copy(items = section.items.filterNot(::isPodcast).distinctBy { it.id }) }
+            .filter { it.items.isNotEmpty() }
+            .distinctBy { it.title }
+        return HomeFeed(hero = pickHero(music), recent = recent, sections = music)
     }
 
     /**

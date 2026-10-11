@@ -40,7 +40,7 @@ fun rememberArtColorScheme(artUrl: String?, base: ColorScheme = MaterialTheme.co
     LaunchedEffect(artUrl, base) {
         if (artUrl == null || schemes.get(artUrl) != null) return@LaunchedEffect
         val result = SingletonImageLoader.get(context).execute(
-            ImageRequest.Builder(context).data(artUrl).size(128).allowHardware(false).build(),
+            ImageRequest.Builder(context).data(artUrl.atSize(ArtSize.THUMB)).size(128).allowHardware(false).build(),
         )
         val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@LaunchedEffect
         val palette = withContext(Dispatchers.Default) { Palette.from(bitmap).generate() }
@@ -91,7 +91,7 @@ private fun Color.rotateHue(degrees: Float): Color {
 /** Fades the colors you actually see from one song's scheme to the next. */
 @Composable
 private fun animate(target: ColorScheme): ColorScheme {
-    val spec = tween<Color>(700, easing = FastOutSlowInEasing)
+    val spec = tween<Color>(420, easing = FastOutSlowInEasing)
     val primary by animateColorAsState(target.primary, spec)
     val onPrimary by animateColorAsState(target.onPrimary, spec)
     val primaryContainer by animateColorAsState(target.primaryContainer, spec)

@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.atSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -151,7 +153,7 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
             .background(c.background),
     ) {
         BlurredImage(
-            model = current.artworkUrl,
+            model = current.artworkUrl?.atSize(ArtSize.BLUR),
             radius = 80.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -205,7 +207,7 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
                         val song = state.queue.getOrNull(order[page])
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             AsyncImage(
-                                model = song?.artworkUrl,
+                                model = song?.artworkUrl?.atSize(ArtSize.CARD),
                                 contentDescription = song?.title,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -283,7 +285,7 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = 
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        AsyncImage(entry.song.artworkUrl, null, Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
+                        AsyncImage(entry.song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
                         Column(Modifier.weight(1f)) {
                             Text(entry.song.title, color = c.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(entry.song.artist, color = c.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
