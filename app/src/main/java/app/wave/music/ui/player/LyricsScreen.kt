@@ -86,6 +86,14 @@ import app.wave.music.playback.PlayerConnection
 import app.wave.music.data.WaveSettings
 import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.backGesture
+import app.wave.music.ui.components.PlayPauseIcon
+import app.wave.music.ui.components.WaveMotion
+import app.wave.music.ui.components.pressable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import app.wave.music.ui.components.predictiveBack
 import app.wave.music.ui.components.blocksTouchesBelow
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
@@ -118,8 +126,8 @@ private suspend fun LazyListState.centerOn(index: Int, animate: Boolean) {
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit) {
-    BackHandler(onBack = onClose)
+fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    val back = predictiveBack(onBack = onClose)
     val song = state.current ?: return
     val scope = rememberCoroutineScope()
     var ui by remember(song.videoId) { mutableStateOf<LyricsUi>(LyricsUi.Loading) }
@@ -169,7 +177,8 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit) {
     }
 
     BoxWithConstraints(
-        Modifier
+        modifier
+            .backGesture(back)
             .fillMaxSize()
             .blocksTouchesBelow()
             .background(MaterialTheme.colorScheme.background),
@@ -242,9 +251,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit) {
             Box(
                 Modifier
                     .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.3f))
-                    .clickable(onClick = onClose),
+                    .pressable(CircleShape, Color.Black.copy(alpha = 0.3f), pressedScale = 0.86f, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.KeyboardArrowDown, "Close lyrics", tint = Color.White) }
             AsyncImage(song.artworkUrl, null, Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
@@ -263,19 +270,15 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit) {
                 .padding(horizontal = 20.dp, vertical = 12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                val playCorner by animateDpAsState(if (state.isPlaying) 20.dp else 28.dp, WaveMotion.bouncy(), label = "playShape")
                 Box(
                     Modifier
                         .size(56.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable { PlayerConnection.togglePlay() },
+                        .pressable(RoundedCornerShape(playCorner), MaterialTheme.colorScheme.primary, pressedScale = 0.9f) { PlayerConnection.togglePlay() }
+                        .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        if (state.isPlaying) "Pause" else "Play",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                    )
+                    PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary)
                 }
                 WavyProgress(
                     progress = if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f,

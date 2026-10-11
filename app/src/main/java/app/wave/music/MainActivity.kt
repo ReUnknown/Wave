@@ -1,6 +1,9 @@
 package app.wave.music
 
 import android.os.Bundle
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.request.crossfade
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -33,6 +36,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
         PlayerConnection.connect(this)
+        // Covers fade in as they load instead of popping in.
+        SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).crossfade(320).build() }
         setContent {
             WaveTheme {
                 val context = LocalContext.current

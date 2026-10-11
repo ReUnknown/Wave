@@ -90,6 +90,13 @@ import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.ProgressiveBlurImage
 import app.wave.music.ui.components.BlurredImage
 import app.wave.music.ui.components.blocksTouchesBelow
+import app.wave.music.ui.components.WaveMotion
+import app.wave.music.ui.components.backGesture
+import app.wave.music.ui.components.predictiveBack
+import app.wave.music.ui.components.pressable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import app.wave.music.ui.components.backdropSource
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -125,8 +132,10 @@ fun SearchScreen(
     onOpen: (YTItem) -> Unit,
     /** Art to glow behind the empty search page (what's playing, or home's top pick). */
     ambientArt: String? = null,
+    /** The shared container the search field morphs from (home's search bar). */
+    fieldModifier: Modifier = Modifier,
 ) {
-    BackHandler(onBack = onClose)
+    val back = predictiveBack(onBack = onClose)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -192,6 +201,7 @@ fun SearchScreen(
         val backdrop = rememberGraphicsLayer()
         Box(
             Modifier
+                .backGesture(back)
                 .fillMaxSize()
                 .blocksTouchesBelow()
                 .background(c.background),
@@ -255,13 +265,16 @@ fun SearchScreen(
                     !showingResults -> {
                         // Searches to finish the query, then the artists, songs and albums it
                         // already matches (tap to open or play), then your own playlists.
-                        items(suggestions.queries.take(4)) { s ->
-                            SuggestionRow(s, Icons.Rounded.Search, onClick = { submit(s) }, trailingIcon = Icons.Rounded.North) { query = s }
+                        // Rows glide into place as the suggestions change under your typing.
+                        items(suggestions.queries.take(4), key = { "q-$it" }) { s ->
+                            Box(Modifier.animateItem()) {
+                                SuggestionRow(s, Icons.Rounded.Search, onClick = { submit(s) }, trailingIcon = Icons.Rounded.North) { query = s }
+                            }
                         }
                         if (suggestions.items.isNotEmpty()) {
-                            item { SmallLabel("Matches", top = 12.dp) }
+                            item(key = "matches") { Box(Modifier.animateItem()) { SmallLabel("Matches", top = 12.dp) } }
                             items(suggestions.items, key = { "match-" + it.id }) { item ->
-                                ItemRow(item, onClick = pick, trailing = { MatchHint(item) })
+                                ItemRow(item, onClick = pick, trailing = { MatchHint(item) }, modifier = Modifier.animateItem())
                             }
                         }
                         if (libraryMatches.isNotEmpty()) {
@@ -329,6 +342,7 @@ fun SearchScreen(
                 Row(
                     Modifier
                         .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .then(fieldModifier)
                         .fillMaxWidth()
                         .height(60.dp)
                         .clip(CircleShape)
@@ -366,16 +380,18 @@ fun SearchScreen(
                     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(SearchTab.entries) { t ->
                             val selected = t == tab
+                            // The chosen filter fills in and rounds out; the rest relax back.
+                            val fill by animateColorAsState(if (selected) c.primary else Color.White.copy(alpha = 0.1f), tween(240), label = "chip")
+                            val ink by animateColorAsState(if (selected) c.onPrimary else c.onBackground, tween(240), label = "chipInk")
+                            val corner by animateDpAsState(if (selected) 20.dp else 12.dp, WaveMotion.bouncy(), label = "chipShape")
                             Box(
                                 Modifier
                                     .height(40.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (selected) c.primary else Color.White.copy(alpha = 0.1f))
-                                    .clickable { tab = t }
+                                    .pressable(RoundedCornerShape(corner), fill, pressedScale = 0.92f) { tab = t }
                                     .padding(horizontal = 16.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text(t.label, color = if (selected) c.onPrimary else c.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(t.label, color = ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             }
                         }
                     }
@@ -417,9 +433,7 @@ private fun TopResult(item: YTItem, onPlay: (YTItem, Boolean) -> Unit, onPlayNex
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp))
-                    .background(c.primary)
-                    .clickable(onClick = primary.third),
+                    .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = primary.third),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -430,9 +444,7 @@ private fun TopResult(item: YTItem, onPlay: (YTItem, Boolean) -> Unit, onPlayNex
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp))
-                    .background(c.onBackground.copy(alpha = 0.12f))
-                    .clickable(onClick = secondary.third),
+                    .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.95f, onClick = secondary.third),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

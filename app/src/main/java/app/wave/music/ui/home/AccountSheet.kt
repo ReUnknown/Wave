@@ -146,6 +146,10 @@ fun AccountSheet(
                 Toggle("Skip silence", "Trim quiet gaps between songs", settings.skipSilence) { on ->
                     change { it.copy(skipSilence = on) }
                 }
+                Divider()
+                Toggle("Autoplay", "When a playlist ends, keep going with similar songs", settings.autoplay) { on ->
+                    change { it.copy(autoplay = on) }
+                }
             }
 
             Box(

@@ -16,6 +16,9 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
+import androidx.media3.datasource.cache.ContentMetadataMutations
+import kotlinx.coroutines.delay
+import timber.log.Timber
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -52,6 +55,8 @@ class WaveService : MediaSessionService() {
         val url: String,
         val headers: Map<String, String>,
         val boundedChunk: Long,
+        /** The file's true size in bytes, or -1 if YouTube didn't say. */
+        val contentLength: Long,
         val expiresAt: Long,
     )
 
@@ -61,12 +66,18 @@ class WaveService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         StreamResolver.initialize(this)
+        // Before 0.9.5 the cache could record songs as shorter than they are, which cut them off
+        // on every replay. That cache is thrown away; the new one always stores true sizes.
+        scope.launch {
+            val old = File(cacheDir, "audio")
+            if (old.exists()) runCatching { SimpleCache.delete(old, StandaloneDatabaseProvider(this@WaveService)) }
+        }
         runBlocking { WaveSettings.load(this@WaveService) }
 
         val http = OkHttpDataSource.Factory(OkHttpClient.Builder().build())
         val cached = CacheDataSource.Factory()
             .setCache(cache(this))
-            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(this, ChunkedDataSource.Factory(http)))
+            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(this, StreamDataSource.Factory(http)))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val resolving = ResolvingDataSource.Factory(cached, ::resolve)
 
@@ -108,6 +119,11 @@ class WaveService : MediaSessionService() {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 failures = 0
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) recoverIfCutShort(player, ended = false)
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) recoverIfCutShort(player, ended = true)
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -125,6 +141,18 @@ class WaveService : MediaSessionService() {
             }
         })
 
+        // Remember where each song is, so a song that ends early can be caught (see recoverIfCutShort).
+        scope.launch(Dispatchers.Main) {
+            while (true) {
+                player.currentMediaItem?.let {
+                    watchedId = it.mediaId
+                    watchedPosition = player.currentPosition
+                    watchedDuration = player.duration
+                }
+                delay(500)
+            }
+        }
+
         val openApp = PendingIntent.getActivity(
             this,
             0,
@@ -132,6 +160,42 @@ class WaveService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         session = MediaSession.Builder(this, ShufflingPlayer(player)).setSessionActivity(openApp).build()
+    }
+
+    private var watchedId: String? = null
+    private var watchedPosition = 0L
+    private var watchedDuration = C.TIME_UNSET
+    private val cutShortFixes = HashMap<String, Int>()
+
+    /**
+     * Last line of defense for "the song stopped before the end": if a song finishes well before
+     * its real length, its saved copy is thrown away and it picks up again, freshly downloaded,
+     * from where it cut off.
+     */
+    private fun recoverIfCutShort(player: ExoPlayer, ended: Boolean) {
+        val id = watchedId ?: return
+        val duration = watchedDuration
+        val position = watchedPosition
+        if (duration == C.TIME_UNSET || duration <= 0 || position >= duration - 5_000) return
+        val attempts = cutShortFixes.merge(id, 1, Int::plus) ?: 1
+        if (attempts > 2) return
+        val index = if (ended) {
+            player.currentMediaItemIndex
+        } else {
+            player.previousMediaItemIndex.takeIf { it != C.INDEX_UNSET && player.getMediaItemAt(it).mediaId == id }
+                ?: (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == id }
+                ?: return
+        }
+        Timber.w("%s ended at %d of %d ms; reloading it", id, position, duration)
+        streams.remove(id)
+        scope.launch {
+            runCatching { cache(this@WaveService).removeResource(id) }
+            launch(Dispatchers.Main) {
+                player.seekTo(index, position)
+                player.prepare()
+                player.play()
+            }
+        }
     }
 
     /** Turns a song id into a playable YouTube audio URL, just before ExoPlayer reads it. */
@@ -160,13 +224,31 @@ class WaveService : MediaSessionService() {
                 url = data.streamUrl,
                 headers = data.streamHeaders,
                 boundedChunk = if (data.requireBoundedRange || data.useRangeChunks) data.rangeChunkSizeBytes else 0L,
+                contentLength = data.format.contentLength ?: -1L,
                 expiresAt = now + data.streamExpiresInSeconds * 1000L - 30_000L,
             ).also { streams[videoId] = it }
         }
 
-        // Streams that need bounded ranges are read chunk by chunk by ChunkedDataSource.
-        val chunk = if (stream.boundedChunk > 0L) mapOf(ChunkedDataSource.HEADER to stream.boundedChunk.toString()) else emptyMap()
-        return spec.withUri(stream.url.toUri()).withRequestHeaders(spec.httpRequestHeaders + stream.headers + chunk)
+        // Make sure the cache knows the song's true size, so it never stops reading early.
+        if (stream.contentLength > 0) {
+            val known = ContentMetadata.getContentLength(cache.getContentMetadata(videoId))
+            if (known != stream.contentLength) {
+                if (known > 0) runCatching { cache.removeResource(videoId) }
+                runCatching {
+                    cache.applyContentMetadataMutations(
+                        videoId,
+                        ContentMetadataMutations().also { ContentMetadataMutations.setContentLength(it, stream.contentLength) },
+                    )
+                }
+            }
+        }
+
+        // StreamDataSource uses these to read the whole song, chunk by chunk when required.
+        val hints = buildMap {
+            if (stream.boundedChunk > 0L) put(StreamDataSource.CHUNK, stream.boundedChunk.toString())
+            if (stream.contentLength > 0L) put(StreamDataSource.LENGTH, stream.contentLength.toString())
+        }
+        return spec.withUri(stream.url.toUri()).withRequestHeaders(spec.httpRequestHeaders + stream.headers + hints)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -191,7 +273,7 @@ class WaveService : MediaSessionService() {
 
         fun cache(context: Context): SimpleCache = simpleCache ?: synchronized(this) {
             simpleCache ?: SimpleCache(
-                File(context.cacheDir, "audio"),
+                File(context.cacheDir, "audio-v2"),
                 LeastRecentlyUsedCacheEvictor(512L * 1024 * 1024),
                 StandaloneDatabaseProvider(context),
             ).also { simpleCache = it }

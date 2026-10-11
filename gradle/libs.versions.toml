@@ -17,7 +17,7 @@ timber = "5.0.1"
 desugaring = "2.1.5"
 innertubex = "v0.8.4"
 webkit = "1.17.1"
-materialkolor = "5.0.1"
+palette = "1.0.0"
 reorderable = "3.1.0"
 
 [libraries]
@@ -48,7 +48,7 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 desugaring = { module = "com.android.tools:desugar_jdk_libs_nio", version.ref = "desugaring" }
 innertubex = { module = "com.github.MetrolistGroup.innertubex:innertubex", version.ref = "innertubex" }
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
-material-color-utilities = { module = "com.materialkolor:material-color-utilities", version.ref = "materialkolor" }
+androidx-palette = { module = "androidx.palette:palette-ktx", version.ref = "palette" }
 media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "media3" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 

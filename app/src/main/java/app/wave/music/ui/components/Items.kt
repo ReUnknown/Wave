@@ -2,6 +2,13 @@ package app.wave.music.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import app.wave.music.ui.menu.LocalItemMenu
@@ -46,10 +53,19 @@ fun ItemCard(item: YTItem, onClick: (YTItem) -> Unit) {
     val round = item is ArtistItem
     val menu = LocalItemMenu.current
     val haptics = LocalHapticFeedback.current
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, WaveMotion.bouncy(), label = "cardPress")
     Column(
         Modifier
             .width(148.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .combinedClickable(
+                interactionSource = source,
+                indication = null,
                 onClick = { onClick(item) },
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -86,15 +102,25 @@ fun ItemRow(
     item: YTItem,
     onClick: (YTItem) -> Unit,
     removeFrom: RemoveFrom? = null,
+    modifier: Modifier = Modifier,
     trailing: @Composable () -> Unit = {},
 ) {
     val menu = LocalItemMenu.current
     val haptics = LocalHapticFeedback.current
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, WaveMotion.bouncy(), label = "rowPress")
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(20.dp))
             .combinedClickable(
+                interactionSource = source,
+                indication = ripple(),
                 onClick = { onClick(item) },
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)

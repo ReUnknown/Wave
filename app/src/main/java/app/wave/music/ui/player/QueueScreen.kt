@@ -57,6 +57,11 @@ import app.wave.music.playback.NowPlaying
 import app.wave.music.playback.PlayerConnection
 import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.backGesture
+import app.wave.music.ui.components.pressable
+import app.wave.music.ui.components.WaveMotion
+import androidx.compose.animation.core.animateFloatAsState
+import app.wave.music.ui.components.predictiveBack
 import app.wave.music.ui.components.blocksTouchesBelow
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -81,8 +86,8 @@ private fun entriesFor(indices: List<Int>, queue: List<NowPlaying>): List<QueueE
  * Below, the songs coming up, drag to reorder.
  */
 @Composable
-fun QueueScreen(state: PlayerUiState, onClose: () -> Unit) {
-    BackHandler(onBack = onClose)
+fun QueueScreen(state: PlayerUiState, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    val back = predictiveBack(onBack = onClose)
     val current = state.current ?: return
     val c = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -139,7 +144,8 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit) {
     }
 
     Box(
-        Modifier
+        modifier
+            .backGesture(back)
             .fillMaxSize()
             .blocksTouchesBelow()
             .background(c.background),
@@ -179,9 +185,7 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit) {
                         Box(
                             Modifier
                                 .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.28f))
-                                .clickable(onClick = onClose),
+                                .pressable(CircleShape, Color.Black.copy(alpha = 0.28f), pressedScale = 0.86f, onClick = onClose),
                             contentAlignment = Alignment.Center,
                         ) { Icon(Icons.Rounded.KeyboardArrowDown, "Close queue", tint = Color.White) }
                     }
@@ -261,13 +265,19 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit) {
 
             items(entries, key = { it.key }) { entry ->
                 ReorderableItem(reorder, key = entry.key) { isDragging ->
+                    // Picked up: it lifts and grows a touch; let go and it settles back in.
+                    val lift by animateFloatAsState(if (isDragging) 1f else 0f, WaveMotion.bouncy(), label = "lift")
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 10.dp)
-                            .shadow(if (isDragging) 12.dp else 0.dp, RoundedCornerShape(20.dp))
+                            .graphicsLayer {
+                                scaleX = 1f + 0.03f * lift
+                                scaleY = 1f + 0.03f * lift
+                            }
+                            .shadow(12.dp * lift, RoundedCornerShape(20.dp))
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (isDragging) c.surfaceContainerHighest else Color.Transparent)
+                            .background(c.surfaceContainerHighest.copy(alpha = lift.coerceIn(0f, 1f)))
                             .clickable { PlayerConnection.skipTo(entry.index) }
                             .padding(start = 10.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,

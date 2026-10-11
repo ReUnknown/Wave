@@ -18,6 +18,8 @@ data class Settings(
     val moveWithMusic: Boolean = true,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val skipSilence: Boolean = false,
+    /** When the queue runs out, keep going with songs like the last one. */
+    val autoplay: Boolean = true,
 )
 
 private val Context.settingsStore by preferencesDataStore("settings")
@@ -28,6 +30,7 @@ object WaveSettings {
     private val move = booleanPreferencesKey("move_with_music")
     private val quality = stringPreferencesKey("audio_quality")
     private val silence = booleanPreferencesKey("skip_silence")
+    private val auto = booleanPreferencesKey("autoplay")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -41,6 +44,7 @@ object WaveSettings {
             moveWithMusic = p[move] ?: true,
             audioQuality = p[quality]?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: AudioQuality.HIGH,
             skipSilence = p[silence] ?: false,
+            autoplay = p[auto] ?: true,
         )
         loaded = true
     }
@@ -53,6 +57,7 @@ object WaveSettings {
             it[move] = next.moveWithMusic
             it[quality] = next.audioQuality.name
             it[silence] = next.skipSilence
+            it[auto] = next.autoplay
         }
     }
 }

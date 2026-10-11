@@ -74,6 +74,7 @@ object PlayerConnection {
                         publish()
                         if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) || events.contains(Player.EVENT_IS_PLAYING_CHANGED)) saveResume()
                         if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) prefetchLyrics()
+                        if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_REPEAT_MODE_CHANGED)) maybeAutoplay()
                     }
                 })
             }
@@ -204,6 +205,42 @@ object PlayerConnection {
             order += i
         }
         return order
+    }
+
+    /** The song the queue was last extended from, so it's only done once per ending. */
+    private var autoplayFrom: String? = null
+
+    /**
+     * Autoplay: when you reach the last song of the queue (with repeat off), add songs like it,
+     * the way YouTube Music keeps going after a playlist ends.
+     */
+    private fun maybeAutoplay() {
+        val c = controller ?: return
+        if (!app.wave.music.data.WaveSettings.state.value.autoplay) return
+        if (c.repeatMode != Player.REPEAT_MODE_OFF || c.mediaItemCount == 0) return
+        if (upcomingOrder(c).size > 1) return
+        val last = fullOrder(c).lastOrNull() ?: return
+        val seed = c.getMediaItemAt(last).mediaId
+        if (autoplayFrom == seed) return
+        autoplayFrom = seed
+        scope.launch {
+            val songs = withContext(Dispatchers.IO) {
+                runCatching {
+                    YouTube.next(com.metrolist.innertube.models.WatchEndpoint(videoId = seed, playlistId = "RDAMVM$seed")).getOrThrow().items
+                }.getOrNull()
+            } ?: return@launch
+            val ctl = controller ?: return@launch
+            val have = (0 until ctl.mediaItemCount).map { ctl.getMediaItemAt(it).mediaId }.toSet()
+            val fresh = songs
+                .filter { it.id !in have && !it.isVideoSong && !it.isEpisode }
+                .distinctBy { it.id }
+                .take(25)
+                .map { with(QueueBuilder) { it.toMediaItem() } }
+            if (fresh.isNotEmpty()) {
+                ctl.addMediaItems(fresh)
+                publish()
+            }
+        }
     }
 
     /** Fetch lyrics for this song and the next one ahead of time, so the lyrics view opens instantly. */

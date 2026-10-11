@@ -77,6 +77,14 @@ import app.wave.music.playback.PlaybackContext
 import app.wave.music.playback.QueueBuilder
 import app.wave.music.ui.components.ItemCard
 import app.wave.music.ui.components.blocksTouchesBelow
+import app.wave.music.ui.components.backGesture
+import app.wave.music.ui.components.predictiveBack
+import app.wave.music.ui.components.pressable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import app.wave.music.ui.components.ItemRow
 import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.ProgressiveBlurImage
@@ -150,8 +158,15 @@ private fun <T> rememberLoad(key: Any, block: suspend () -> Result<T>): Pair<Loa
 }
 
 @Composable
-fun DetailScreen(destination: Destination, actions: PageActions) {
-    BackHandler(onBack = actions.back)
+fun DetailScreen(
+    destination: Destination,
+    actions: PageActions,
+    /** False while this page is animating away, so a quick second back doesn't pop twice. */
+    active: Boolean = true,
+) {
+    // Swiping back shrinks the page toward the edge as you go, then it slides away.
+    val back = predictiveBack(enabled = active, onBack = actions.back)
+    Box(Modifier.fillMaxSize().backGesture(back)) {
     when (destination) {
         is Destination.Artist -> ArtistScreen(destination.id, actions)
         is Destination.Album -> AlbumScreen(destination.id, actions)
@@ -159,6 +174,7 @@ fun DetailScreen(destination: Destination, actions: PageActions) {
         Destination.History -> HistoryScreen(actions)
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
+    }
     }
 }
 
@@ -204,6 +220,13 @@ private fun <T> PageFrame(
                     .fillMaxSize()
                     .backdropSource(backdrop),
             ) {
+                AnimatedContent(
+                    targetState = load,
+                    contentKey = { it::class },
+                    transitionSpec = { fadeIn(tween(380, delayMillis = 60)) togetherWith fadeOut(tween(160)) },
+                    label = "page",
+                ) { load ->
+                Box(Modifier.fillMaxSize()) {
                 when (load) {
                     Load.Loading -> LoadingIndicator(Modifier.size(80.dp).align(Alignment.Center))
                     Load.Failed -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -219,6 +242,8 @@ private fun <T> PageFrame(
                         }
                     }
                 }
+                }
+                }
             }
             ProgressiveBackdropBlur(backdrop, Modifier.fillMaxWidth().height(statusTop + 96.dp))
             Box(
@@ -232,9 +257,7 @@ private fun <T> PageFrame(
                     .statusBarsPadding()
                     .padding(12.dp)
                     .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .clickable(onClick = actions.back),
+                    .pressable(CircleShape, Color.White.copy(alpha = 0.14f), pressedScale = 0.86f, onClick = actions.back),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = Color.White) }
             val pageItem = (load as? Load.Ready)?.let { header(it.value).item }
@@ -246,9 +269,7 @@ private fun <T> PageFrame(
                         .statusBarsPadding()
                         .padding(12.dp)
                         .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.14f))
-                        .clickable { menu.open(MenuTarget.Collection(pageItem)) },
+                        .pressable(CircleShape, Color.White.copy(alpha = 0.14f), pressedScale = 0.86f) { menu.open(MenuTarget.Collection(pageItem)) },
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.MoreVert, "More options", tint = Color.White) }
             }
@@ -289,9 +310,7 @@ private fun Hero(info: HeaderInfo) {
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp))
-                        .background(c.primary)
-                        .clickable(onClick = info.onPrimary),
+                        .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = info.onPrimary),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -302,9 +321,7 @@ private fun Hero(info: HeaderInfo) {
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp))
-                        .background(c.onBackground.copy(alpha = 0.12f))
-                        .clickable(onClick = info.onSecondary),
+                        .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.95f, onClick = info.onSecondary),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

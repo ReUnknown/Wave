@@ -44,6 +44,23 @@ import app.wave.music.playback.BeatBus
 import app.wave.music.data.WaveSettings
 import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.PlayPauseIcon
+import app.wave.music.ui.components.WaveMotion
+import app.wave.music.ui.components.pressable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 
@@ -59,16 +76,18 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
         }
     }
     val shape = RoundedCornerShape(32.dp)
+    val haptics = LocalHapticFeedback.current
     Box(
         modifier
             .fillMaxWidth()
             .height(84.dp)
             .shadow(16.dp, shape)
-            .clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.14f), shape)
-            .clickable(onClick = onOpen),
+            .pressable(shape, pressedScale = 0.97f, onClick = onOpen)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
     ) {
-        BlurredImage(song.artworkUrl, Modifier.matchParentSize(), radius = 28.dp)
+        Crossfade(song.artworkUrl, Modifier.matchParentSize(), animationSpec = tween(500), label = "miniBackdrop") { art ->
+            BlurredImage(art, Modifier.fillMaxSize(), radius = 28.dp)
+        }
         Box(
             Modifier
                 .matchParentSize()
@@ -81,31 +100,56 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AsyncImage(
-                model = song.artworkUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .padding(top = 6.dp)
-                    .size(62.dp)
-                    .clip(RoundedCornerShape(22.dp)),
-            )
-            Column(Modifier.weight(1f)) {
-                Text(song.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(song.artist, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Crossfade(song.artworkUrl, animationSpec = tween(400), label = "miniArt") { art ->
+                AsyncImage(
+                    model = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .size(62.dp)
+                        .clip(RoundedCornerShape(22.dp)),
+                )
+            }
+            // A new song's name rolls up into place.
+            AnimatedContent(
+                targetState = song,
+                contentKey = { it.videoId },
+                transitionSpec = {
+                    (slideInVertically(tween(360, easing = WaveMotion.EmphasizedDecelerate)) { it / 2 } + fadeIn(tween(220, delayMillis = 60))) togetherWith
+                        (slideOutVertically(tween(220, easing = WaveMotion.EmphasizedAccelerate)) { -it / 2 } + fadeOut(tween(140)))
+                },
+                modifier = Modifier.weight(1f),
+                label = "miniTitle",
+            ) { shown ->
+                Column {
+                    Text(shown.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown.artist, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             // Connected group: previous · pause · next
             Row(Modifier.height(52.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(26.dp, 8.dp, 8.dp, 26.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) { PlayerConnection.previous() }
-                GroupButton(
-                    if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    if (state.isPlaying) "Pause" else "Play",
-                    RoundedCornerShape(8.dp),
-                    MaterialTheme.colorScheme.primary,
-                    MaterialTheme.colorScheme.onPrimary,
-                    56,
-                ) { PlayerConnection.togglePlay() }
-                GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(8.dp, 26.dp, 26.dp, 8.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) { PlayerConnection.next() }
+                GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(26.dp, 8.dp, 8.dp, 26.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
+                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    PlayerConnection.previous()
+                }
+                // Paused, the middle button rounds out; the icon morphs between pause and play.
+                val corner by animateDpAsState(if (state.isPlaying) 8.dp else 18.dp, WaveMotion.bouncy(), label = "miniPlayShape")
+                Box(
+                    Modifier
+                        .width(56.dp)
+                        .fillMaxHeight()
+                        .pressable(RoundedCornerShape(corner), MaterialTheme.colorScheme.primary, pressedScale = 0.88f) {
+                            haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                            PlayerConnection.togglePlay()
+                        }
+                        .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
+                    contentAlignment = Alignment.Center,
+                ) { PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary) }
+                GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(8.dp, 26.dp, 26.dp, 8.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
+                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    PlayerConnection.next()
+                }
             }
         }
         WavyProgress(
@@ -140,9 +184,7 @@ internal fun GroupButton(
         Modifier
             .width(widthDp.dp)
             .fillMaxHeight()
-            .clip(shape)
-            .background(container)
-            .clickable(onClick = onClick),
+            .pressable(shape, container, pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = content) }
 }

@@ -120,6 +120,16 @@ import app.wave.music.ui.detail.Destination
 import app.wave.music.ui.detail.DetailScreen
 import app.wave.music.ui.detail.PageActions
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import app.wave.music.ui.components.LocalSharedTransition
+import app.wave.music.ui.components.MorphVisibility
+import app.wave.music.ui.components.WaveMotion
+import app.wave.music.ui.components.pressable
+import app.wave.music.ui.components.sharedContainer
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -155,7 +165,7 @@ private class HeroContent(
     val onSecondary: () -> Unit,
 )
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val context = LocalContext.current
@@ -191,8 +201,18 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
     val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }) }
     val stack = remember { mutableStateListOf<Destination>() }
+    // Which way pages move: deeper slides in from the right, back slides in from the left.
+    var forward by remember { mutableStateOf(true) }
+    fun push(dest: Destination) {
+        forward = true
+        stack.add(dest)
+    }
+    fun pop() {
+        forward = false
+        if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex)
+    }
     // Songs play; artists, albums and playlists open their page.
-    val openItem: (YTItem) -> Unit = { item -> Destination.of(item)?.let { stack.add(it) } ?: playItem(item, false) }
+    val openItem: (YTItem) -> Unit = { item -> Destination.of(item)?.let { push(it) } ?: playItem(item, false) }
     var menuTarget by remember { mutableStateOf<MenuTarget?>(null) }
     var createPlaylist by remember { mutableStateOf(false) }
     val myPlaylists by LibraryRepository.playlists.collectAsState()
@@ -268,7 +288,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
 
     // The whole page takes its colors from the hero art.
-    CompositionLocalProvider(LocalItemMenu provides MenuOpener { menuTarget = it }) {
+    SharedTransitionLayout {
+    CompositionLocalProvider(LocalItemMenu provides MenuOpener { menuTarget = it }, LocalSharedTransition provides this) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
     MaterialTheme(colorScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)) {
         val c = MaterialTheme.colorScheme
@@ -286,7 +307,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 .fillMaxSize()
                 .background(c.background),
         ) {
-            when (val state = ui) {
+            // Loading, failure and the feed fade into each other instead of snapping.
+            AnimatedContent(
+                targetState = ui,
+                contentKey = { it::class },
+                transitionSpec = { fadeIn(tween(420, delayMillis = 80)) togetherWith fadeOut(tween(180)) },
+                label = "home",
+            ) { state ->
+            Box(Modifier.fillMaxSize()) {
+            when (state) {
                 HomeUi.Loading -> LoadingIndicator(Modifier.size(80.dp).align(Alignment.Center))
                 HomeUi.Failed -> Column(
                     Modifier.align(Alignment.Center),
@@ -339,6 +368,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     }
                 }
             }
+            }
+            }
 
             // Sticky header: a frosted band that's blurriest at the very top and fades out downward,
             // so the search bar and greeting always read cleanly over the art.
@@ -369,14 +400,16 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .padding(horizontal = 16.dp),
             ) {
                 Spacer(Modifier.height(8.dp))
+                // The search bar opens into the search page: it morphs into the search field.
+                Box(Modifier.fillMaxWidth().height(56.dp)) {
+                MorphVisibility(!showSearch) {
                 Row(
                     Modifier
+                        .sharedContainer("search", this, CircleShape)
                         .fillMaxWidth()
                         .height(56.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
+                        .pressable(CircleShape, Color.White.copy(alpha = 0.12f), pressedScale = 0.97f) { showSearch = true }
                         .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
-                        .clickable { showSearch = true }
                         .padding(start = 16.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -398,6 +431,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         Icon(Icons.Rounded.AccountCircle, "Your Google account", avatar, tint = Color.White)
                     }
                 }
+                }
+                }
                 Column(
                     Modifier
                         .padding(top = 18.dp, start = 4.dp)
@@ -408,26 +443,37 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
 
-            AnimatedVisibility(visible = showSearch, enter = fadeIn(), exit = fadeOut()) {
-                SearchScreen(onClose = { showSearch = false }, onPlay = playItem, onPlayNext = playNext, onOpen = openItem, ambientArt = player.current?.artworkUrl ?: hero?.art)
+            AnimatedVisibility(visible = showSearch, enter = fadeIn(tween(260)), exit = fadeOut(tween(220, delayMillis = 120))) {
+                SearchScreen(
+                    onClose = { showSearch = false },
+                    onPlay = playItem,
+                    onPlayNext = playNext,
+                    onOpen = openItem,
+                    ambientArt = player.current?.artworkUrl ?: hero?.art,
+                    fieldModifier = Modifier.sharedContainer("search", this, CircleShape),
+                )
             }
 
             AnimatedContent(
                 targetState = stack.lastOrNull(),
                 transitionSpec = {
-                    (slideInHorizontally { it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 6 } + fadeOut())
+                    val dir = if (forward) 1 else -1
+                    (slideInHorizontally(tween(440, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 4 } + fadeIn(tween(260, delayMillis = 60))) togetherWith
+                        (slideOutHorizontally(tween(300, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 8 } + fadeOut(tween(180))) using
+                        SizeTransform(clip = false)
                 },
                 label = "pages",
             ) { dest ->
                 if (dest != null) {
                     DetailScreen(
                         dest,
-                        PageActions(
+                        active = transition.targetState == androidx.compose.animation.EnterExitState.Visible,
+                        actions = PageActions(
                             play = { PlayerConnection.play(it) },
                             playItem = playItem,
                             playNext = playNext,
                             open = openItem,
-                            back = { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) },
+                            back = ::pop,
                             createPlaylist = { createPlaylist = true },
                         ),
                     )
@@ -442,19 +488,35 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (preparing) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
-                if (!WindowInsets.isImeVisible) MiniPlayer(player, onOpen = { showPlayer = true })
+                // The player grows out of the mini player and tucks back into it.
+                AnimatedVisibility(
+                    visible = !showPlayer && player.current != null && !WindowInsets.isImeVisible,
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None,
+                ) {
+                    MiniPlayer(
+                        player,
+                        onOpen = { showPlayer = true },
+                        modifier = Modifier.sharedContainer("player", this, RoundedCornerShape(32.dp)),
+                    )
+                }
             }
         }
     }
 
     AnimatedVisibility(
         visible = showPlayer && player.current != null,
-        enter = slideInVertically { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
+        enter = EnterTransition.None,
+        exit = ExitTransition.None,
     ) {
-        NowPlayingScreen(player, onClose = { showPlayer = false })
+        NowPlayingScreen(
+            player,
+            onClose = { showPlayer = false },
+            modifier = Modifier.sharedContainer("player", this, RoundedCornerShape(32.dp), fromTop = true),
+        )
     }
 
+    }
     }
 
     ItemMenuHost(
@@ -466,7 +528,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             addToQueue = addToQueue,
             navigate = { dest ->
                 showPlayer = false
-                stack.add(dest)
+                push(dest)
             },
         ),
         createRequested = createPlaylist,
@@ -479,7 +541,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             onDismiss = { askSignOut = false },
             onOpen = { dest ->
                 askSignOut = false
-                stack.add(dest)
+                push(dest)
             },
             onSignOut = {
                 askSignOut = false
@@ -565,9 +627,7 @@ private fun Hero(hero: HeroContent?) {
                         Modifier
                             .weight(1f)
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp))
-                            .background(c.primary)
-                            .clickable(onClick = hero.onPrimary),
+                            .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = hero.onPrimary),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -578,9 +638,7 @@ private fun Hero(hero: HeroContent?) {
                         Modifier
                             .width(150.dp)
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp))
-                            .background(c.onBackground.copy(alpha = 0.12f))
-                            .clickable(onClick = hero.onSecondary),
+                            .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.93f, onClick = hero.onSecondary),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -672,7 +730,7 @@ private fun LeadTile(
     Column(
         Modifier
             .width(148.dp)
-            .clickable(onClick = onClick),
+            .pressable(RoundedCornerShape(24.dp), pressedScale = 0.95f, onClick = onClick),
     ) {
         Box(Modifier.size(148.dp), contentAlignment = Alignment.Center) {
             Box(
@@ -707,7 +765,7 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
     Column(
         Modifier
             .width(148.dp)
-            .clickable(onClick = onClick),
+            .pressable(RoundedCornerShape(24.dp), pressedScale = 0.95f, onClick = onClick),
     ) {
         Box(
             Modifier
