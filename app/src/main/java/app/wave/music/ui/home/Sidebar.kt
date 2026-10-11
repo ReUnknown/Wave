@@ -1,5 +1,12 @@
 package app.wave.music.ui.home
 
+import androidx.compose.ui.draw.clipToBounds
+import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.ArtSize
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -66,11 +73,17 @@ fun Sidebar(
     modifier: Modifier = Modifier,
 ) {
     val c = MaterialTheme.colorScheme
-    Column(
+    // No panel of its own: the song's blurred art runs behind the whole window, so the sidebar is
+    // just a light tint over it that fades out to the right instead of ending in an edge.
+    Box(
         modifier
             .width(264.dp)
             .fillMaxHeight()
-            .background(Color.Black.copy(alpha = 0.22f))
+            .background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.32f), Color.Black.copy(alpha = 0.18f), Color.Transparent))),
+    ) {
+    Column(
+        Modifier
+            .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(start = 14.dp, end = 14.dp, top = 18.dp),
@@ -80,20 +93,20 @@ fun Sidebar(
             Box(Modifier.size(36.dp).clip(CircleShape).background(c.primary), contentAlignment = Alignment.Center) {
                 WaveMark(c.onPrimary, size = 22.dp)
             }
-            Text("Wave", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = c.onBackground)
+            Text("Wave", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
         }
         NavRow(Icons.Rounded.Home, "Home", selected = current == null, onClick = onHome)
         NavRow(Icons.Rounded.Album, "Albums & artists", selected = current == Destination.Saved) { onOpen(Destination.Saved) }
         NavRow(Icons.Rounded.History, "History", selected = current == Destination.History) { onOpen(Destination.History) }
 
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 18.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("PLAYLISTS", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = c.onSurfaceVariant)
+            Text("PLAYLISTS", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Color.White.copy(alpha = 0.75f))
             Box(
                 Modifier
                     .size(36.dp)
                     .pressable(CircleShape, pressedScale = 0.88f, onClick = onNewPlaylist),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.Add, "New playlist", tint = c.onSurfaceVariant) }
+            ) { Icon(Icons.Rounded.Add, "New playlist", tint = Color.White.copy(alpha = 0.85f)) }
         }
         val menu = LocalItemMenu.current
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -115,13 +128,14 @@ fun Sidebar(
                         contentScale = ContentScale.Crop,
                     )
                     Column(Modifier.weight(1f)) {
-                        Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        p.songCountText?.let { Text(it, fontSize = 12.sp, color = c.onSurfaceVariant, maxLines = 1) }
+                        Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        p.songCountText?.let { Text(it, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1) }
                     }
                 }
             }
         }
         Spacer(Modifier.height(4.dp))
+    }
     }
 }
 
@@ -138,12 +152,12 @@ private fun NavRow(icon: ImageVector, label: String, selected: Boolean, onClick:
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(icon, null, tint = if (selected) c.onSecondaryContainer else c.onSurfaceVariant)
+        Icon(icon, null, tint = if (selected) c.onSecondaryContainer else Color.White.copy(alpha = 0.8f))
         Text(
             label,
             fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-            color = if (selected) c.onSecondaryContainer else c.onBackground,
+            color = if (selected) c.onSecondaryContainer else Color.White,
         )
     }
 }

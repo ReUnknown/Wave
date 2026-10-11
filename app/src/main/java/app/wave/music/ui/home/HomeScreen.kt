@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.FlowRow
 import app.wave.music.ui.player.PlayerBar
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -405,8 +406,19 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 .fillMaxWidth(contentWidth)
                 .background(c.background),
         ) {
-        Row(Modifier.weight(1f).fillMaxWidth()) {
-        if (shell) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+        // Computers: the playing song's art, blurred, behind the sidebar and home as one surface
+        // (the same art as the player bar), darkening toward the bottom so lists stay readable.
+        if (shell && desktop) {
+            val ambient = player.current?.artworkUrl ?: (ui as? HomeUi.Ready)?.feed?.recent?.firstOrNull()?.thumbnail ?: hero?.art
+            Crossfade(ambient?.atSize(ArtSize.BLUR), Modifier.matchParentSize(), animationSpec = tween(500), label = "ambient") { a ->
+                BlurredImage(a, Modifier.fillMaxSize().clipToBounds().graphicsLayer { scaleX = 1.25f; scaleY = 1.25f }, radius = 96.dp)
+            }
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.3f), 0.55f to c.background.copy(alpha = 0.82f), 1f to c.background)))
+        }
+        Row(Modifier.fillMaxSize()) {
+        // Computers only: tablets keep the library in the account panel, like phones.
+        if (shell && desktop) {
             Sidebar(
                 current = stack.lastOrNull(),
                 playlists = myPlaylists,
@@ -452,7 +464,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     item {
                         // Big screens: quick "jump back in" tiles sit beside the banner, filling the space.
                         val jump = if (shell) myPlaylists.take(6).ifEmpty { state.feed.recent.take(6) } else emptyList()
-                        Hero(hero, jump = jump, onJump = openItem)
+                        Hero(hero, jump = jump, onJump = openItem, onSharedBackdrop = shell && desktop)
                     }
                     if (!shell) {
                         item { SectionHeader("Your library", "Your playlists") }
@@ -513,11 +525,16 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .fillMaxWidth()
                     .height(statusTop + headerBand)
                     .background(
-                        Brush.verticalGradient(
-                            0f to c.background.copy(alpha = 0.72f),
-                            0.6f to c.background.copy(alpha = 0.45f),
-                            1f to Color.Transparent,
-                        ),
+                        // On the computer layout's shared backdrop, match the sidebar's tint.
+                        if (shell && desktop) {
+                            Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.3f), 0.6f to Color.Black.copy(alpha = 0.14f), 1f to Color.Transparent)
+                        } else {
+                            Brush.verticalGradient(
+                                0f to c.background.copy(alpha = 0.72f),
+                                0.6f to c.background.copy(alpha = 0.45f),
+                                1f to Color.Transparent,
+                            )
+                        },
                     ),
             )
             Column(
@@ -650,6 +667,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     )
                 }
             }
+        }
         }
         }
         // Big screens: the player lives in a bar across the bottom until you open it.
@@ -827,7 +845,7 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 }
 
 @Composable
-private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (YTItem) -> Unit = {}) {
+private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (YTItem) -> Unit = {}, onSharedBackdrop: Boolean = false) {
     val c = MaterialTheme.colorScheme
     // Tall on phones; on short landscape screens it leaves room to see what's below.
     val config = LocalConfiguration.current
@@ -845,7 +863,9 @@ private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (
         // Goes by the room the banner actually has (half a window when the player is docked).
         val wideHero = config.screenWidthDp > config.screenHeightDp
         val bigHero = wideHero && maxWidth >= 780.dp
-        if (bigHero) {
+        if (bigHero && onSharedBackdrop) {
+            // Computers: the window's shared art backdrop shows through; nothing to draw here.
+        } else if (bigHero) {
             // Kept inside the banner and faded out at its bottom, so there's no edge below it.
             BlurredImage(
                 hero?.art?.atSize(ArtSize.BLUR),
@@ -856,7 +876,7 @@ private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (
         } else {
             ProgressiveBlurImage(hero?.art, Modifier.fillMaxSize(), start = if (wideHero) 0.62f else 0.4f, end = 0.95f, maxRadius = 64.dp)
         }
-        Box(
+        if (!(bigHero && onSharedBackdrop)) Box(
             Modifier
                 .fillMaxSize()
                 .background(
