@@ -13,7 +13,7 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 102
+        versionCode = 103
         versionName = "1.0.0-beta.2"
     }
 

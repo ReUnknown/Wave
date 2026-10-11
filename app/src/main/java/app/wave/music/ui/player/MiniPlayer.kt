@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.ui.graphics.graphicsLayer
@@ -88,39 +90,38 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
     val desktop = app.wave.music.ui.components.LocalDesktop.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    // Swipes (phones and tablets): down stops the music, up opens the player, sideways skips.
+    // Swipes (phones and tablets): sideways stops the music, up opens the player.
     val dx = remember { Animatable(0f) }
     val dy = remember { Animatable(0f) }
-    val dismissAt = with(density) { 64.dp.toPx() }
     val openAt = with(density) { 48.dp.toPx() }
-    val skipAt = with(density) { 88.dp.toPx() }
     val gestures = if (desktop) Modifier else Modifier.pointerInput(Unit) {
+        // Like a Pixel notification: swipe it off to the side (either way) to stop the music.
+        // Swipe up opens the player.
         var axis = 0 // 0 = undecided, 1 = sideways, 2 = up/down
+        val velocity = VelocityTracker()
         detectDragGestures(
-            onDragStart = { axis = 0 },
+            onDragStart = {
+                axis = 0
+                velocity.resetTracking()
+            },
             onDragCancel = { scope.launch { launch { dx.animateTo(0f, WaveMotion.bouncy()) }; dy.animateTo(0f, WaveMotion.bouncy()) } },
             onDragEnd = {
+                val flingX = velocity.calculateVelocity().x
                 scope.launch {
+                    val far = kotlin.math.abs(dx.value) > size.width * 0.35f
+                    val flung = kotlin.math.abs(flingX) > 1_500f && kotlin.math.sign(flingX) == kotlin.math.sign(dx.value)
                     when {
-                        axis == 2 && dy.value > dismissAt -> {
-                            // Swiped away: it drops out of sight, and the music stops.
+                        axis == 1 && (far || flung) -> {
+                            // Off it goes, the way you swiped, and the music stops.
                             haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
-                            dy.animateTo(size.height * 2.5f, tween(200, easing = WaveMotion.EmphasizedAccelerate))
+                            val dir = if (dx.value > 0) 1f else -1f
+                            dx.animateTo(dir * size.width * 1.1f, tween(180, easing = WaveMotion.EmphasizedAccelerate))
                             PlayerConnection.dismiss()
-                            dy.snapTo(0f)
+                            dx.snapTo(0f)
                         }
                         axis == 2 && dy.value < -openAt -> {
                             onOpen()
                             dy.animateTo(0f, WaveMotion.bouncy())
-                        }
-                        axis == 1 && kotlin.math.abs(dx.value) > skipAt -> {
-                            // The card slides off one side and the next song slides in from the other.
-                            val dir = if (dx.value > 0) 1f else -1f
-                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            dx.animateTo(dir * size.width, tween(160, easing = WaveMotion.EmphasizedAccelerate))
-                            if (dir > 0) PlayerConnection.previous() else PlayerConnection.next()
-                            dx.snapTo(-dir * size.width * 0.6f)
-                            dx.animateTo(0f, tween(260, easing = WaveMotion.EmphasizedDecelerate))
                         }
                         else -> {
                             launch { dx.animateTo(0f, WaveMotion.bouncy()) }
@@ -131,11 +132,12 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             },
         ) { change, drag ->
             change.consume()
+            velocity.addPosition(change.uptimeMillis, change.position)
             if (axis == 0) axis = if (kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)) 1 else 2
             scope.launch {
                 if (axis == 1) dx.snapTo(dx.value + drag.x)
-                // Upward pulls resist a little; downward follows the finger.
-                else dy.snapTo(dy.value + if (drag.y < 0 && dy.value <= 0f) drag.y * 0.5f else drag.y)
+                // Up follows (to open the player); down just stretches a little and springs back.
+                else dy.snapTo(dy.value + if (drag.y > 0 && dy.value >= 0f) drag.y * 0.25f else drag.y * 0.6f)
             }
         }
     }
@@ -143,8 +145,8 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
         Modifier
             .offset { IntOffset(dx.value.roundToInt(), dy.value.roundToInt()) }
             .graphicsLayer {
-                // Fades as it's pulled down toward being dismissed.
-                alpha = 1f - (dy.value / (dismissAt * 2.5f)).coerceIn(0f, 0.7f)
+                // Fades as it's swiped off to the side, like a notification.
+                alpha = 1f - (kotlin.math.abs(dx.value) / size.width.coerceAtLeast(1f)).coerceIn(0f, 0.9f)
             }
             .then(gestures)
             .then(modifier)
