@@ -1,5 +1,15 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.FlowRow
+import app.wave.music.ui.player.PlayerBar
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.Orientation
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.clipToBounds
@@ -331,13 +341,30 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val peeking = remember { mutableStateOf(false) }
     // Computers with a big window: the player opens docked in the right half, leaving the app usable
     // on the left; a button expands it to the full window (with lyrics and up next beside it).
-    val dockable = desktop && LocalConfiguration.current.screenWidthDp >= 1200
+    // Tablets and unfolded Folds in landscape get the computer layout too, tuned for touch.
+    val conf = LocalConfiguration.current
+    val tabletShell = !desktop && conf.screenWidthDp >= 840 && conf.smallestScreenWidthDp >= 600
+    val shell = desktop || tabletShell
+    val dockable = (desktop && conf.screenWidthDp >= 1200) || tabletShell
     var playerFull by rememberSaveable { mutableStateOf(false) }
     val docked = dockable && !playerFull && showPlayer && player.current != null
+    // How much of the window the docked player takes; drag the divider to change it.
+    var split by rememberSaveable { mutableFloatStateOf(0.5f) }
+    var dividerDragging by remember { mutableStateOf(false) }
+    // Which panel the player should open to (from the player bar's Lyrics / Up next buttons).
+    var playerPanel by remember { mutableStateOf<String?>(null) }
+    val contentWidth by animateFloatAsState(
+        if (docked) 1f - split else 1f,
+        if (dividerDragging) snap() else tween(260, easing = WaveMotion.Emphasized),
+        label = "dock",
+    )
+    val appScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)
     val pageCovers = rememberCovered(stack.isNotEmpty())
     val playerCovers = rememberCovered(showPlayer && player.current != null && !docked)
     val searchCovers = rememberCovered(showSearch)
 
+    // Everything (menus, settings, sheets too) takes the song's colors when that's turned on.
+    MaterialTheme(colorScheme = appScheme) {
     // Remember where each click lands, so a computer's dropdown menus open right under the pointer.
     SharedTransitionLayout(
         Modifier.pointerInput(Unit) {
@@ -356,10 +383,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (player.current != null && !showPlayer) 116.dp else 0.dp,
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (!shell && player.current != null && !showPlayer) 116.dp else 0.dp,
+        app.wave.music.ui.components.LocalShell provides shell,
     ) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
-    MaterialTheme(colorScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)) {
+    MaterialTheme(colorScheme = appScheme) {
         val c = MaterialTheme.colorScheme
         val backdrop = rememberBackdrop()
         val listState = rememberLazyListState()
@@ -371,13 +399,27 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
         // With the player docked on the right (big computer windows), the app reflows into the left half.
-        val contentWidth by animateFloatAsState(if (docked) 0.5f else 1f, tween(260, easing = WaveMotion.Emphasized), label = "dock")
-        Box(
+        Column(
             Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(contentWidth)
                 .background(c.background),
         ) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+        if (shell) {
+            Sidebar(
+                current = stack.lastOrNull(),
+                playlists = myPlaylists,
+                onHome = {
+                    showSearch = false
+                    while (stack.isNotEmpty()) pop()
+                },
+                onOpen = { dest -> if (stack.lastOrNull() != dest) push(dest) },
+                onNewPlaylist = { createPlaylist = true },
+                onPlaylist = openItem,
+            )
+        }
+        Box(Modifier.weight(1f).fillMaxHeight()) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully
             // covers it, and is drawn again the moment a back swipe could reveal it.
             val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
@@ -407,12 +449,18 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         .backdropSource(backdrop),
                     contentPadding = PaddingValues(bottom = 140.dp),
                 ) {
-                    item { Hero(hero) }
-                    item { SectionHeader("Your library", "Your playlists") }
                     item {
-                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            item { NewPlaylistTile { createPlaylist = true } }
-                            items(myPlaylists, key = { it.id }) { ItemCard(it, onClick = openItem) }
+                        // Big screens: quick "jump back in" tiles sit beside the banner, filling the space.
+                        val jump = if (shell) myPlaylists.take(6).ifEmpty { state.feed.recent.take(6) } else emptyList()
+                        Hero(hero, jump = jump, onJump = openItem)
+                    }
+                    if (!shell) {
+                        item { SectionHeader("Your library", "Your playlists") }
+                        item {
+                            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                item { NewPlaylistTile { createPlaylist = true } }
+                                items(myPlaylists, key = { it.id }) { ItemCard(it, onClick = openItem) }
+                            }
                         }
                     }
                     if (state.feed.recent.isNotEmpty()) {
@@ -429,6 +477,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             SectionRow(
                                 section = section,
                                 shapeIndex = index,
+                                grid = shell,
                                 onPlayAll = { shuffle ->
                                     val songs = section.items.filterIsInstance<SongItem>()
                                     if (songs.size == section.items.size) {
@@ -492,7 +541,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    WaveMark(Color.White)
+                    // The sidebar carries the Wave mark on big screens.
+                    if (!shell) WaveMark(Color.White)
                     Text(
                         "Search songs, artists, albums",
                         color = Color.White.copy(alpha = 0.85f),
@@ -534,7 +584,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
 
             }
 
-            AnimatedVisibility(
+            FadeVisibility(
                 visible = showSearch,
                 enter = fadeIn(tween(180)),
                 exit = fadeOut(tween(150, delayMillis = 70)),
@@ -588,7 +638,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
-                    visible = !showPlayer && player.current != null && !WindowInsets.isImeVisible,
+                    visible = !shell && !showPlayer && player.current != null && !WindowInsets.isImeVisible,
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
@@ -601,22 +651,53 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
         }
+        }
+        // Big screens: the player lives in a bar across the bottom until you open it.
+        if (shell && !showPlayer && player.current != null) {
+            PlayerBar(
+                player,
+                onOpen = { playerPanel = null; showPlayer = true },
+                onLyrics = { playerPanel = "lyrics"; showPlayer = true },
+                onQueue = { playerPanel = "queue"; showPlayer = true },
+            )
+        }
+        }
     }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+    val windowPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+    val dockedWidth = (1f - contentWidth).coerceAtLeast(0.01f)
     AnimatedVisibility(
         visible = showPlayer && player.current != null,
-        enter = EnterTransition.None,
-        exit = ExitTransition.None,
+        enter = if (shell) fadeIn(tween(200)) + slideInHorizontally(tween(320, easing = WaveMotion.EmphasizedDecelerate)) { it / 6 } else EnterTransition.None,
+        exit = if (shell) fadeOut(tween(160)) else ExitTransition.None,
     ) {
         NowPlayingScreen(
             player,
             onClose = { showPlayer = false },
             modifier = Modifier
-                .fillMaxWidth(if (docked) 0.5f else 1f)
-                .sharedContainer("player", this, RoundedCornerShape(32.dp), fromTop = true),
+                .fillMaxWidth(if (docked) dockedWidth else 1f)
+                .then(if (shell) Modifier else Modifier.sharedContainer("player", this, RoundedCornerShape(32.dp), fromTop = true)),
             docked = docked,
             onToggleSize = if (dockable) ({ playerFull = !playerFull }) else null,
+            openTo = playerPanel,
+        )
+    }
+    // The divider between the app and the docked player: drag it to resize, all the way left to go full screen.
+    if (docked) {
+        DockDivider(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset { IntOffset((contentWidth * windowPx).roundToInt() - 14.dp.roundToPx(), 0) },
+            onDragStart = { dividerDragging = true },
+            onDrag = { dx -> split = (split - dx / windowPx).coerceIn(0.3f, 0.95f) },
+            onDragEnd = {
+                dividerDragging = false
+                when {
+                    split > 0.8f -> { playerFull = true; split = 0.5f }
+                    split < 0.36f -> split = 0.36f
+                }
+            },
         )
     }
     }
@@ -655,6 +736,37 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 onSignOut()
             },
         )
+    }
+    }
+}
+
+/** AnimatedVisibility without a Row/Column scope in the way. */
+@Composable
+private fun FadeVisibility(
+    visible: Boolean,
+    enter: EnterTransition,
+    exit: ExitTransition,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.animation.AnimatedVisibilityScope.() -> Unit,
+) = AnimatedVisibility(visible, modifier, enter, exit, content = content)
+
+/** The handle between the app and the docked player (tablets and computers). */
+@Composable
+private fun DockDivider(modifier: Modifier, onDragStart: () -> Unit, onDrag: (Float) -> Unit, onDragEnd: () -> Unit) {
+    val state = rememberDraggableState(onDrag)
+    Box(
+        modifier
+            .width(28.dp)
+            .fillMaxHeight()
+            .draggable(
+                state,
+                Orientation.Horizontal,
+                onDragStarted = { onDragStart() },
+                onDragStopped = { onDragEnd() },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.width(6.dp).height(64.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.55f)))
     }
 }
 
@@ -715,21 +827,24 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 }
 
 @Composable
-private fun Hero(hero: HeroContent?) {
+private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (YTItem) -> Unit = {}) {
     val c = MaterialTheme.colorScheme
     // Tall on phones; on short landscape screens it leaves room to see what's below.
     val config = LocalConfiguration.current
     val heightDp = if (config.screenHeightDp < 600) (config.screenHeightDp * 0.8f).dp.coerceAtLeast(300.dp) else 580.dp
     val heightPx = with(LocalDensity.current) { heightDp.toPx() }
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .height(heightDp),
     ) {
+        // Only when there's room for the cover, the words and the tiles side by side.
+        val showJump = jump.isNotEmpty() && maxWidth >= 1180.dp
         // Full-bleed art, progressively blurred toward the bottom.
         // On wide screens the art stays sharp further down; the blur only softens the bottom.
+        // Goes by the room the banner actually has (half a window when the player is docked).
         val wideHero = config.screenWidthDp > config.screenHeightDp
-        val bigHero = wideHero && config.screenWidthDp >= 840
+        val bigHero = wideHero && maxWidth >= 780.dp
         if (bigHero) {
             // Kept inside the banner and faded out at its bottom, so there's no edge below it.
             BlurredImage(
@@ -758,6 +873,7 @@ private fun Hero(hero: HeroContent?) {
                 Row(
                     Modifier
                         .align(Alignment.BottomStart)
+                        .fillMaxWidth()
                         .padding(start = 32.dp, end = 32.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
@@ -766,11 +882,15 @@ private fun Hero(hero: HeroContent?) {
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(minOf(heightDp - 200.dp, 340.dp))
+                            .size(minOf(heightDp - 200.dp, if (showJump) 300.dp else 340.dp))
                             .shadow(28.dp, RoundedCornerShape(36.dp))
                             .clip(RoundedCornerShape(36.dp)),
                     )
-                    HeroText(hero, Modifier.widthIn(max = 560.dp).padding(start = 32.dp))
+                    HeroText(hero, Modifier.weight(1f, fill = false).widthIn(max = 560.dp).padding(start = 32.dp))
+                    if (showJump) {
+                        Spacer(Modifier.weight(0.01f).widthIn(min = 32.dp))
+                        JumpBackIn(jump, onJump, Modifier.width(420.dp))
+                    }
                 }
             } else {
                 HeroText(hero, Modifier.align(Alignment.BottomStart).widthIn(max = 600.dp).padding(horizontal = 20.dp))
@@ -857,13 +977,15 @@ private fun SectionHeader(label: String?, title: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SectionRow(
     section: HomePage.Section,
     shapeIndex: Int,
     onPlayAll: (shuffle: Boolean) -> Unit,
     onItem: (YTItem) -> Unit,
+    /** Big screens: wrap into rows (two at most) instead of scrolling sideways. */
+    grid: Boolean = false,
 ) {
     val shapes = listOf(
         MaterialShapes.Cookie9Sided, MaterialShapes.Sunny, MaterialShapes.Clover4Leaf,
@@ -877,22 +999,62 @@ private fun SectionRow(
     )
     val (fill, onFill) = tones[shapeIndex % tones.size]
     val songsOnly = section.items.all { it is SongItem }
+    val lead: @Composable () -> Unit = {
+        LeadTile(
+            shape = shapes[shapeIndex % shapes.size].toShape(),
+            fill = fill,
+            onFill = onFill,
+            shuffle = !songsOnly,
+            caption = if (songsOnly) "Play all" else "Shuffle all",
+            detail = "${section.items.size} ${if (songsOnly) "songs" else "picks"}",
+            onClick = { onPlayAll(!songsOnly) },
+        )
+    }
+    if (grid) {
+        FlowRow(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            maxLines = 2,
+        ) {
+            lead()
+            section.items.forEach { ItemCard(it, onClick = onItem) }
+        }
+        return
+    }
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            LeadTile(
-                shape = shapes[shapeIndex % shapes.size].toShape(),
-                fill = fill,
-                onFill = onFill,
-                shuffle = !songsOnly,
-                caption = if (songsOnly) "Play all" else "Shuffle all",
-                detail = "${section.items.size} ${if (songsOnly) "songs" else "picks"}",
-                onClick = { onPlayAll(!songsOnly) },
-            )
-        }
+        item { lead() }
         items(section.items, key = { it.id }) { ItemCard(it, onClick = onItem) }
+    }
+}
+
+/** Big screens: quick tiles beside the banner to jump back into your playlists. */
+@Composable
+private fun JumpBackIn(items: List<YTItem>, onOpen: (YTItem) -> Unit, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("JUMP BACK IN", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+        items.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { item ->
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .height(64.dp)
+                            .pressable(RoundedCornerShape(16.dp), Color.White.copy(alpha = 0.1f), pressedScale = 0.96f) { onOpen(item) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AsyncImage(item.thumbnail?.atSize(ArtSize.THUMB), null, Modifier.size(64.dp).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+                        Text(item.title, Modifier.padding(end = 10.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 

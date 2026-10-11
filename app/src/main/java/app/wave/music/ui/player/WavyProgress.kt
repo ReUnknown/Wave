@@ -115,6 +115,8 @@ fun WavyProgress(
         val w = size.width
         val cy = size.height / 2
         val strokePx = stroke.toPx()
+        // No room to draw yet (e.g. a docked player still opening): skip this frame.
+        if (w <= strokePx * 2) return@Canvas
         val e = energy()
         val amp = amplitude.toPx() * waveScale * (if (e < 0f) 1f else 0.55f + e * 0.9f)
         val wl = wavelength.toPx()

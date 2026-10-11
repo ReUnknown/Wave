@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.widthIn
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.delay
@@ -193,6 +194,42 @@ fun LyricsScreen(
         }
     }
     val levelNow: () -> Float = { if (settings.moveWithMusic) BeatBus.level.value else 0f }
+
+    // The drop: when the music suddenly gets much louder after a quieter stretch, the screen
+    // flashes the song's color and the art swells for a moment. At most every 20 seconds.
+    val dropFlash = remember { Animatable(0f) }
+    LaunchedEffect(settings.moveWithMusic) {
+        if (!settings.moveWithMusic) return@LaunchedEffect
+        var slow = 0.5f
+        var lastDrop = 0L
+        BeatBus.level.collect { lv ->
+            slow = slow * 0.985f + lv * 0.015f
+            val now = android.os.SystemClock.uptimeMillis()
+            if (lv > 0.85f && slow < 0.42f && now - lastDrop > 20_000) {
+                lastDrop = now
+                launch {
+                    dropFlash.snapTo(1f)
+                    dropFlash.animateTo(0f, tween(1400, easing = FastOutSlowInEasing))
+                }
+            }
+        }
+    }
+    val dropNow: () -> Float = { dropFlash.value }
+
+    // The hook: lines that sing the song's title, or that come back three or more times (the
+    // chorus), get their own animation when they're sung.
+    val hooks = remember(lyrics, song.title) {
+        if (lyrics == null) return@remember emptySet<Int>()
+        fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N} ]"), "").replace(Regex("\\s+"), " ").trim()
+        val core = norm(song.title.replace(Regex("\\s*[(\\[].*?[)\\]]"), "").substringBefore(" - "))
+        val texts = lyrics.lines.map { norm(it.text) }
+        val counts = texts.groupingBy { it }.eachCount()
+        texts.indices.filter { i ->
+            val t = texts[i]
+            t.isNotBlank() && ((core.length >= 3 && t.contains(core)) || (t.length >= 8 && (counts[t] ?: 0) >= 3))
+        }.toSet()
+    }
+    val accent = MaterialTheme.colorScheme.primary
     val pulseNow: () -> Float = { if (settings.moveWithMusic) pulse.value else 0f }
 
     LaunchedEffect(active, ui) {
@@ -213,11 +250,22 @@ fun LyricsScreen(
                 radius = 90.dp,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { scaleX = 1.4f; scaleY = 1.4f },
+                    .graphicsLayer {
+                        val swell = 1.4f + dropFlash.value * 0.1f
+                        scaleX = swell
+                        scaleY = swell
+                    },
             )
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)))
         }
 
+        // The drop's flash of color.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = dropFlash.value }
+                .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.45f), Color.Transparent))),
+        )
         when (val current = ui) {
             LyricsUi.Loading -> LoadingIndicator(Modifier.size(72.dp).align(Alignment.Center))
             LyricsUi.Missing -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -238,6 +286,9 @@ fun LyricsScreen(
                         position = positionNow,
                         level = levelNow,
                         pulse = pulseNow,
+                        hook = index in hooks,
+                        accent = accent,
+                        drop = dropNow,
                         onTap = {
                             if (current.lyrics.synced) {
                                 PlayerConnection.seekTo(line.startMs)
@@ -336,8 +387,13 @@ private fun LyricLineItem(
     level: () -> Float,
     pulse: () -> Float,
     onTap: () -> Unit,
+    hook: Boolean = false,
+    accent: Color = Color.White,
+    drop: () -> Float = { 0f },
 ) {
     val isActive = synced && distance == 0
+    // A hook line swells a little when it comes around, on top of everything else.
+    val hookBoost by animateFloatAsState(if (isActive && hook) 1.08f else 1f, spring(dampingRatio = 0.5f, stiffness = 260f), label = "hook")
     val alpha by animateFloatAsState(
         when {
             !synced || isActive -> 1f
@@ -357,9 +413,9 @@ private fun LyricLineItem(
             .clickable(onClick = onTap)
             .padding(horizontal = 28.dp, vertical = 12.dp)
             .graphicsLayer {
-                val beatBump = if (isActive) 1f + pulse() * 0.025f else 1f
-                scaleX = scale * beatBump
-                scaleY = scale * beatBump
+                val beatBump = if (isActive) 1f + pulse() * 0.025f + drop() * 0.06f else 1f
+                scaleX = scale * beatBump * hookBoost
+                scaleY = scale * beatBump * hookBoost
                 transformOrigin = TransformOrigin(0f, 0.5f)
             }
             .alpha(alpha)
@@ -375,7 +431,7 @@ private fun LyricLineItem(
                 distance < 0 -> { -> Long.MAX_VALUE }
                 else -> { -> Long.MIN_VALUE }
             }
-            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced) }
+            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced, hook = isActive && hook, accent = accent) }
         }
         if (line.background.isNotEmpty()) {
             FlowRow(Modifier.padding(top = 4.dp)) {
@@ -392,7 +448,16 @@ private fun LyricLineItem(
  * so it stays smooth without recomposing the lyrics every frame.
  */
 @Composable
-private fun LyricWordText(word: LyricWord, position: () -> Long, level: () -> Float, style: TextStyle, synced: Boolean) {
+private fun LyricWordText(
+    word: LyricWord,
+    position: () -> Long,
+    level: () -> Float,
+    style: TextStyle,
+    synced: Boolean,
+    /** Part of the hook being sung: each word bounces up as it lights, in the song's accent. */
+    hook: Boolean = false,
+    accent: Color = Color.White,
+) {
     val text = word.text + if (word.spaceAfter) " " else ""
     if (!synced) {
         Text(text, style = style, color = Color.White)
@@ -405,30 +470,41 @@ private fun LyricWordText(word: LyricWord, position: () -> Long, level: () -> Fl
 
     Box(
         Modifier.graphicsLayer {
-            val lift = liftAt(position())
-            translationY = -lift * 4.dp.toPx()
-            val s = 1f + lift * 0.05f
+            val p = position()
+            val lift = liftAt(p)
+            // Hook words pop: a quick overshooting bounce the moment they're sung.
+            val pop = if (hook && p >= word.startMs) easeOutBack(((p - word.startMs) / 260f).coerceIn(0f, 1f)) else 1f
+            translationY = -lift * 4.dp.toPx() + (1f - pop) * 12.dp.toPx()
+            val s = (1f + lift * 0.05f) * (0.86f + 0.14f * pop)
             scaleX = s
             scaleY = s
             transformOrigin = TransformOrigin(0f, 0.6f)
         },
     ) {
         Text(text, style = style, color = Color.White.copy(alpha = 0.35f))
-        if (emphasized) {
-            // Glow layer, visible only while the word is held.
+        if (emphasized || hook) {
+            // Glow: a blurred copy behind the word (a text shadow gets cut off into a box).
             Text(
                 text,
-                style = style.copy(shadow = Shadow(Color.White, Offset.Zero, 26f)),
-                color = Color.White,
+                style = style,
+                color = if (hook) accent else Color.White,
                 modifier = Modifier.graphicsLayer {
                     val p = position()
-                    alpha = if (p in word.startMs..word.endMs) (0.45f + level() * 0.55f) * liftAt(p).coerceAtLeast(0.3f) else 0f
+                    alpha = when {
+                        hook && p >= word.startMs -> 0.55f + level() * 0.35f
+                        emphasized && p in word.startMs..word.endMs -> (0.45f + level() * 0.55f) * liftAt(p).coerceAtLeast(0.3f)
+                        else -> 0f
+                    }
+                    val r = 10.dp.toPx()
+                    renderEffect = androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Decal)
                 },
             )
         }
         Text(
             text,
-            style = style,
+            style = if (hook) {
+                style.copy(brush = Brush.horizontalGradient(listOf(accent, Color.White)))
+            } else style,
             color = Color.White,
             modifier = Modifier
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
@@ -451,6 +527,14 @@ private fun LyricWordText(word: LyricWord, position: () -> Long, level: () -> Fl
                 },
         )
     }
+}
+
+/** Overshoots a little, then settles: the "pop" of a hook word. */
+private fun easeOutBack(t: Float): Float {
+    val c1 = 1.70158f
+    val c3 = c1 + 1f
+    val x = t - 1f
+    return 1f + c3 * x * x * x + c1 * x * x
 }
 
 /** Animated "• • •" shown during instrumental breaks. */

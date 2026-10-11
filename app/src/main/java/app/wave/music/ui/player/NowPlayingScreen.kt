@@ -147,6 +147,8 @@ fun NowPlayingScreen(
     docked: Boolean = false,
     /** Computers: switch between docked and the full window. */
     onToggleSize: (() -> Unit)? = null,
+    /** Open straight to "lyrics" or "queue" (from the player bar's buttons). */
+    openTo: String? = null,
 ) {
     val song = state.current ?: return
     val haptics = LocalHapticFeedback.current
@@ -160,8 +162,11 @@ fun NowPlayingScreen(
     val peeking = app.wave.music.ui.components.LocalPeeking.current
     // Only the progress line and the times read this, so only they update as the song plays.
     val position = rememberPosition(song.videoId, state.isPlaying, everyMs = 200)
-    var showQueue by remember { mutableStateOf(false) }
-    var showLyrics by remember { mutableStateOf(false) }
+    // Roomy wide layouts show lyrics / up next in their side panel; elsewhere they open over the player.
+    val conf = LocalConfiguration.current
+    val roomy = !docked && conf.screenWidthDp >= 840 && conf.screenHeightDp >= 560 && conf.screenWidthDp > conf.screenHeightDp
+    var showQueue by remember { mutableStateOf(openTo == "queue" && !roomy) }
+    var showLyrics by remember { mutableStateOf(openTo == "lyrics" && !roomy) }
 
     MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl)) {
         val c = MaterialTheme.colorScheme
@@ -189,6 +194,7 @@ fun NowPlayingScreen(
                 roomy = maxWidth >= 840.dp && maxHeight >= 560.dp,
                 onToggleSize = onToggleSize,
                 docked = docked,
+                openTo = openTo,
                 showQueue = showQueue,
                 showLyrics = showLyrics,
                 onClose = onClose,
@@ -354,6 +360,7 @@ private fun WideNowPlaying(
     onLyrics: () -> Unit,
     onToggleSize: (() -> Unit)? = null,
     docked: Boolean = false,
+    openTo: String? = null,
 ) {
     val c = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize()) {
@@ -377,7 +384,7 @@ private fun WideNowPlaying(
                         }
                         Controls(state, song, position, Modifier.widthIn(max = 560.dp).padding(top = 20.dp))
                     }
-                    SidePanel(state, Modifier.weight(1f).fillMaxHeight())
+                    SidePanel(state, Modifier.weight(1f).fillMaxHeight(), startOnQueue = openTo == "queue")
                 } else {
                     BoxWithConstraints(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
                         Cover(song, minOf(maxWidth, maxHeight))
@@ -438,9 +445,9 @@ private fun PanelButton(icon: ImageVector, label: String, key: String, open: Boo
 
 /** Roomy wide layout: Lyrics and Up next live side by side with the player, one tap apart. */
 @Composable
-private fun SidePanel(state: PlayerUiState, modifier: Modifier) {
+private fun SidePanel(state: PlayerUiState, modifier: Modifier, startOnQueue: Boolean = false) {
     val c = MaterialTheme.colorScheme
-    var tab by rememberSaveable { mutableStateOf(0) }
+    var tab by rememberSaveable { mutableStateOf(if (startOnQueue) 1 else 0) }
     Column(
         modifier
             .clip(RoundedCornerShape(32.dp))

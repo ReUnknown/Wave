@@ -117,10 +117,19 @@ fun QueueScreen(
     // count: the coverflow sliding by itself to follow the player must never pick a song.
     LaunchedEffect(pager) {
         var dragged = false
+        var startPage = 0
         launch {
-            pager.interactionSource.interactions.collect { if (it is DragInteraction.Start) dragged = true }
+            pager.interactionSource.interactions.collect {
+                if (it is DragInteraction.Start) {
+                    dragged = true
+                    startPage = pager.settledPage
+                }
+            }
         }
         snapshotFlow { pager.isScrollInProgress }.collect { scrolling ->
+            // A click with a tiny wobble (easy with a mouse) isn't a swipe: only a drag that actually
+            // landed on a different cover picks a song.
+            if (!scrolling && dragged && pager.settledPage == startPage) dragged = false
             if (!scrolling && dragged) {
                 dragged = false
                 val target = PlayerConnection.state.value.playOrder.getOrNull(pager.settledPage)
@@ -240,13 +249,19 @@ fun QueueScreen(
                                     .shadow(22.dp, RoundedCornerShape(38.dp))
                                     .clip(RoundedCornerShape(38.dp))
                                     .clickable {
-                                        // Tapping a cover plays it; the coverflow then follows the player there.
-                                        order.getOrNull(page)?.let { target ->
-                                            if (target != state.index) {
-                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                PlayerConnection.skipTo(target)
-                                                PlayerConnection.play()
+                                        // Tapping a cover plays it, just like next / previous for the
+                                        // ones beside it; the coverflow then follows the player there.
+                                        val live = PlayerConnection.state.value
+                                        val here = live.playOrder.indexOf(live.index)
+                                        val target = live.playOrder.getOrNull(page)
+                                        if (target != null && target != live.index) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            when (page - here) {
+                                                1 -> PlayerConnection.nextSong()
+                                                -1 -> PlayerConnection.previousSong()
+                                                else -> PlayerConnection.skipTo(target)
                                             }
+                                            PlayerConnection.play()
                                         }
                                     },
                             )

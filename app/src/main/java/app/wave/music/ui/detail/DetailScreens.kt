@@ -1,5 +1,6 @@
 package app.wave.music.ui.detail
 
+import androidx.compose.ui.draw.clipToBounds
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -237,6 +238,8 @@ private fun <T> PageFrame(
     art: String?,
     actions: PageActions,
     header: (T) -> HeaderInfo,
+    /** A list of songs (album, playlist): big screens show a # · Title · Time heading over it. */
+    table: Boolean = false,
     content: LazyListScope.(T) -> Unit,
 ) {
     val matchColors = WaveSettings.state.collectAsState().value.matchSongColors
@@ -272,7 +275,25 @@ private fun <T> PageFrame(
                     is Load.Ready -> {
                         val info = header(load.value)
                         val config = LocalConfiguration.current
-                        if (config.screenWidthDp >= 600 && config.screenWidthDp > config.screenHeightDp) {
+                        if (app.wave.music.ui.components.LocalShell.current) {
+                            // Computers and tablets (design board 2): the art glows behind a header with
+                            // the cover beside the title, then the songs as a table.
+                            BlurredImage(
+                                info.art?.atSize(ArtSize.BLUR),
+                                Modifier.fillMaxWidth().height(480.dp).clipToBounds().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f },
+                                radius = 96.dp,
+                                fadeBottom = 0.55f,
+                            )
+                            Box(Modifier.fillMaxWidth().height(480.dp).background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.3f), 1f to c.background)))
+                            LazyColumn(
+                                Modifier.widthIn(max = 1180.dp).fillMaxSize(),
+                                contentPadding = PaddingValues(top = statusTop + 72.dp, bottom = 48.dp, start = 12.dp, end = 12.dp),
+                            ) {
+                                item { ShellHeader(info) }
+                                if (table) item { TableHeader() }
+                                content(load.value)
+                            }
+                        } else if (config.screenWidthDp >= 600 && config.screenWidthDp > config.screenHeightDp) {
                             // Side by side on wide screens, over the art blurred across the window.
                             BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
                             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.55f), 1f to c.background.copy(alpha = 0.88f))))
@@ -365,6 +386,49 @@ private fun HeroButtons(info: HeaderInfo) {
             Icon(info.secondary.second, null, tint = c.onBackground)
             Text("  ${info.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold)
         }
+    }
+}
+
+/** Big-screen page header: the cover beside eyebrow, a large title, details and actions. */
+@Composable
+private fun ShellHeader(info: HeaderInfo) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(28.dp),
+    ) {
+        AsyncImage(
+            model = info.art?.atSize(ArtSize.CARD),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(232.dp)
+                .shadow(28.dp, RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(28.dp)),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(info.eyebrow, style = MaterialTheme.typography.labelSmall, color = c.primary)
+            Text(info.title, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            info.subtitle?.let { Text(it, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            Spacer(Modifier.height(18.dp))
+            Box(Modifier.widthIn(max = 440.dp)) { HeroButtons(info) }
+        }
+    }
+}
+
+/** "#  TITLE  TIME" over a page's songs on big screens. */
+@Composable
+private fun TableHeader() {
+    val c = MaterialTheme.colorScheme
+    Column {
+        Row(Modifier.fillMaxWidth().height(36.dp).padding(start = 20.dp, end = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("#", Modifier.width(32.dp), style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
+            Text("TITLE", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
+            Text("TIME", style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
+        }
+        Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(1.dp).background(c.outlineVariant.copy(alpha = 0.5f)))
+        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -543,6 +607,7 @@ private fun AlbumScreen(browseId: String, actions: PageActions) {
         retry = retry,
         art = page?.album?.thumbnail,
         actions = actions,
+        table = true,
         header = { p ->
             val ctx = PlaybackContext(p.album.browseId, p.album.title, p.album.thumbnail, p.album.playlistId, isCollection = true)
             HeaderInfo(
@@ -605,6 +670,7 @@ private fun PlaylistScreen(playlistId: String, actions: PageActions) {
         retry = retry,
         art = page?.playlist?.thumbnail,
         actions = actions,
+        table = true,
         header = { p ->
             val ctx = PlaybackContext(p.playlist.id, p.playlist.title, p.playlist.thumbnail, playlistId, isCollection = true)
             HeaderInfo(

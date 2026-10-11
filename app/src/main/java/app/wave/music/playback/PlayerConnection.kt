@@ -373,6 +373,9 @@ object PlayerConnection {
     fun togglePlay() = controller?.run { if (isPlaying) pause() else play() }
     fun next() = controller?.seekToNext()
     fun previous() = controller?.seekToPrevious()
+    /** Straight to the next / previous song in play order (no "restart this song" step). */
+    fun nextSong() = controller?.seekToNextMediaItem()
+    fun previousSong() = controller?.seekToPreviousMediaItem()
     fun seekTo(ms: Long) = controller?.seekTo(ms)
     fun skipTo(index: Int) = controller?.seekToDefaultPosition(index)
     fun removeAt(index: Int) = controller?.removeMediaItem(index)

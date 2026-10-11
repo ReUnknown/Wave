@@ -31,6 +31,12 @@ fun isDesktop(context: Context): Boolean {
  */
 val LocalDesktop = androidx.compose.runtime.staticCompositionLocalOf { false }
 
+/**
+ * The big-screen layout (computers, and tablets/unfolded Folds in landscape): a sidebar for your
+ * library, a player bar across the bottom, pages laid out for width.
+ */
+val LocalShell = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 /** How much room the floating mini player takes at the bottom, so nothing important sits under it. */
 val LocalMiniPlayerSpace = androidx.compose.runtime.compositionLocalOf { 0.dp }
 
