@@ -252,9 +252,10 @@ fun NowPlayingScreen(
                 BlurredImage(
                     art?.atSize(ArtSize.BLUR),
                     Modifier
-                        .offset(y = artHeight)
+                        // Tucked a few dp under the art above, so the two never show a seam.
+                        .offset(y = artHeight - 6.dp)
                         .fillMaxWidth()
-                        .height(artHeight)
+                        .height(artHeight + 6.dp)
                         .graphicsLayer { scaleY = -1f },
                     radius = 72.dp,
                 )

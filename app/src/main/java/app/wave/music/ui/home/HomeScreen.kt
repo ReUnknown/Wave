@@ -218,6 +218,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         if (WaveSettings.state.value.checkUpdates) Updater.check(context.applicationContext)
     }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
+    // Asked to open from home's banner; handled once the player's layout state exists below.
+    var openRequested by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     // Ctrl+F or "/" on a keyboard opens search.
@@ -305,7 +307,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             detail = "Song $playedSoFar of ${player.queue.size} · ${current.title}",
             progress = if (player.queue.isNotEmpty()) playedSoFar.toFloat() / player.queue.size else null,
             primary = "Open player" to Icons.AutoMirrored.Rounded.QueueMusic,
-            onPrimary = { showPlayer = true },
+            onPrimary = { openRequested = true },
             secondary = (if (player.shuffle) "Remix on" else "Remix") to Icons.Rounded.Shuffle,
             onSecondary = { PlayerConnection.toggleShuffle() },
         )
@@ -373,12 +375,26 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     var playerPanel by remember { mutableStateOf<String?>(null) }
     val dockSpring = spring<Float>(dampingRatio = 0.86f, stiffness = 360f)
     val homeWidth = animateFloatAsState(if (docked) 1f - split else 1f, dockSpring, label = "dock")
-    val playerWidth = animateFloatAsState(if (wouldDock) split else 1f, dockSpring, label = "dockPlayer")
+    // While the player is closed its size just jumps to whatever it'll open at.
+    val playerWidth = animateFloatAsState(if (wouldDock) split else 1f, if (showPlayer) dockSpring else snap(), label = "dockPlayer")
     fun closePlayer() {
+        // The side stays as it was while the player leaves, so it slides away from where it is
+        // instead of stretching across the window on its way out.
         showPlayer = false
         playerFull = false
-        // Tablets: the next tap on the player bar opens it full again; drag it to a side to dock.
+    }
+    fun openPlayer(panel: String?) {
+        playerPanel = panel
+        droppedIn = false
+        // Tablets: tapping the player bar opens it full; drag the bar to a side to dock it.
         if (tabletShell) dockSide = 0
+        showPlayer = true
+    }
+    LaunchedEffect(openRequested) {
+        if (openRequested) {
+            openRequested = false
+            openPlayer(null)
+        }
     }
     val appScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)
     val pageCovers = rememberCovered(stack.isNotEmpty())
@@ -431,7 +447,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 .fillMaxHeight()
                 .layout { measurable, cons ->
                     val f = homeWidth.value
-                    val w = (cons.maxWidth * f + tuck * ((1f - f) / 0.3f).coerceIn(0f, 1f)).roundToInt().coerceAtMost(cons.maxWidth)
+                    val w = (cons.maxWidth * f + tuck * ((1f - f) / 0.3f).coerceIn(0f, 1f)).roundToInt().coerceIn(1, cons.maxWidth)
                     val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, cons.maxHeight))
                     layout(cons.maxWidth, cons.maxHeight) { placeable.place(if (dockSide < 0) cons.maxWidth - w else 0, 0) }
                 },
@@ -727,9 +743,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             ) {
                 PlayerBar(
                     player,
-                    onOpen = { playerPanel = null; droppedIn = false; showPlayer = true },
-                    onLyrics = { playerPanel = "lyrics"; droppedIn = false; showPlayer = true },
-                    onQueue = { playerPanel = "queue"; droppedIn = false; showPlayer = true },
+                    onOpen = { openPlayer(null) },
+                    onLyrics = { openPlayer("lyrics") },
+                    onQueue = { openPlayer("queue") },
                     modifier = if (droppedIn) Modifier else Modifier.sharedContainer("player", this, RoundedCornerShape(0.dp)),
                     lifted = dockGhost != null,
                     onDockDrag = if (canDock) ({ dockGhost = it }) else null,
@@ -761,7 +777,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 layout(cons.maxWidth, cons.maxHeight) { placeable.place(if (dockSide < 0) 0 else cons.maxWidth - w, 0) }
             },
             enter = if (droppedIn) slideInHorizontally(tween(420, easing = WaveMotion.EmphasizedDecelerate)) { dockSide * it } + fadeIn(tween(220)) else EnterTransition.None,
-            exit = if (droppedIn) slideOutHorizontally(tween(280, easing = WaveMotion.EmphasizedAccelerate)) { dockSide * it } + fadeOut(tween(220)) else ExitTransition.None,
+            // Closing a docked player (button, back, or dragging it down) carries on down toward
+            // the player bar it came from.
+            exit = if (droppedIn) slideOutVertically(tween(300, easing = WaveMotion.EmphasizedAccelerate)) { it / 2 } + fadeOut(tween(240, delayMillis = 40)) else ExitTransition.None,
         ) {
             NowPlayingScreen(
                 player,
@@ -819,7 +837,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             playNext = playNext,
             addToQueue = addToQueue,
             navigate = { dest ->
-                showPlayer = false
+                // Docked beside the app, the player stays put and the page opens on the other
+                // side; a full-window player gets out of the way.
+                if (!docked) showPlayer = false
                 push(dest)
             },
         ),

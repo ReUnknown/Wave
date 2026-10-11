@@ -86,8 +86,10 @@ private fun LowResBlur(
             ) { content() }
             return@BoxWithConstraints
         }
-        val w = with(density) { (constraints.maxWidth / f).toDp() }
-        val h = with(density) { (constraints.maxHeight / f).toDp() }
+        // Rounded up: a copy a pixel short would leave a gap (up to f pixels once scaled back up)
+        // along its right and bottom edges, which shows as the blur cutting off.
+        val w = with(density) { kotlin.math.ceil(constraints.maxWidth / f).toDp() }
+        val h = with(density) { kotlin.math.ceil(constraints.maxHeight / f).toDp() }
         Box(
             Modifier
                 .wrapContentSize(Alignment.TopStart, unbounded = true)

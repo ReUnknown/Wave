@@ -155,6 +155,15 @@ fun ItemMenuHost(
     }
 
     // ---- The options sheet ----
+    // In the colors of what it's about (the album, playlist or song you opened it on), not
+    // whatever happens to be playing.
+    val menuArt = when (target) {
+        is MenuTarget.Song -> target.artworkUrl
+        is MenuTarget.Collection -> target.item.thumbnail
+        null -> null
+    }
+    val matchColors = app.wave.music.data.WaveSettings.state.collectAsState().value.matchSongColors
+    MaterialTheme(colorScheme = app.wave.music.ui.components.rememberArtColorScheme(if (matchColors) menuArt else null)) {
     if (target != null) {
         // Fully open right away, so every option is on screen and nothing shifts under your finger.
         val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -280,6 +289,7 @@ fun ItemMenuHost(
                     }
                 }
         }
+    }
     }
 
     // ---- Add to playlist ----

@@ -111,6 +111,7 @@ fun QueueScreen(
     val order = state.playOrder
     val currentPage = order.indexOf(state.index).coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = currentPage) { order.size }
+    val pageCount by androidx.compose.runtime.rememberUpdatedState(order.size)
 
     // Follow the player when the song changes on its own.
     LaunchedEffect(currentPage) {
@@ -245,20 +246,23 @@ fun QueueScreen(
                                         if (abs(pending) < 1f) continue
                                         val step = if (pending > 0) 1 else -1
                                         pending = 0f
-                                        val to = (pager.targetPage + step).coerceIn(0, (order.size - 1).coerceAtLeast(0))
+                                        val to = (pager.targetPage + step).coerceIn(0, (pageCount - 1).coerceAtLeast(0))
                                         scope.launch { pager.animateScrollToPage(to) }
                                     }
                                 }
                             },
                     ) { page ->
-                        val offset = pager.getOffsetDistanceInPages(page).coerceIn(-2f, 2f)
+                        // Read while drawing only, so scrolling the coverflow doesn't recompose it.
+                        fun offset() = pager.getOffsetDistanceInPages(page).coerceIn(-2f, 2f)
                         val song = state.queue.getOrNull(order[page])
                         // Clicks land on the flat slot, not the tilted cover: hit-testing through a
                         // cover turned nearly edge-on maps a click onto a song several places away.
                         Box(
                             Modifier
                                 .fillMaxSize()
-                                .clickable(interactionSource = null, indication = null, enabled = abs(offset) < 1.5f) {
+                                .clickable(interactionSource = null, indication = null) {
+                                        // Only the covers you can really see take clicks.
+                                        if (abs(offset()) >= 1.5f) return@clickable
                                         // Tapping a cover plays it, just like next / previous for the
                                         // ones beside it; the coverflow then follows the player there.
                                         val live = PlayerConnection.state.value
@@ -283,6 +287,7 @@ fun QueueScreen(
                                 modifier = Modifier
                                     .size(226.dp)
                                     .graphicsLayer {
+                                        val offset = offset()
                                         rotationY = offset * -42f
                                         val s = 1f - abs(offset) * 0.2f
                                         scaleX = s

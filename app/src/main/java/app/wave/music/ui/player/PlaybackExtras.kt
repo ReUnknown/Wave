@@ -226,7 +226,7 @@ class Reveal internal constructor(private val scope: kotlinx.coroutines.Coroutin
             androidx.compose.animation.core.animate(
                 fraction, if (show) 1f else 0f,
                 animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 420f),
-            ) { v, _ -> fraction = v }
+            ) { v, _ -> fraction = v.coerceIn(0f, 1f) }
         }
     }
 
@@ -257,7 +257,8 @@ fun RevealBox(reveal: Reveal, modifier: Modifier = Modifier, content: @Composabl
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
                 reveal.height = placeable.height
-                val h = (placeable.height * reveal.fraction).roundToInt()
+                // The settle spring can overshoot a hair past either end; a negative height crashes.
+                val h = (placeable.height * reveal.fraction.coerceIn(0f, 1f)).roundToInt()
                 layout(placeable.width, h) { placeable.place(0, 0) }
             }
             .graphicsLayer {
