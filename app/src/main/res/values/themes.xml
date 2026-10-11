@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Wave" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/wave_background</item>
+    </style>
+    <color name="wave_background">#111418</color>
+    <color name="wave_icon_background">#36618E</color>
+</resources>
