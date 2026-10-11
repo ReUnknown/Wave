@@ -1,5 +1,5 @@
 # Wave — Research Notes
-*A simple, ad-free YouTube Music client for Google Pixel, built with Material 3 Expressive.*
+*A simple, ad-free YouTube Music client for Android phones, tablets, foldables and Googlebook, built with Material 3 Expressive.*
 Compiled 2026-10-10.
 
 ---
