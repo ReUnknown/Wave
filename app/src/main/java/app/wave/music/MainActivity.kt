@@ -4,7 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalView
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +40,14 @@ class MainActivity : ComponentActivity() {
                 val session by SessionRepository.session.collectAsState()
                 val restored by SessionRepository.restored.collectAsState()
                 var signingIn by rememberSaveable { mutableStateOf(false) }
+
+                // Keep the screen awake while music plays and Wave is open (lyrics, the player).
+                val view = LocalView.current
+                val playing by remember { PlayerConnection.state.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(false)
+                DisposableEffect(playing) {
+                    view.keepScreenOn = playing
+                    onDispose { view.keepScreenOn = false }
+                }
 
                 LaunchedEffect(Unit) {
                     WaveSettings.load(context.applicationContext)

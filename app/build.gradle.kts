@@ -11,8 +11,8 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 89
-        versionName = "0.8.9"
+        versionCode = 90
+        versionName = "0.9.0"
     }
 
     buildTypes {
@@ -56,7 +56,7 @@ dependencies {
     implementation(libs.timber)
     implementation(libs.reorderable)
     implementation(libs.androidx.webkit)
-    implementation(libs.androidx.palette)
+    implementation(libs.material.color.utilities)
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.compose.ui.tooling)
 }

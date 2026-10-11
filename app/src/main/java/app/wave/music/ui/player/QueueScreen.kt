@@ -57,6 +57,7 @@ import app.wave.music.playback.NowPlaying
 import app.wave.music.playback.PlayerConnection
 import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.blocksTouchesBelow
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -140,6 +141,7 @@ fun QueueScreen(state: PlayerUiState, onClose: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
+            .blocksTouchesBelow()
             .background(c.background),
     ) {
         BlurredImage(

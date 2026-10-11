@@ -29,6 +29,16 @@ import androidx.compose.material.icons.rounded.Sensors
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.style.TextAlign
+import app.wave.music.playback.PlayerConnection
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -141,16 +151,32 @@ fun ItemMenuHost(
 
     // ---- The options sheet ----
     if (target != null) {
+        // Fully open right away, so every option is on screen and nothing shifts under your finger.
+        val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        /** Runs [action], then slides the sheet away. */
+        fun choose(action: () -> Unit) {
+            action()
+            scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() }
+        }
         // Songs opened from Now Playing only know their id; look up artist and album links.
         var resolved by remember(target) { mutableStateOf((target as? MenuTarget.Song)?.item) }
+        var lookedUp by remember(target) { mutableStateOf(target !is MenuTarget.Song || target.item?.album != null) }
         LaunchedEffect(target) {
-            if (target is MenuTarget.Song && (resolved == null || resolved?.album == null)) {
+            if (target is MenuTarget.Song && !lookedUp) {
                 YouTube.next(WatchEndpoint(videoId = target.videoId)).getOrNull()
-                    ?.items?.firstOrNull { it.id == target.videoId }?.let { resolved = it }
+                    ?.items?.firstOrNull { it.id == target.videoId }
+                    ?.let { found -> resolved = found.copy(album = found.album ?: resolved?.album) }
+                lookedUp = true
             }
         }
-        ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-            Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(
+                Modifier
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 when (target) {
                     is MenuTarget.Song -> {
                         val song = resolved ?: SongItem(
@@ -159,63 +185,97 @@ fun ItemMenuHost(
                             artists = listOf(Artist(target.artist, null)),
                             thumbnail = target.artworkUrl.orEmpty(),
                         )
+                        var liked by remember(target) { mutableStateOf(PlayerConnection.isLiked(target.videoId)) }
                         SheetHeader(target.artworkUrl, target.title, target.artist, round = false)
-                        Option(Icons.Rounded.SkipNext, "Play next") { actions.playNext(song); onDismiss() }
-                        Option(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { actions.addToQueue(song); onDismiss() }
-                        Option(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist") {
-                            pendingVideo = target.videoId
-                            dialog = Dialog.AddToPlaylist
-                            onDismiss()
-                        }
-                        Option(Icons.Rounded.Sensors, "Start radio") { actions.playItem(song, false); onDismiss() }
-                        song.artists.firstOrNull { it.id != null }?.let { artist ->
-                            Option(Icons.Rounded.Person, "Go to ${artist.name}") { actions.navigate(Destination.Artist(artist.id!!)); onDismiss() }
-                        }
-                        song.album?.let { album ->
-                            Option(Icons.Rounded.Album, "Go to album") { actions.navigate(Destination.Album(album.id)); onDismiss() }
-                        }
-                        Option(Icons.Outlined.ThumbUp, "Like song") {
-                            scope.launch { YouTube.likeVideo(target.videoId, true).onSuccess { toast("Added to Liked music") } }
-                            onDismiss()
-                        }
-                        target.removeFrom?.let { from ->
-                            Option(Icons.Rounded.PlaylistRemove, "Remove from this playlist") {
-                                scope.launch {
-                                    LibraryRepository.remove(from.playlistId, target.videoId, from.setVideoId)
-                                        .onSuccess { toast("Removed from playlist") }
-                                        .onFailure { toast("Couldn't remove it") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            QuickAction(Icons.Rounded.SkipNext, "Play next") { choose { actions.playNext(song) } }
+                            QuickAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { choose { actions.addToQueue(song) } }
+                            QuickAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist") {
+                                choose {
+                                    pendingVideo = target.videoId
+                                    dialog = Dialog.AddToPlaylist
                                 }
-                                onDismiss()
+                            }
+                            QuickAction(if (liked) Icons.Rounded.ThumbUp else Icons.Outlined.ThumbUp, if (liked) "Liked" else "Like", on = liked) {
+                                liked = !liked
+                                PlayerConnection.setLiked(target.videoId, liked)
+                                toast(if (liked) "Added to Liked music" else "Removed from Liked music")
+                            }
+                        }
+                        OptionGroup {
+                            Option(Icons.Rounded.Sensors, "Start radio") { choose { actions.playItem(song, false) } }
+                            // Always shown, so the list never jumps; usable once the links are known.
+                            val artist = song.artists.firstOrNull { it.id != null }
+                            Option(
+                                Icons.Rounded.Person,
+                                artist?.let { "Go to ${it.name}" } ?: "Go to artist",
+                                enabled = artist != null,
+                                loading = artist == null && !lookedUp,
+                            ) { artist?.id?.let { id -> choose { actions.navigate(Destination.Artist(id)) } } }
+                            val album = song.album
+                            Option(
+                                Icons.Rounded.Album,
+                                album?.let { "Go to ${it.name}" } ?: "Go to album",
+                                enabled = album != null,
+                                loading = album == null && !lookedUp,
+                            ) { album?.let { choose { actions.navigate(Destination.Album(it.id)) } } }
+                            target.removeFrom?.let { from ->
+                                Option(Icons.Rounded.PlaylistRemove, "Remove from this playlist", danger = true) {
+                                    choose {
+                                        scope.launch {
+                                            LibraryRepository.remove(from.playlistId, target.videoId, from.setVideoId)
+                                                .onSuccess { toast("Removed from playlist") }
+                                                .onFailure { toast("Couldn't remove it") }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                     is MenuTarget.Collection -> {
                         val item = target.item
                         SheetHeader(item.thumbnail, item.title, subtitle(item).orEmpty(), round = item is ArtistItem)
-                        if (item is ArtistItem) {
-                            Option(Icons.Rounded.Shuffle, "Shuffle") { actions.playItem(item, true); onDismiss() }
-                            Option(Icons.Rounded.Sensors, "Start radio") { actions.playItem(item, false); onDismiss() }
-                        } else {
-                            Option(Icons.Rounded.PlayArrow, "Play") { actions.playItem(item, false); onDismiss() }
-                            Option(Icons.Rounded.Shuffle, "Shuffle") { actions.playItem(item, true); onDismiss() }
-                            Option(Icons.Rounded.SkipNext, "Play next") { actions.playNext(item); onDismiss() }
-                            Option(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { actions.addToQueue(item); onDismiss() }
-                        }
-                        if (item is PlaylistItem && item.isEditable && LibraryRepository.idOf(item) != "LM") {
-                            Option(Icons.Rounded.Edit, "Rename playlist") {
-                                dialogTarget = item
-                                dialog = Dialog.Rename
-                                onDismiss()
-                            }
-                            Option(Icons.Rounded.Delete, "Delete playlist") {
-                                dialogTarget = item
-                                dialog = Dialog.Delete
-                                onDismiss()
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (item is ArtistItem) {
+                                QuickAction(Icons.Rounded.Shuffle, "Shuffle") { choose { actions.playItem(item, true) } }
+                                QuickAction(Icons.Rounded.Sensors, "Radio") { choose { actions.playItem(item, false) } }
+                            } else {
+                                QuickAction(Icons.Rounded.PlayArrow, "Play", on = true) { choose { actions.playItem(item, false) } }
+                                QuickAction(Icons.Rounded.Shuffle, "Shuffle") { choose { actions.playItem(item, true) } }
+                                QuickAction(Icons.Rounded.SkipNext, "Play next") { choose { actions.playNext(item) } }
+                                QuickAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { choose { actions.addToQueue(item) } }
                             }
                         }
-                        if (item is AlbumItem) {
-                            item.artists?.firstOrNull { it.id != null }?.let { artist ->
-                                Option(Icons.Rounded.Person, "Go to ${artist.name}") { actions.navigate(Destination.Artist(artist.id!!)); onDismiss() }
+                        val open = Destination.of(item)
+                        val albumArtist = (item as? AlbumItem)?.artists?.firstOrNull { it.id != null }
+                        val editable = item is PlaylistItem && item.isEditable && LibraryRepository.idOf(item) != "LM"
+                        if (open != null || albumArtist != null || editable) {
+                            OptionGroup {
+                                if (open != null) {
+                                    val label = when (item) {
+                                        is ArtistItem -> "Open artist page"
+                                        is AlbumItem -> "Open album"
+                                        else -> "Open playlist"
+                                    }
+                                    Option(Icons.AutoMirrored.Rounded.OpenInNew, label) { choose { actions.navigate(open) } }
+                                }
+                                albumArtist?.let { artist ->
+                                    Option(Icons.Rounded.Person, "Go to ${artist.name}") { choose { actions.navigate(Destination.Artist(artist.id!!)) } }
+                                }
+                                if (editable) {
+                                    Option(Icons.Rounded.Edit, "Rename playlist") {
+                                        choose {
+                                            dialogTarget = item as PlaylistItem
+                                            dialog = Dialog.Rename
+                                        }
+                                    }
+                                    Option(Icons.Rounded.Delete, "Delete playlist", danger = true) {
+                                        choose {
+                                            dialogTarget = item as PlaylistItem
+                                            dialog = Dialog.Delete
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -313,35 +373,86 @@ fun ItemMenuHost(
 @Composable
 private fun SheetHeader(art: String?, title: String, subtitle: String, round: Boolean) {
     Row(
-        Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp),
+        Modifier.padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         AsyncImage(
             art?.atSize(200),
             null,
-            Modifier.size(56.dp).clip(if (round) CircleShape else RoundedCornerShape(16.dp)),
+            Modifier.size(64.dp).clip(if (round) CircleShape else RoundedCornerShape(18.dp)),
             contentScale = ContentScale.Crop,
         )
         Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(subtitle, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
+/** A big tile for the most-used actions, in a row across the top (like the settings tiles). */
 @Composable
-private fun Option(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun RowScope.QuickAction(icon: ImageVector, label: String, on: Boolean = false, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .weight(1f)
+            .height(88.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (on) c.primary else c.surfaceContainerHighest)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Icon(icon, null, tint = if (on) c.onPrimary else c.primary)
+        Text(
+            label,
+            color = if (on) c.onPrimary else c.onSurface,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            lineHeight = 15.sp,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** The rest of the options, grouped on one rounded card. */
+@Composable
+private fun OptionGroup(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        content = content,
+    )
+}
+
+@Composable
+private fun Option(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    val tint = if (danger) c.error else c.onSurface
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .clickable(enabled = enabled, onClick = onClick)
+            .alpha(if (enabled || loading) 1f else 0.38f)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(label, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+        Icon(icon, null, tint = if (danger) c.error else c.onSurfaceVariant)
+        Text(label, Modifier.weight(1f), fontSize = 16.sp, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = c.onSurfaceVariant)
     }
 }
 

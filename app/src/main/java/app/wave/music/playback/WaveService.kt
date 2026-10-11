@@ -15,6 +15,7 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -65,7 +66,7 @@ class WaveService : MediaSessionService() {
         val http = OkHttpDataSource.Factory(OkHttpClient.Builder().build())
         val cached = CacheDataSource.Factory()
             .setCache(cache(this))
-            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(this, http))
+            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(this, ChunkedDataSource.Factory(http)))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val resolving = ResolvingDataSource.Factory(cached, ::resolve)
 
@@ -103,11 +104,24 @@ class WaveService : MediaSessionService() {
         }
 
         player.addListener(object : Player.Listener {
+            private var failures = 0
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                failures = 0
+            }
+
             override fun onPlayerError(error: PlaybackException) {
-                // A stream URL can expire or get rejected: drop it and retry this song once.
+                // A stream URL can expire or get rejected: get a fresh one and pick up where it
+                // stopped. If a song keeps failing, move on instead of going silent.
                 player.currentMediaItem?.mediaId?.let(streams::remove)
-                scope.launch { StreamResolver.refreshAfterStreamRejection() }
-                player.prepare()
+                val attempt = ++failures
+                scope.launch {
+                    if (attempt <= 2) runCatching { StreamResolver.refreshAfterStreamRejection() }
+                    launch(Dispatchers.Main) {
+                        if (attempt > 2 && player.hasNextMediaItem()) player.seekToNextMediaItem()
+                        player.prepare()
+                    }
+                }
             }
         })
 
@@ -117,14 +131,18 @@ class WaveService : MediaSessionService() {
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        session = MediaSession.Builder(this, player).setSessionActivity(openApp).build()
+        session = MediaSession.Builder(this, ShufflingPlayer(player)).setSessionActivity(openApp).build()
     }
 
     /** Turns a song id into a playable YouTube audio URL, just before ExoPlayer reads it. */
     private fun resolve(spec: DataSpec): DataSpec {
         val videoId = spec.key ?: spec.uri.toString()
         val cache = cache(this)
-        if (cache.isCached(videoId, spec.position, if (spec.length >= 0) spec.length else 1)) return spec
+        // Only skip resolving when everything asked for is already saved. A partly saved song
+        // still needs its real URL for the rest, or playback stops where the saved part ends.
+        val total = ContentMetadata.getContentLength(cache.getContentMetadata(videoId))
+        val wanted = if (spec.length >= 0) spec.length else if (total > 0) total - spec.position else -1L
+        if (wanted > 0 && cache.isCached(videoId, spec.position, wanted)) return spec
 
         val now = System.currentTimeMillis()
         val stream = streams[videoId]?.takeIf { it.expiresAt > now } ?: runBlocking {
@@ -146,10 +164,9 @@ class WaveService : MediaSessionService() {
             ).also { streams[videoId] = it }
         }
 
-        val resolved = spec.withUri(stream.url.toUri()).withRequestHeaders(spec.httpRequestHeaders + stream.headers)
-        if (stream.boundedChunk <= 0L) return resolved
-        val length = if (spec.length == C.LENGTH_UNSET.toLong()) stream.boundedChunk else minOf(spec.length, stream.boundedChunk)
-        return resolved.subrange(0, length)
+        // Streams that need bounded ranges are read chunk by chunk by ChunkedDataSource.
+        val chunk = if (stream.boundedChunk > 0L) mapOf(ChunkedDataSource.HEADER to stream.boundedChunk.toString()) else emptyMap()
+        return spec.withUri(stream.url.toUri()).withRequestHeaders(spec.httpRequestHeaders + stream.headers + chunk)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session

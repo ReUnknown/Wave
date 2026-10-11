@@ -86,6 +86,7 @@ import app.wave.music.playback.PlayerConnection
 import app.wave.music.data.WaveSettings
 import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.blocksTouchesBelow
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -170,6 +171,7 @@ fun LyricsScreen(state: PlayerUiState, onClose: () -> Unit) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
+            .blocksTouchesBelow()
             .background(MaterialTheme.colorScheme.background),
     ) {
         // Backdrop: the art, blurred hard and darkened, so the page glows in the song's colors.

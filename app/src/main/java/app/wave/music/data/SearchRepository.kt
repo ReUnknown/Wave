@@ -23,6 +23,9 @@ enum class SearchTab(val label: String, val filter: YouTube.SearchFilter?) {
 
 data class SearchGroup(val title: String, val items: List<YTItem>)
 
+/** What to show while typing: matching artists, songs and albums, plus query completions. */
+data class Suggestions(val items: List<YTItem> = emptyList(), val queries: List<String> = emptyList())
+
 private val Context.searchStore by preferencesDataStore("search")
 
 /** YouTube Music search with podcasts filtered out, plus your recent searches. */
@@ -30,8 +33,13 @@ object SearchRepository {
     private val recentKey = stringPreferencesKey("recent")
     private const val SEPARATOR = "\u001F"
 
-    suspend fun suggestions(query: String): List<String> =
-        YouTube.searchSuggestions(query).getOrNull()?.queries.orEmpty().take(6)
+    suspend fun suggestions(query: String): Suggestions {
+        val result = YouTube.searchSuggestions(query).getOrNull() ?: return Suggestions()
+        return Suggestions(
+            items = result.recommendedItems.filterNot(::isPodcast).distinctBy { it.id }.take(4),
+            queries = result.queries.take(6),
+        )
+    }
 
     suspend fun search(query: String, tab: SearchTab): Result<List<SearchGroup>> = runCatching {
         if (tab.filter == null) {

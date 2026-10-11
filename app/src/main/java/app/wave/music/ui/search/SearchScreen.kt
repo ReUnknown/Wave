@@ -78,10 +78,18 @@ import app.wave.music.data.SearchGroup
 import androidx.compose.ui.draw.clipToBounds
 import app.wave.music.data.SearchRepository
 import app.wave.music.data.SearchTab
+import app.wave.music.data.Suggestions
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import app.wave.music.ui.components.ItemCard
 import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.ProgressiveBlurImage
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.blocksTouchesBelow
 import androidx.compose.ui.graphics.graphicsLayer
 import app.wave.music.ui.components.backdropSource
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -126,7 +134,7 @@ fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var submitted by rememberSaveable { mutableStateOf<String?>(null) }
     var tab by rememberSaveable { mutableStateOf(SearchTab.Top) }
-    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var suggestions by remember { mutableStateOf(Suggestions()) }
     var results by remember { mutableStateOf<Results>(Results.Idle) }
     val recent by remember { SearchRepository.recent(context.applicationContext) }.collectAsState(emptyList())
     val myPlaylists by LibraryRepository.playlists.collectAsState()
@@ -136,10 +144,10 @@ fun SearchScreen(
     LaunchedEffect(Unit) { if (submitted == null) focus.requestFocus() }
     LaunchedEffect(query, submitted) {
         if (query.isBlank() || query == submitted) {
-            suggestions = emptyList()
+            suggestions = Suggestions()
             return@LaunchedEffect
         }
-        delay(220)
+        delay(200)
         suggestions = SearchRepository.suggestions(query)
     }
     LaunchedEffect(submitted, tab) {
@@ -157,6 +165,23 @@ fun SearchScreen(
         scope.launch { SearchRepository.remember(context.applicationContext, text) }
     }
 
+    /** Opens (or plays) something picked straight from the suggestions, remembering the search. */
+    val pick: (YTItem) -> Unit = { item ->
+        keyboard?.hide()
+        val text = query.trim()
+        if (text.isNotEmpty()) scope.launch { SearchRepository.remember(context.applicationContext, text) }
+        onOpen(item)
+    }
+    // Scrolling the list puts the keyboard away so you can see everything.
+    val hideKeyboardOnScroll = remember(keyboard) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) keyboard?.hide()
+                return Offset.Zero
+            }
+        }
+    }
+
     val ready = results as? Results.Ready
     val topResult = ready?.groups?.firstOrNull()?.items?.firstOrNull()
     val showingResults = submitted != null && query == submitted
@@ -168,6 +193,7 @@ fun SearchScreen(
         Box(
             Modifier
                 .fillMaxSize()
+                .blocksTouchesBelow()
                 .background(c.background),
         ) {
             // Everything under the header records into the backdrop the header blurs.
@@ -213,6 +239,7 @@ fun SearchScreen(
             LazyColumn(
                 Modifier
                     .fillMaxSize()
+                    .nestedScroll(hideKeyboardOnScroll)
                     .imePadding(),
                 contentPadding = PaddingValues(top = statusTop + if (showingResults) 128.dp else 84.dp, bottom = 140.dp),
             ) {
@@ -226,13 +253,20 @@ fun SearchScreen(
                         }
                     }
                     !showingResults -> {
-                        if (libraryMatches.isNotEmpty()) {
-                            item { SmallLabel("In your library") }
-                            items(libraryMatches) { ItemRow(it, onClick = onOpen) }
-                            item { Spacer(Modifier.height(8.dp)) }
+                        // Searches to finish the query, then the artists, songs and albums it
+                        // already matches (tap to open or play), then your own playlists.
+                        items(suggestions.queries.take(4)) { s ->
+                            SuggestionRow(s, Icons.Rounded.Search, onClick = { submit(s) }, trailingIcon = Icons.Rounded.North) { query = s }
                         }
-                        items(suggestions) { s ->
-                        SuggestionRow(s, Icons.Rounded.Search, onClick = { submit(s) }, trailingIcon = Icons.Rounded.North) { query = s }
+                        if (suggestions.items.isNotEmpty()) {
+                            item { SmallLabel("Matches", top = 12.dp) }
+                            items(suggestions.items, key = { "match-" + it.id }) { item ->
+                                ItemRow(item, onClick = pick, trailing = { MatchHint(item) })
+                            }
+                        }
+                        if (libraryMatches.isNotEmpty()) {
+                            item { SmallLabel("In your library", top = 12.dp) }
+                            items(libraryMatches) { ItemRow(it, onClick = pick, trailing = { MatchHint(it) }) }
                         }
                     }
                     else -> when (val r = results) {
@@ -354,12 +388,30 @@ fun SearchScreen(
 @Composable
 private fun TopResult(item: YTItem, onPlay: (YTItem, Boolean) -> Unit, onPlayNext: (YTItem) -> Unit, onOpen: (YTItem) -> Unit) {
     val c = MaterialTheme.colorScheme
-    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 120.dp, bottom = 16.dp)) {
+    val isSong = item is SongItem
+    // The whole top result (including the art above it) is one big target: songs play,
+    // artists, albums and playlists open their page.
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(interactionSource = null, indication = null) { if (isSong) onPlay(item, false) else onOpen(item) }
+            .padding(start = 20.dp, end = 20.dp, top = 120.dp, bottom = 16.dp),
+    ) {
         Text("TOP RESULT", style = MaterialTheme.typography.labelSmall, color = c.primary)
-        Text(item.title, modifier = Modifier.clickable { onOpen(item) }, style = MaterialTheme.typography.displayMedium, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(item.title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.displayMedium, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (!isSong) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(40.dp), tint = c.onBackground)
+        }
         subtitle(item)?.let { Text(it, color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Spacer(Modifier.height(16.dp))
-        val isSong = item is SongItem
+        val (primary, secondary) = when (item) {
+            is SongItem -> Triple("Play", Icons.Rounded.PlayArrow) { onPlay(item, false) } to
+                Triple("Play next", Icons.AutoMirrored.Rounded.PlaylistAdd) { onPlayNext(item) }
+            is ArtistItem -> Triple("View artist", Icons.Rounded.Person) { onOpen(item) } to
+                Triple("Shuffle", Icons.Rounded.Shuffle) { onPlay(item, true) }
+            else -> Triple("Play", Icons.Rounded.PlayArrow) { onPlay(item, false) } to
+                Triple("Shuffle", Icons.Rounded.Shuffle) { onPlay(item, true) }
+        }
         Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 Modifier
@@ -367,12 +419,12 @@ private fun TopResult(item: YTItem, onPlay: (YTItem, Boolean) -> Unit, onPlayNex
                     .fillMaxSize()
                     .clip(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp))
                     .background(c.primary)
-                    .clickable { onPlay(item, false) },
+                    .clickable(onClick = primary.third),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.PlayArrow, null, tint = c.onPrimary)
-                Text(if (item is ArtistItem) "  Play radio" else "  Play", color = c.onPrimary, fontWeight = FontWeight.Bold)
+                Icon(primary.second, null, tint = c.onPrimary)
+                Text("  ${primary.first}", color = c.onPrimary, fontWeight = FontWeight.Bold)
             }
             Row(
                 Modifier
@@ -380,14 +432,22 @@ private fun TopResult(item: YTItem, onPlay: (YTItem, Boolean) -> Unit, onPlayNex
                     .fillMaxSize()
                     .clip(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp))
                     .background(c.onBackground.copy(alpha = 0.12f))
-                    .clickable { if (isSong) onPlayNext(item) else onPlay(item, true) },
+                    .clickable(onClick = secondary.third),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(if (isSong) Icons.AutoMirrored.Rounded.PlaylistAdd else Icons.Rounded.Shuffle, null, tint = c.onBackground)
-                Text(if (isSong) "  Play next" else "  Shuffle", color = c.onBackground, fontWeight = FontWeight.SemiBold)
+                Icon(secondary.second, null, tint = c.onBackground)
+                Text("  ${secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold)
             }
         }
+    }
+}
+
+/** A chevron on things that open a page, so it's clear tapping goes somewhere. */
+@Composable
+private fun MatchHint(item: YTItem) {
+    if (item !is SongItem) {
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.padding(end = 6.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -399,10 +459,10 @@ private fun PlayNextButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun SmallLabel(text: String) {
+private fun SmallLabel(text: String, top: androidx.compose.ui.unit.Dp = 4.dp) {
     Text(
         text.uppercase(),
-        Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
+        Modifier.padding(start = 20.dp, end = 20.dp, top = top, bottom = 4.dp),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

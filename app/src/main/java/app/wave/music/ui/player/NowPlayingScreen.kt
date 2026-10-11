@@ -71,6 +71,7 @@ import app.wave.music.playback.BeatBus
 import app.wave.music.data.WaveSettings
 import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.blocksTouchesBelow
 import app.wave.music.ui.menu.LocalItemMenu
 import app.wave.music.ui.menu.MenuTarget
 import app.wave.music.ui.components.ProgressiveBackdropBlur
@@ -110,6 +111,7 @@ fun NowPlayingScreen(state: PlayerUiState, onClose: () -> Unit) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
+                .blocksTouchesBelow()
                 .background(c.background),
         ) {
             val artHeight = maxHeight * 0.62f
@@ -295,7 +297,8 @@ fun NowPlayingScreen(state: PlayerUiState, onClose: () -> Unit) {
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val next = state.queue.getOrNull(state.index + 1)
+                    // What actually plays next, shuffle included.
+                    val next = state.upcoming.firstOrNull()?.let(state.queue::getOrNull)
                     Row(
                         Modifier
                             .weight(1f)

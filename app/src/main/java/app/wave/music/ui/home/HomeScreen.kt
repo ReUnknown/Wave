@@ -220,14 +220,16 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val current = player.current
     val ctx = player.context
     val saved = resume
+    // How far through the queue you are, in the order it actually plays (shuffle included).
+    val playedSoFar = (player.playOrder.indexOf(player.index).takeIf { it >= 0 } ?: player.index) + 1
     // Top of home, in priority order: what's playing → an unfinished playlist → today's #1 pick.
     val hero: HeroContent? = when {
         current != null && ctx != null -> HeroContent(
             label = "PLAYING NOW",
             title = ctx.title,
             art = (ctx.artworkUrl ?: current.artworkUrl)?.atSize(1080),
-            detail = "Song ${player.index + 1} of ${player.queue.size} · ${current.title}",
-            progress = if (player.queue.isNotEmpty()) (player.index + 1f) / player.queue.size else null,
+            detail = "Song $playedSoFar of ${player.queue.size} · ${current.title}",
+            progress = if (player.queue.isNotEmpty()) playedSoFar.toFloat() / player.queue.size else null,
             primary = "Open player" to Icons.AutoMirrored.Rounded.QueueMusic,
             onPrimary = { showPlayer = true },
             secondary = (if (player.shuffle) "Remix on" else "Remix") to Icons.Rounded.Shuffle,

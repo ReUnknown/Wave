@@ -76,6 +76,7 @@ import app.wave.music.playback.PlayRequest
 import app.wave.music.playback.PlaybackContext
 import app.wave.music.playback.QueueBuilder
 import app.wave.music.ui.components.ItemCard
+import app.wave.music.ui.components.blocksTouchesBelow
 import app.wave.music.ui.components.ItemRow
 import app.wave.music.ui.components.ProgressiveBackdropBlur
 import app.wave.music.ui.components.ProgressiveBlurImage
@@ -195,6 +196,7 @@ private fun <T> PageFrame(
         Box(
             Modifier
                 .fillMaxSize()
+                .blocksTouchesBelow()
                 .background(c.background),
         ) {
             Box(

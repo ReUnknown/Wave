@@ -322,9 +322,14 @@ object PlayerConnection {
 
     fun toggleLike() {
         val id = _state.value.current?.videoId ?: return
-        val nowLiked = id !in liked
-        if (nowLiked) liked += id else liked -= id
+        setLiked(id, id !in liked)
+    }
+
+    fun isLiked(videoId: String) = videoId in liked
+
+    fun setLiked(videoId: String, like: Boolean) {
+        if (like) liked += videoId else liked -= videoId
         publish()
-        scope.launch(Dispatchers.IO) { YouTube.likeVideo(id, nowLiked) }
+        scope.launch(Dispatchers.IO) { YouTube.likeVideo(videoId, like) }
     }
 }
