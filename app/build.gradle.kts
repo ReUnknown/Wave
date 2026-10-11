@@ -13,8 +13,8 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 101
-        versionName = "1.0.0-beta"
+        versionCode = 102
+        versionName = "1.0.0-beta.2"
     }
 
     // Wave's own signing key (keystore/, never committed). Release builds must always use the

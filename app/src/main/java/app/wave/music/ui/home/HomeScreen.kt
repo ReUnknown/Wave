@@ -1,5 +1,12 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.BlurredImage
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.IconButton
@@ -188,6 +195,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     var ui by remember(session) { mutableStateOf<HomeUi>(HomeUi.Loading) }
     var attempt by remember { mutableIntStateOf(0) }
     var askSignOut by remember { mutableStateOf(false) }
+    val desktop = app.wave.music.ui.components.LocalDesktop.current
+    var accountMenu by remember { mutableStateOf(false) }
+    var settingsDialog by remember { mutableStateOf(false) }
     val settings by WaveSettings.state.collectAsState()
     LaunchedEffect(session) { PlayerConnection.loadLikes() }
     LaunchedEffect(Unit) {
@@ -319,15 +329,34 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
 
     // The whole page takes its colors from the hero art.
     val peeking = remember { mutableStateOf(false) }
+    // Computers with a big window: the player opens docked in the right half, leaving the app usable
+    // on the left; a button expands it to the full window (with lyrics and up next beside it).
+    val dockable = desktop && LocalConfiguration.current.screenWidthDp >= 1200
+    var playerFull by rememberSaveable { mutableStateOf(false) }
+    val docked = dockable && !playerFull && showPlayer && player.current != null
     val pageCovers = rememberCovered(stack.isNotEmpty())
-    val playerCovers = rememberCovered(showPlayer && player.current != null)
+    val playerCovers = rememberCovered(showPlayer && player.current != null && !docked)
     val searchCovers = rememberCovered(showSearch)
 
-    SharedTransitionLayout {
+    // Remember where each click lands, so a computer's dropdown menus open right under the pointer.
+    SharedTransitionLayout(
+        Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                    if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press) {
+                        event.changes.firstOrNull()?.let { app.wave.music.ui.menu.PointerSpot.position = it.position }
+                    }
+                }
+            }
+        },
+    ) {
     CompositionLocalProvider(
         LocalItemMenu provides MenuOpener { menuTarget = it },
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
+        // The mini player floats over the bottom: pages keep their buttons clear of it.
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (player.current != null && !showPlayer) 116.dp else 0.dp,
     ) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
     MaterialTheme(colorScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)) {
@@ -341,9 +370,12 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
+        // With the player docked on the right (big computer windows), the app reflows into the left half.
+        val contentWidth by animateFloatAsState(if (docked) 0.5f else 1f, tween(260, easing = WaveMotion.Emphasized), label = "dock")
         Box(
             Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .fillMaxWidth(contentWidth)
                 .background(c.background),
         ) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully
@@ -418,17 +450,19 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // so the search bar and greeting always read cleanly over the art.
             // Real backdrop blur behind the sticky header: fully frosted behind the search bar and
             // greeting, then easing off in stages until the content is sharp again.
+            // A shorter frosted band on short (landscape) screens, so it doesn't cover the page.
+            val headerBand = if (LocalConfiguration.current.screenHeightDp < 600) 150.dp else 230.dp
             ProgressiveBackdropBlur(
                 backdrop = backdrop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(statusTop + 230.dp),
+                    .height(statusTop + headerBand),
             )
             // Tint on top of the blur so white text always has contrast.
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(statusTop + 230.dp)
+                    .height(statusTop + headerBand)
                     .background(
                         Brush.verticalGradient(
                             0f to c.background.copy(alpha = 0.72f),
@@ -465,14 +499,25 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
+                    // Phones and tablets: the account panel slides up. Computers: a dropdown right here.
                     val avatar = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .clickable { askSignOut = true }
-                    if (session.photoUrl != null) {
-                        AsyncImage(session.photoUrl, "Your Google account", avatar, contentScale = ContentScale.Crop)
-                    } else {
-                        Icon(Icons.Rounded.AccountCircle, "Your Google account", avatar, tint = Color.White)
+                        .clickable { if (desktop) accountMenu = true else askSignOut = true }
+                    Box {
+                        if (session.photoUrl != null) {
+                            AsyncImage(session.photoUrl, "Your Google account", avatar, contentScale = ContentScale.Crop)
+                        } else {
+                            Icon(Icons.Rounded.AccountCircle, "Your Google account", avatar, tint = Color.White)
+                        }
+                        AccountMenu(
+                            session = session,
+                            expanded = accountMenu,
+                            onDismiss = { accountMenu = false },
+                            onOpen = { accountMenu = false; push(it) },
+                            onSettings = { accountMenu = false; settingsDialog = true },
+                            onSignOut = { accountMenu = false; onSignOut() },
+                        )
                     }
                 }
                 }
@@ -558,6 +603,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
     }
 
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
     AnimatedVisibility(
         visible = showPlayer && player.current != null,
         enter = EnterTransition.None,
@@ -566,8 +612,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         NowPlayingScreen(
             player,
             onClose = { showPlayer = false },
-            modifier = Modifier.sharedContainer("player", this, RoundedCornerShape(32.dp), fromTop = true),
+            modifier = Modifier
+                .fillMaxWidth(if (docked) 0.5f else 1f)
+                .sharedContainer("player", this, RoundedCornerShape(32.dp), fromTop = true),
+            docked = docked,
+            onToggleSize = if (dockable) ({ playerFull = !playerFull }) else null,
         )
+    }
     }
 
     }
@@ -588,6 +639,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         createRequested = createPlaylist,
         onCreateHandled = { createPlaylist = false },
     )
+
+    if (settingsDialog) app.wave.music.ui.settings.SettingsDialog(onDismiss = { settingsDialog = false })
 
     if (askSignOut) {
         AccountSheet(
@@ -674,7 +727,20 @@ private fun Hero(hero: HeroContent?) {
             .height(heightDp),
     ) {
         // Full-bleed art, progressively blurred toward the bottom.
-        ProgressiveBlurImage(hero?.art, Modifier.fillMaxSize(), start = 0.4f, end = 0.92f, maxRadius = 64.dp)
+        // On wide screens the art stays sharp further down; the blur only softens the bottom.
+        val wideHero = config.screenWidthDp > config.screenHeightDp
+        val bigHero = wideHero && config.screenWidthDp >= 840
+        if (bigHero) {
+            // Kept inside the banner and faded out at its bottom, so there's no edge below it.
+            BlurredImage(
+                hero?.art?.atSize(ArtSize.BLUR),
+                Modifier.fillMaxSize().clipToBounds().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f },
+                radius = 96.dp,
+                fadeBottom = 0.35f,
+            )
+        } else {
+            ProgressiveBlurImage(hero?.art, Modifier.fillMaxSize(), start = if (wideHero) 0.62f else 0.4f, end = 0.95f, maxRadius = 64.dp)
+        }
         Box(
             Modifier
                 .fillMaxSize()
@@ -687,72 +753,95 @@ private fun Hero(hero: HeroContent?) {
                 ),
         )
         if (hero != null) {
-            Column(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .widthIn(max = 600.dp)
-                    .padding(horizontal = 20.dp),
-            ) {
-                Text(hero.label, style = MaterialTheme.typography.labelSmall, color = c.primary)
-                Text(
-                    hero.title,
-                    style = MaterialTheme.typography.displayMedium,
-                    color = c.onBackground,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                hero.detail?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                hero.progress?.let { p ->
-                    Box(
-                        Modifier
-                            .padding(top = 10.dp)
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(CircleShape)
-                            .background(c.onBackground.copy(alpha = 0.18f)),
-                    ) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth(p.coerceIn(0f, 1f))
-                                .height(6.dp)
-                                .clip(CircleShape)
-                                .background(c.primary),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                // Connected button group
+            if (bigHero) {
+                // Big screens: a sharp cover card beside the title, instead of stretching the art.
                 Row(
                     Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        .align(Alignment.BottomStart)
+                        .padding(start = 32.dp, end = 32.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
                 ) {
-                    Row(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxSize()
-                            .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = hero.onPrimary),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(hero.primary.second, null, tint = c.onPrimary)
-                        Text("  ${hero.primary.first}", color = c.onPrimary, fontWeight = FontWeight.Bold, maxLines = 1)
-                    }
-                    Row(
-                        Modifier
-                            .width(150.dp)
-                            .fillMaxSize()
-                            .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.93f, onClick = hero.onSecondary),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(hero.secondary.second, null, tint = c.onBackground)
-                        Text("  ${hero.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    }
+                    AsyncImage(
+                        model = hero.art,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(minOf(heightDp - 200.dp, 340.dp))
+                            .shadow(28.dp, RoundedCornerShape(36.dp))
+                            .clip(RoundedCornerShape(36.dp)),
+                    )
+                    HeroText(hero, Modifier.widthIn(max = 560.dp).padding(start = 32.dp))
                 }
+            } else {
+                HeroText(hero, Modifier.align(Alignment.BottomStart).widthIn(max = 600.dp).padding(horizontal = 20.dp))
+            }
+        }
+    }
+}
+
+/** The hero's words and buttons: label, title, detail, progress, play and shuffle. */
+@Composable
+private fun HeroText(hero: HeroContent, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    Column(modifier) {
+        Text(hero.label, style = MaterialTheme.typography.labelSmall, color = c.primary)
+        Text(
+            hero.title,
+            style = MaterialTheme.typography.displayMedium,
+            color = c.onBackground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        hero.detail?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        hero.progress?.let { p ->
+            Box(
+                Modifier
+                    .padding(top = 10.dp)
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(c.onBackground.copy(alpha = 0.18f)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(p.coerceIn(0f, 1f))
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(c.primary),
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        // Connected button group
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = hero.onPrimary),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(hero.primary.second, null, tint = c.onPrimary)
+                Text("  ${hero.primary.first}", color = c.onPrimary, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            Row(
+                Modifier
+                    .width(150.dp)
+                    .fillMaxSize()
+                    .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.93f, onClick = hero.onSecondary),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(hero.secondary.second, null, tint = c.onBackground)
+                Text("  ${hero.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
     }
@@ -824,8 +913,9 @@ private fun LeadTile(
     val playing by remember { PlayerConnection.state.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(false)
     val spinState = remember { mutableFloatStateOf(0f) }
     val spin by spinState
-    LaunchedEffect(moving, playing) {
-        if (!moving || !playing) return@LaunchedEffect
+    val active by app.wave.music.ui.components.AppFocus.active.collectAsState()
+    LaunchedEffect(moving, playing, active) {
+        if (!moving || !playing || !active) return@LaunchedEffect
         var last = withFrameMillis { it }
         while (true) withFrameMillis { now ->
             spinState.floatValue = (spinState.floatValue + (now - last) * 360f / 30_000f) % 360f

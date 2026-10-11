@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,8 +54,8 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 /**
- * Your account (design board 09): who's signed in, shortcuts into your library, settings and
- * sign out. Settings themselves live on their own page so this stays short.
+ * Your account (design board 09). Opens halfway: who's signed in and shortcuts into your library.
+ * Swipe it up for all of Wave's settings, then sign out at the very bottom.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,8 +66,7 @@ fun AccountSheet(
     onSignOut: () -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
-    // Opens fully in one motion: no half-open stage where the first tap is taken as a drag.
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheet = rememberModalBottomSheetState()
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = c.surfaceContainer) {
         Column(
@@ -98,23 +99,8 @@ fun AccountSheet(
                 Tile(Icons.Rounded.History, "History", Modifier.weight(1f)) { onOpen(Destination.History) }
             }
 
-            Row(
-                Modifier
-                    .padding(top = 8.dp)
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .pressable(RoundedCornerShape(24.dp), c.surfaceContainerHighest, pressedScale = 0.97f) { onOpen(Destination.Settings) }
-                    .padding(horizontal = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Icon(Icons.Rounded.Settings, null, tint = c.primary)
-                Column(Modifier.weight(1f)) {
-                    Text("Settings", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = c.onSurface)
-                    Text("Look & feel, playback, battery, updates", fontSize = 13.sp, color = c.onSurfaceVariant)
-                }
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onSurfaceVariant)
-            }
+            // Swipe up: everything else lives right below.
+            app.wave.music.ui.settings.SettingsContent()
 
             Box(
                 Modifier
@@ -158,3 +144,44 @@ private fun Tile(icon: ImageVector, label: String, modifier: Modifier, onClick: 
 
 
 
+
+/** Computers: the account as a dropdown under your avatar, instead of a panel sliding up. */
+@Composable
+fun AccountMenu(
+    session: Session,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onOpen: (Destination) -> Unit,
+    onSettings: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    androidx.compose.material3.DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        containerColor = c.surfaceContainerHigh,
+        modifier = Modifier.widthIn(min = 260.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text(session.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.onSurface)
+            Text(session.email ?: "Signed in with Google", fontSize = 13.sp, color = c.onSurfaceVariant)
+        }
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
+        MenuRow(Icons.Rounded.LibraryMusic, "Playlists") { onOpen(Destination.Playlists) }
+        MenuRow(Icons.Rounded.Album, "Albums & artists") { onOpen(Destination.Saved) }
+        MenuRow(Icons.Rounded.History, "History") { onOpen(Destination.History) }
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
+        MenuRow(Icons.Rounded.Settings, "Settings…", onSettings)
+        MenuRow(Icons.AutoMirrored.Rounded.Logout, "Sign out", onSignOut)
+    }
+}
+
+@Composable
+private fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    androidx.compose.material3.DropdownMenuItem(
+        text = { Text(label, fontSize = 15.sp) },
+        leadingIcon = { Icon(icon, null) },
+        onClick = onClick,
+    )
+}

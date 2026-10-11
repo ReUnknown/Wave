@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -45,7 +46,8 @@ fun rememberPosition(songId: String, playing: Boolean, everyMs: Long): State<Lon
     LaunchedEffect(songId, playing) {
         while (true) {
             position.longValue = PlayerConnection.position
-            delay(if (playing) everyMs else 500L)
+            // Out of focus nobody's watching closely: once a second is plenty.
+            delay(if (!app.wave.music.ui.components.AppFocus.active.value) 1_000L else if (playing) everyMs else 500L)
         }
     }
     return position
@@ -73,8 +75,10 @@ fun WavyProgress(
 ) {
     // The wave only travels while music plays; paused, nothing animates and no frames are drawn.
     val phase = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(playing) {
-        if (!playing) return@LaunchedEffect
+    // ...and it holds still while Wave isn't in front (minimized or another window focused).
+    val active by app.wave.music.ui.components.AppFocus.active.collectAsState()
+    LaunchedEffect(playing, active) {
+        if (!playing || !active) return@LaunchedEffect
         val start = withFrameMillis { it } - (phase.floatValue * 1400f).toLong()
         while (true) withFrameMillis { phase.floatValue = ((it - start) % 1400L) / 1400f }
     }

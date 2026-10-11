@@ -1,5 +1,17 @@
 package app.wave.music.ui.player
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.animation.core.Animatable
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
 import androidx.compose.foundation.background
@@ -73,8 +85,69 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
     val position = rememberPosition(song.videoId, state.isPlaying, everyMs = 250)
     val shape = RoundedCornerShape(32.dp)
     val haptics = LocalHapticFeedback.current
+    val desktop = app.wave.music.ui.components.LocalDesktop.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    // Swipes (phones and tablets): down stops the music, up opens the player, sideways skips.
+    val dx = remember { Animatable(0f) }
+    val dy = remember { Animatable(0f) }
+    val dismissAt = with(density) { 64.dp.toPx() }
+    val openAt = with(density) { 48.dp.toPx() }
+    val skipAt = with(density) { 88.dp.toPx() }
+    val gestures = if (desktop) Modifier else Modifier.pointerInput(Unit) {
+        var axis = 0 // 0 = undecided, 1 = sideways, 2 = up/down
+        detectDragGestures(
+            onDragStart = { axis = 0 },
+            onDragCancel = { scope.launch { launch { dx.animateTo(0f, WaveMotion.bouncy()) }; dy.animateTo(0f, WaveMotion.bouncy()) } },
+            onDragEnd = {
+                scope.launch {
+                    when {
+                        axis == 2 && dy.value > dismissAt -> {
+                            // Swiped away: it drops out of sight, and the music stops.
+                            haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                            dy.animateTo(size.height * 2.5f, tween(200, easing = WaveMotion.EmphasizedAccelerate))
+                            PlayerConnection.dismiss()
+                            dy.snapTo(0f)
+                        }
+                        axis == 2 && dy.value < -openAt -> {
+                            onOpen()
+                            dy.animateTo(0f, WaveMotion.bouncy())
+                        }
+                        axis == 1 && kotlin.math.abs(dx.value) > skipAt -> {
+                            // The card slides off one side and the next song slides in from the other.
+                            val dir = if (dx.value > 0) 1f else -1f
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            dx.animateTo(dir * size.width, tween(160, easing = WaveMotion.EmphasizedAccelerate))
+                            if (dir > 0) PlayerConnection.previous() else PlayerConnection.next()
+                            dx.snapTo(-dir * size.width * 0.6f)
+                            dx.animateTo(0f, tween(260, easing = WaveMotion.EmphasizedDecelerate))
+                        }
+                        else -> {
+                            launch { dx.animateTo(0f, WaveMotion.bouncy()) }
+                            dy.animateTo(0f, WaveMotion.bouncy())
+                        }
+                    }
+                }
+            },
+        ) { change, drag ->
+            change.consume()
+            if (axis == 0) axis = if (kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)) 1 else 2
+            scope.launch {
+                if (axis == 1) dx.snapTo(dx.value + drag.x)
+                // Upward pulls resist a little; downward follows the finger.
+                else dy.snapTo(dy.value + if (drag.y < 0 && dy.value <= 0f) drag.y * 0.5f else drag.y)
+            }
+        }
+    }
     Box(
-        modifier
+        Modifier
+            .offset { IntOffset(dx.value.roundToInt(), dy.value.roundToInt()) }
+            .graphicsLayer {
+                // Fades as it's pulled down toward being dismissed.
+                alpha = 1f - (dy.value / (dismissAt * 2.5f)).coerceIn(0f, 0.7f)
+            }
+            .then(gestures)
+            .then(modifier)
             .fillMaxWidth()
             .height(84.dp)
             .shadow(16.dp, shape)
@@ -145,6 +218,17 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
                 GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(8.dp, 26.dp, 26.dp, 8.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     PlayerConnection.next()
+                }
+                // Computers: no swiping, so a plain close button stops the music instead.
+                if (desktop) {
+                    Box(
+                        Modifier
+                            .padding(start = 6.dp)
+                            .width(36.dp)
+                            .fillMaxHeight()
+                            .pressable(CircleShape, Color.White.copy(alpha = 0.1f), pressedScale = 0.88f) { PlayerConnection.dismiss() },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Close, "Stop and close the player", tint = Color.White, modifier = Modifier.size(20.dp)) }
                 }
             }
         }

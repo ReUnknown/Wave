@@ -25,6 +25,7 @@ import app.wave.music.data.SessionRepository
 import app.wave.music.data.WaveSettings
 import app.wave.music.playback.PlayerConnection
 import app.wave.music.ui.home.HomeScreen
+import app.wave.music.ui.components.isDesktop
 import app.wave.music.ui.login.LoginScreen
 import app.wave.music.ui.theme.WaveTheme
 import app.wave.music.ui.welcome.WelcomeScreen
@@ -32,9 +33,26 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
+    /** Googlebook / ChromeOS, or forced on in debug builds for testing. */
+    private val desktopMode = androidx.compose.runtime.mutableStateOf(false)
+
     override fun onStart() {
         super.onStart()
         app.wave.music.playback.BeatBus.visible = true
+        app.wave.music.ui.components.AppFocus.onStarted(true)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Debug builds: a preview launch can arrive while Wave is already open.
+        if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_preview", false)) SessionRepository.startPreview()
+        if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_desktop", false)) desktopMode.value = true
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        app.wave.music.ui.components.AppFocus.onFocus(hasFocus)
     }
 
     /**
@@ -65,6 +83,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         app.wave.music.playback.BeatBus.visible = false
+        app.wave.music.ui.components.AppFocus.onStarted(false)
         super.onStop()
     }
 
@@ -86,7 +105,10 @@ class MainActivity : ComponentActivity() {
                 }
                 .build()
         }
+        desktopMode.value = isDesktop(this) || (BuildConfig.DEBUG && intent.getBooleanExtra("wave_desktop", false))
         setContent {
+            // Googlebook / ChromeOS (or, in debug builds, `--ez wave_desktop true` to try it anywhere).
+            androidx.compose.runtime.CompositionLocalProvider(app.wave.music.ui.components.LocalDesktop provides desktopMode.value) {
             WaveTheme {
                 val context = LocalContext.current
                 val scope = rememberCoroutineScope()
@@ -105,6 +127,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     WaveSettings.load(context.applicationContext)
                     if (!SessionRepository.restored.value) SessionRepository.restore(context.applicationContext)
+                    // Debug builds: `adb shell am start ... --ez wave_preview true` browses as a guest.
+                    if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_preview", false)) SessionRepository.startPreview()
                 }
 
                 if (signingIn) {
@@ -120,6 +144,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+            }
             }
         }
     }

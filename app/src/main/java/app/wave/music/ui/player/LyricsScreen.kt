@@ -159,7 +159,7 @@ fun LyricsScreen(
     val playingNow by rememberUpdatedState(state.isPlaying)
     LaunchedEffect(song.videoId) {
         while (true) {
-            if (playingNow) {
+            if (playingNow && app.wave.music.ui.components.AppFocus.active.value) {
                 withFrameMillis { position = PlayerConnection.position }
             } else {
                 position = PlayerConnection.position

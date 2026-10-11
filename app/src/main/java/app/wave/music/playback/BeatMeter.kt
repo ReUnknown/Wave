@@ -54,7 +54,9 @@ class BeatMeter : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
-        if (!BeatBus.visible || !app.wave.music.data.WaveSettings.state.value.moveWithMusic) {
+        if (!BeatBus.visible || !app.wave.music.ui.components.AppFocus.active.value ||
+            !app.wave.music.data.WaveSettings.state.value.moveWithMusic
+        ) {
             // Nobody's watching: pass the audio straight through without measuring it.
             average = 0.0
             val out = replaceOutputBuffer(remaining)

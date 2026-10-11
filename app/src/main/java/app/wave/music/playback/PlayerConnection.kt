@@ -156,6 +156,9 @@ object PlayerConnection {
         c.prepare()
     }
 
+    /** Swiped the mini player away: stop the music and clear the queue. */
+    fun dismiss() = reset()
+
     /** Sign-out: stop, and forget the queue and where you were. */
     fun reset() {
         controller?.run {

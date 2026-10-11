@@ -1,5 +1,9 @@
 package app.wave.music.ui.menu
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
+import app.wave.music.ui.components.LocalDesktop
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -154,10 +158,11 @@ fun ItemMenuHost(
     if (target != null) {
         // Fully open right away, so every option is on screen and nothing shifts under your finger.
         val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        /** Runs [action], then slides the sheet away. */
+        val desktop = LocalDesktop.current
+        /** Runs [action], then slides the sheet away (or closes the dropdown). */
         fun choose(action: () -> Unit) {
             action()
-            scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() }
+            if (desktop) onDismiss() else scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() }
         }
         // Songs opened from Now Playing only know their id; look up artist and album links.
         var resolved by remember(target) { mutableStateOf((target as? MenuTarget.Song)?.item) }
@@ -170,14 +175,7 @@ fun ItemMenuHost(
                 lookedUp = true
             }
         }
-        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-            Column(
-                Modifier
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+        MenuContainer(desktop, sheet, onDismiss) {
                 when (target) {
                     is MenuTarget.Song -> {
                         val song = resolved ?: SongItem(
@@ -188,7 +186,7 @@ fun ItemMenuHost(
                         )
                         var liked by remember(target) { mutableStateOf(PlayerConnection.isLiked(target.videoId)) }
                         SheetHeader(target.artworkUrl, target.title, target.artist, round = false)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QuickRow {
                             QuickAction(Icons.Rounded.SkipNext, "Play next") { choose { actions.playNext(song) } }
                             QuickAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { choose { actions.addToQueue(song) } }
                             QuickAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist") {
@@ -236,7 +234,7 @@ fun ItemMenuHost(
                     is MenuTarget.Collection -> {
                         val item = target.item
                         SheetHeader(item.thumbnail, item.title, subtitle(item).orEmpty(), round = item is ArtistItem)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QuickRow {
                             if (item is ArtistItem) {
                                 QuickAction(Icons.Rounded.Shuffle, "Shuffle") { choose { actions.playItem(item, true) } }
                                 QuickAction(Icons.Rounded.Sensors, "Radio") { choose { actions.playItem(item, false) } }
@@ -281,7 +279,6 @@ fun ItemMenuHost(
                         }
                     }
                 }
-            }
         }
     }
 
@@ -289,6 +286,32 @@ fun ItemMenuHost(
     if (dialog == Dialog.AddToPlaylist) {
         val playlists by LibraryRepository.playlists.collectAsState()
         LaunchedEffect(Unit) { if (playlists.isEmpty()) LibraryRepository.refresh() }
+        val pick: (PlaylistItem) -> Unit = { playlist ->
+            pendingVideo?.let { video ->
+                dialog = Dialog.None
+                scope.launch {
+                    LibraryRepository.add(LibraryRepository.idOf(playlist), video)
+                        .onSuccess { toast("Added to ${playlist.title}") }
+                        .onFailure { toast("Couldn't add it") }
+                }
+            }
+        }
+        if (LocalDesktop.current) {
+            // Computers: a dialog, not a panel sliding up.
+            AlertDialog(
+                onDismissRequest = { dialog = Dialog.None },
+                title = { Text("Add to playlist") },
+                text = {
+                    LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        item { PlaylistChoice(null, "New playlist", isNew = true) { dialog = Dialog.Create } }
+                        items(playlists.filter { it.isEditable }) { playlist ->
+                            PlaylistChoice(playlist.thumbnail, playlist.title, isNew = false) { pick(playlist) }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { dialog = Dialog.None }) { Text("Cancel") } },
+            )
+        } else
         ModalBottomSheet(onDismissRequest = { dialog = Dialog.None }, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
             Text(
                 "Add to playlist",
@@ -371,8 +394,67 @@ fun ItemMenuHost(
     }
 }
 
+/** Phones and tablets: a panel sliding up. Computers: a dropdown right where you clicked. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MenuContainer(desktop: Boolean, sheet: androidx.compose.material3.SheetState, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    if (desktop) {
+        val spot = PointerSpot.position
+        Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(spot.x.toInt(), spot.y.toInt()) }.size(1.dp)) {
+            androidx.compose.material3.DropdownMenu(
+                expanded = true,
+                onDismissRequest = onDismiss,
+                shape = RoundedCornerShape(20.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.widthIn(min = 280.dp, max = 360.dp),
+            ) { content() }
+        }
+    } else {
+        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(
+                Modifier
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) { content() }
+        }
+    }
+}
+
+/** Where the last click or tap landed, so a computer's dropdown opens right there. */
+object PointerSpot {
+    var position by androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero)
+}
+
+private val LocalQuickRow = androidx.compose.runtime.compositionLocalOf<RowScope?> { null }
+
+/** The most-used actions: big tiles in a row on phones, the first items of the dropdown on computers. */
+@Composable
+private fun QuickRow(content: @Composable () -> Unit) {
+    if (LocalDesktop.current) {
+        content()
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalQuickRow provides this) { content() }
+        }
+    }
+}
+
 @Composable
 private fun SheetHeader(art: String?, title: String, subtitle: String, round: Boolean) {
+    if (LocalDesktop.current) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AsyncImage(art?.atSize(200), null, Modifier.size(44.dp).clip(if (round) CircleShape else RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        return
+    }
     Row(
         Modifier.padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -393,11 +475,19 @@ private fun SheetHeader(art: String?, title: String, subtitle: String, round: Bo
 
 /** A big tile for the most-used actions, in a row across the top (like the settings tiles). */
 @Composable
-private fun RowScope.QuickAction(icon: ImageVector, label: String, on: Boolean = false, onClick: () -> Unit) {
+private fun QuickAction(icon: ImageVector, label: String, on: Boolean = false, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
+    val row = LocalQuickRow.current
+    if (row == null) {
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(label, fontSize = 15.sp) },
+            leadingIcon = { Icon(icon, null, tint = if (on) c.primary else c.onSurfaceVariant) },
+            onClick = onClick,
+        )
+        return
+    }
     Column(
-        Modifier
-            .weight(1f)
+        with(row) { Modifier.weight(1f) }
             .height(88.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(if (on) c.primary else c.surfaceContainerHighest)
@@ -422,6 +512,10 @@ private fun RowScope.QuickAction(icon: ImageVector, label: String, on: Boolean =
 /** The rest of the options, grouped on one rounded card. */
 @Composable
 private fun OptionGroup(content: @Composable ColumnScope.() -> Unit) {
+    if (LocalDesktop.current) {
+        Column(content = content)
+        return
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -442,6 +536,16 @@ private fun Option(
 ) {
     val c = MaterialTheme.colorScheme
     val tint = if (danger) c.error else c.onSurface
+    if (LocalDesktop.current) {
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(label, fontSize = 15.sp, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(icon, null, tint = if (danger) c.error else c.onSurfaceVariant) },
+            trailingIcon = if (loading) ({ CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) }) else null,
+            enabled = enabled,
+            onClick = onClick,
+        )
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()

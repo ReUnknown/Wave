@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.layout.widthIn
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
@@ -205,13 +207,16 @@ fun QueueScreen(
                     }
 
                     // Coverflow: played ← now playing → coming up
+                    // Fixed-size covers centered in whatever width there is, so the neighbors stay
+                    // tucked in close on landscape and tablets instead of drifting off the edges.
+                    BoxWithConstraints(Modifier.padding(top = 20.dp).fillMaxWidth()) {
                     HorizontalPager(
                         state = pager,
-                        contentPadding = PaddingValues(horizontal = 84.dp),
+                        pageSize = PageSize.Fixed(244.dp),
+                        contentPadding = PaddingValues(horizontal = ((maxWidth - 244.dp) / 2).coerceAtLeast(0.dp)),
                         pageSpacing = (-40).dp,
-                        beyondViewportPageCount = 2,
+                        beyondViewportPageCount = 3,
                         modifier = Modifier
-                            .padding(top = 20.dp)
                             .fillMaxWidth()
                             .height(250.dp),
                     ) { page ->
@@ -246,6 +251,7 @@ fun QueueScreen(
                                     },
                             )
                         }
+                    }
                     }
 
                     val shownPage = pager.currentPage

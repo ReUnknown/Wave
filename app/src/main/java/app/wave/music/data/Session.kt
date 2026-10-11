@@ -65,6 +65,16 @@ object SessionRepository {
         _restored.value = true
     }
 
+    /**
+     * Debug builds only, for screenshots on emulators: browse YouTube Music's public home as a
+     * guest, without signing in. Nothing is saved.
+     */
+    fun startPreview() {
+        applyToClient(null, null, null, "0")
+        _session.value = Session(cookie = "", visitorData = "", dataSyncId = "", authUser = "0", name = "Preview", email = null, photoUrl = null)
+        _restored.value = true
+    }
+
     suspend fun save(context: Context, session: Session) {
         context.sessionStore.edit {
             it[Keys.cookie] = SecretBox.encrypt(session.cookie)

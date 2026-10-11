@@ -1,5 +1,8 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -50,11 +53,12 @@ import app.wave.music.ui.components.pressable
 import kotlinx.coroutines.launch
 
 /**
- * Settings, grouped so it stays easy to scan: how Wave looks, how it plays, battery, and about.
- * Each setting says in plain words what it does.
+ * Wave's settings, grouped so they stay easy to scan: how Wave looks, how it plays, battery,
+ * keyboard (on computers) and about. Each setting says in plain words what it does. Shown at the
+ * bottom of the account panel on phones and tablets (swipe it up), and in a dialog on computers.
  */
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsContent() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settings by WaveSettings.state.collectAsState()
@@ -63,187 +67,142 @@ fun SettingsScreen(onBack: () -> Unit) {
     fun change(block: (Settings) -> Settings) {
         scope.launch { WaveSettings.update(context, block) }
     }
+    Column {
+    Eyebrow("Look & feel")
+    Group {
+        Toggle("Match song colors", "The whole app takes on the colors of what's playing", settings.matchSongColors) { on ->
+            change { it.copy(matchSongColors = on) }
+        }
+        Divider()
+        Toggle("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
+            change { it.copy(moveWithMusic = on) }
+        }
+    }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .blocksTouchesBelow()
-            .background(c.background),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        LazyColumn(
-            // On tablets and desktops, a comfortable reading width instead of edge to edge.
-            Modifier
-                .widthIn(max = 720.dp)
-                .fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 48.dp),
-        ) {
-            item {
-                Column(Modifier.statusBarsPadding().padding(top = 8.dp, bottom = 8.dp)) {
-                    Box(
-                        Modifier
-                            .size(48.dp)
-                            .pressable(CircleShape, c.surfaceContainerHighest, pressedScale = 0.86f, onClick = onBack),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = c.onSurface) }
+    Eyebrow("Playback")
+    Group {
+        Choice(
+            title = "Audio quality",
+            description = when (settings.audioQuality) {
+                AudioQuality.HIGH -> "Best available, about 160 kbps"
+                AudioQuality.AUTO -> "High on Wi-Fi, lower on mobile data"
+                AudioQuality.LOW -> "Saves data, about 50 kbps"
+            },
+            options = listOf(AudioQuality.LOW to "Low", AudioQuality.AUTO to "Auto", AudioQuality.HIGH to "High"),
+            selected = settings.audioQuality,
+        ) { q -> change { it.copy(audioQuality = q) } }
+        Divider()
+        Toggle("Even volume", "Loud songs are turned down so everything plays at about the same volume", settings.evenVolume) { on ->
+            change { it.copy(evenVolume = on) }
+        }
+        Divider()
+        Choice(
+            title = "Crossfade",
+            description = if (settings.crossfadeSeconds == 0) "Songs play one after another" else "Each song fades into the next over ${settings.crossfadeSeconds} seconds",
+            options = listOf(0 to "Off", 3 to "3s", 6 to "6s", 9 to "9s", 12 to "12s"),
+            selected = settings.crossfadeSeconds,
+        ) { s -> change { it.copy(crossfadeSeconds = s) } }
+        Divider()
+        Toggle("Autoplay", "When a playlist ends, keep going with similar songs", settings.autoplay) { on ->
+            change { it.copy(autoplay = on) }
+        }
+        Divider()
+        Toggle("Skip silence", "Trim quiet gaps between songs", settings.skipSilence) { on ->
+            change { it.copy(skipSilence = on) }
+        }
+    }
+
+    Eyebrow("Battery")
+    Group {
+        Toggle(
+            "Low-power playback",
+            "When Wave isn't on screen, your phone's audio chip plays the music so the rest of the phone can rest. Not used with Skip silence.",
+            settings.lowPowerPlayback,
+        ) { on -> change { it.copy(lowPowerPlayback = on) } }
+    }
+
+    // Googlebook, ChromeOS or a keyboard case: show what the keys do.
+    if (app.wave.music.ui.components.isDesktop(context) || app.wave.music.ui.components.hasKeyboard(context)) {
+        Eyebrow("Keyboard")
+        Group {
+            listOf(
+                "Play or pause" to "Space",
+                "Next / previous song" to "Ctrl  →  /  ←",
+                "Search" to "Ctrl  F   or   /",
+                "Like the song" to "Ctrl  L",
+                "Back" to "Esc",
+            ).forEachIndexed { i, (action, keys) ->
+                if (i > 0) Divider()
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(action, Modifier.weight(1f), fontSize = 15.sp, color = c.onSurface)
                     Text(
-                        "Settings",
-                        Modifier.padding(start = 4.dp, top = 20.dp),
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.8).sp,
-                        color = c.onBackground,
+                        keys,
+                        Modifier
+                            .background(c.surfaceContainerHighest, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = c.onSurfaceVariant,
                     )
                 }
             }
-
-            item { Eyebrow("Look & feel") }
-            item {
-                Group {
-                    Toggle("Match song colors", "The whole app takes on the colors of what's playing", settings.matchSongColors) { on ->
-                        change { it.copy(matchSongColors = on) }
-                    }
-                    Divider()
-                    Toggle("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
-                        change { it.copy(moveWithMusic = on) }
-                    }
-                }
-            }
-
-            item { Eyebrow("Playback") }
-            item {
-                Group {
-                    Choice(
-                        title = "Audio quality",
-                        description = when (settings.audioQuality) {
-                            AudioQuality.HIGH -> "Best available, about 160 kbps"
-                            AudioQuality.AUTO -> "High on Wi-Fi, lower on mobile data"
-                            AudioQuality.LOW -> "Saves data, about 50 kbps"
-                        },
-                        options = listOf(AudioQuality.LOW to "Low", AudioQuality.AUTO to "Auto", AudioQuality.HIGH to "High"),
-                        selected = settings.audioQuality,
-                    ) { q -> change { it.copy(audioQuality = q) } }
-                    Divider()
-                    Toggle("Even volume", "Loud songs are turned down so everything plays at about the same volume", settings.evenVolume) { on ->
-                        change { it.copy(evenVolume = on) }
-                    }
-                    Divider()
-                    Choice(
-                        title = "Crossfade",
-                        description = if (settings.crossfadeSeconds == 0) "Songs play one after another" else "Each song fades into the next over ${settings.crossfadeSeconds} seconds",
-                        options = listOf(0 to "Off", 3 to "3s", 6 to "6s", 9 to "9s", 12 to "12s"),
-                        selected = settings.crossfadeSeconds,
-                    ) { s -> change { it.copy(crossfadeSeconds = s) } }
-                    Divider()
-                    Toggle("Autoplay", "When a playlist ends, keep going with similar songs", settings.autoplay) { on ->
-                        change { it.copy(autoplay = on) }
-                    }
-                    Divider()
-                    Toggle("Skip silence", "Trim quiet gaps between songs", settings.skipSilence) { on ->
-                        change { it.copy(skipSilence = on) }
-                    }
-                }
-            }
-
-            item { Eyebrow("Battery") }
-            item {
-                Group {
-                    Toggle(
-                        "Low-power playback",
-                        "When Wave isn't on screen, your phone's audio chip plays the music so the rest of the phone can rest. Not used with Skip silence.",
-                        settings.lowPowerPlayback,
-                    ) { on -> change { it.copy(lowPowerPlayback = on) } }
-                }
-            }
-
-            // Googlebook, ChromeOS or a keyboard case: show what the keys do.
-            if (app.wave.music.ui.components.isDesktop(context) || app.wave.music.ui.components.hasKeyboard(context)) {
-                item { Eyebrow("Keyboard") }
-                item {
-                    Group {
-                        listOf(
-                            "Play or pause" to "Space",
-                            "Next / previous song" to "Ctrl  →  /  ←",
-                            "Search" to "Ctrl  F   or   /",
-                            "Like the song" to "Ctrl  L",
-                            "Back" to "Esc",
-                        ).forEachIndexed { i, (action, keys) ->
-                            if (i > 0) Divider()
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(action, Modifier.weight(1f), fontSize = 15.sp, color = c.onSurface)
-                                Text(
-                                    keys,
-                                    Modifier
-                                        .background(c.surfaceContainerHighest, RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = c.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            item { Eyebrow("About") }
-            item {
-                Group {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Wave ${BuildConfig.VERSION_NAME}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
-                            Text(
-                                when (val u = update) {
-                                    Updater.State.Idle -> "Tap to check for a new version"
-                                    Updater.State.Checking -> "Checking…"
-                                    Updater.State.UpToDate -> "You're up to date"
-                                    Updater.State.Failed -> "Couldn't check for updates"
-                                    is Updater.State.Available -> "Wave ${u.release.version} is available"
-                                    is Updater.State.Downloading -> "Downloading Wave ${u.release.version}…"
-                                    is Updater.State.Ready -> "Wave ${u.release.version} is ready to install"
-                                },
-                                fontSize = 13.sp,
-                                color = c.onSurfaceVariant,
-                            )
-                        }
-                        val (label, action) = when (val u = update) {
-                            is Updater.State.Available -> "Update" to { scope.launch { Updater.download(context, u.release) }; Unit }
-                            is Updater.State.Ready -> "Install" to { Updater.install(context, u.apk) }
-                            is Updater.State.Downloading, Updater.State.Checking -> null to null
-                            else -> "Check" to { scope.launch { Updater.check(context, force = true) }; Unit }
-                        }
-                        if (label != null && action != null) {
-                            Box(
-                                Modifier
-                                    .height(40.dp)
-                                    .pressable(RoundedCornerShape(20.dp), c.primary, pressedScale = 0.92f, onClick = action)
-                                    .padding(horizontal = 18.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { Text(label, color = c.onPrimary, fontWeight = FontWeight.SemiBold) }
-                        }
-                    }
-                    (update as? Updater.State.Downloading)?.let { u ->
-                        LinearProgressIndicator(
-                            progress = { u.progress },
-                            modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 14.dp),
-                        )
-                    }
-                    Divider()
-                    Toggle("Check for updates automatically", "Once a day, from Wave's GitHub releases", settings.checkUpdates) { on ->
-                        change { it.copy(checkUpdates = on) }
-                    }
-                }
-            }
-            item { Box(Modifier.navigationBarsPadding()) }
         }
+    }
+
+    Eyebrow("About")
+    Group {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Wave ${BuildConfig.VERSION_NAME}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+                Text(
+                    when (val u = update) {
+                        Updater.State.Idle -> "Tap to check for a new version"
+                        Updater.State.Checking -> "Checking…"
+                        Updater.State.UpToDate -> "You're up to date"
+                        Updater.State.Failed -> "Couldn't check for updates"
+                        is Updater.State.Available -> "Wave ${u.release.version} is available"
+                        is Updater.State.Downloading -> "Downloading Wave ${u.release.version}…"
+                        is Updater.State.Ready -> "Wave ${u.release.version} is ready to install"
+                    },
+                    fontSize = 13.sp,
+                    color = c.onSurfaceVariant,
+                )
+            }
+            val (label, action) = when (val u = update) {
+                is Updater.State.Available -> "Update" to { scope.launch { Updater.download(context, u.release) }; Unit }
+                is Updater.State.Ready -> "Install" to { Updater.install(context, u.apk) }
+                is Updater.State.Downloading, Updater.State.Checking -> null to null
+                else -> "Check" to { scope.launch { Updater.check(context, force = true) }; Unit }
+            }
+            if (label != null && action != null) {
+                Box(
+                    Modifier
+                        .height(40.dp)
+                        .pressable(RoundedCornerShape(20.dp), c.primary, pressedScale = 0.92f, onClick = action)
+                        .padding(horizontal = 18.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(label, color = c.onPrimary, fontWeight = FontWeight.SemiBold) }
+            }
+        }
+        (update as? Updater.State.Downloading)?.let { u ->
+            LinearProgressIndicator(
+                progress = { u.progress },
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 14.dp),
+            )
+        }
+        Divider()
+        Toggle("Check for updates automatically", "Once a day, from Wave's GitHub releases", settings.checkUpdates) { on ->
+            change { it.copy(checkUpdates = on) }
+        }
+    }
     }
 }
 
 @Composable
-private fun Eyebrow(text: String) {
+internal fun Eyebrow(text: String) {
     Text(
         text.uppercase(),
-        Modifier.padding(start = 12.dp, top = 24.dp, bottom = 8.dp),
+        Modifier.padding(start = 8.dp, top = 24.dp, bottom = 8.dp),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -310,3 +269,36 @@ private fun <T> Choice(title: String, description: String, options: List<Pair<T,
     }
 }
 
+
+/** On computers: settings in a centered dialog instead of a panel sliding up from the bottom. */
+@Composable
+fun SettingsDialog(onDismiss: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = c.surfaceContainer,
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.86f),
+        ) {
+            Column {
+                Row(Modifier.fillMaxWidth().padding(start = 28.dp, end = 12.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Settings", Modifier.weight(1f), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = c.onSurface)
+                    androidx.compose.material3.IconButton(onClick = onDismiss) {
+                        Icon(androidx.compose.material.icons.Icons.Rounded.Close, "Close settings", tint = c.onSurfaceVariant)
+                    }
+                }
+                Column(
+                    Modifier
+                        .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                        .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                ) { SettingsContent() }
+            }
+        }
+    }
+}

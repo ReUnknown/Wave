@@ -1,5 +1,6 @@
 package app.wave.music.ui.search
 
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.widthIn
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
@@ -239,7 +240,7 @@ fun SearchScreen(
                     Modifier
                         .fillMaxWidth()
                         .height(backdropHeight),
-                    start = 0.35f,
+                    start = if (LocalConfiguration.current.screenWidthDp > LocalConfiguration.current.screenHeightDp) 0.6f else 0.35f,
                     end = 0.95f,
                     maxRadius = 56.dp,
                 )

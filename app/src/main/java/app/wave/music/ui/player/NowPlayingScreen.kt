@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import androidx.compose.material.icons.rounded.CloseFullscreen
+import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -141,6 +143,10 @@ fun NowPlayingScreen(
     modifier: Modifier = Modifier,
     /** For Up next and Lyrics to grow out of their buttons. */
     visibility: AnimatedVisibilityScope? = null,
+    /** Docked in the right half of a big computer window, beside the rest of the app. */
+    docked: Boolean = false,
+    /** Computers: switch between docked and the full window. */
+    onToggleSize: (() -> Unit)? = null,
 ) {
     val song = state.current ?: return
     val haptics = LocalHapticFeedback.current
@@ -166,19 +172,23 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .graphicsLayer {
                     val pulled = ((drag / dismissAt) + back()).coerceIn(0f, 1f)
-                    shape = RoundedCornerShape(36.dp.toPx() * pulled)
-                    clip = pulled > 0f
+                    // Docked: a panel with rounded inner corners against the app beside it.
+                    shape = if (docked) RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp) else RoundedCornerShape(36.dp.toPx() * pulled)
+                    clip = docked || pulled > 0f
                 }
                 .blocksTouchesBelow()
                 .background(c.background),
         ) {
-        // Wide windows (landscape phones, tablets, Fold, Googlebook) get a side-by-side player.
-        val config = LocalConfiguration.current
-        val wide = config.screenWidthDp >= 600 && config.screenWidthDp > config.screenHeightDp
+        // Wide spaces (landscape phones, tablets, Fold, Googlebook) get a side-by-side player. It goes
+        // by the room the player actually has, so docked in half a window it's the classic layout.
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 600.dp && maxWidth > maxHeight
         if (wide) {
             WideNowPlaying(
                 state, song, position,
-                roomy = config.screenWidthDp >= 840 && config.screenHeightDp >= 560,
+                roomy = maxWidth >= 840.dp && maxHeight >= 560.dp,
+                onToggleSize = onToggleSize,
+                docked = docked,
                 showQueue = showQueue,
                 showLyrics = showLyrics,
                 onClose = onClose,
@@ -192,6 +202,8 @@ fun NowPlayingScreen(
                 .draggable(
                     dragState,
                     Orientation.Vertical,
+                    // Computers: no swipe-to-close; the collapse button and Esc do it.
+                    enabled = !app.wave.music.ui.components.LocalDesktop.current,
                     // Dragging down uncovers home, so home must be drawn while you do.
                     onDragStarted = { peeking?.value = true },
                     onDragStopped = { velocity ->
@@ -262,7 +274,7 @@ fun NowPlayingScreen(
                     ),
             )
 
-            Header(state, song, onClose, Modifier.statusBarsPadding())
+            Header(state, song, onClose, Modifier.statusBarsPadding(), onToggleSize, docked)
 
             Column(
                 Modifier
@@ -272,6 +284,7 @@ fun NowPlayingScreen(
                 Controls(state, song, position, Modifier.padding(horizontal = 20.dp))
                 Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true })
             }
+        }
         }
         AnimatedVisibility(visible = showQueue, enter = EnterTransition.None, exit = ExitTransition.None) {
             QueueScreen(state, onClose = { showQueue = false }, modifier = Modifier.sharedContainer("queue", this, RoundedCornerShape(28.dp), fromTop = true))
@@ -284,7 +297,14 @@ fun NowPlayingScreen(
 }
 
 @Composable
-private fun Header(state: PlayerUiState, song: NowPlaying, onClose: () -> Unit, modifier: Modifier = Modifier) {
+private fun Header(
+    state: PlayerUiState,
+    song: NowPlaying,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    onToggleSize: (() -> Unit)? = null,
+    docked: Boolean = false,
+) {
     Row(
         modifier
             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -299,6 +319,15 @@ private fun Header(state: PlayerUiState, song: NowPlaying, onClose: () -> Unit, 
             }
         }
         val menu = LocalItemMenu.current
+        // Computers: expand the docked player to the full window (lyrics and up next beside it), or dock it again.
+        onToggleSize?.let { toggle ->
+            GlassCircle(
+                if (docked) Icons.Rounded.OpenInFull else Icons.Rounded.CloseFullscreen,
+                if (docked) "Expand player" else "Dock player to the side",
+                toggle,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         GlassCircle(Icons.Rounded.MoreVert, "More options") {
             menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl))
         }
@@ -323,6 +352,8 @@ private fun WideNowPlaying(
     onClose: () -> Unit,
     onQueue: () -> Unit,
     onLyrics: () -> Unit,
+    onToggleSize: (() -> Unit)? = null,
+    docked: Boolean = false,
 ) {
     val c = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize()) {
@@ -331,7 +362,7 @@ private fun WideNowPlaying(
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.45f), 1f to c.background.copy(alpha = 0.82f))))
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            Header(state, song, onClose)
+            Header(state, song, onClose, onToggleSize = onToggleSize, docked = docked)
             Row(
                 Modifier
                     .weight(1f)

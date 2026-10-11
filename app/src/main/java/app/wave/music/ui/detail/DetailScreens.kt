@@ -121,7 +121,6 @@ sealed interface Destination {
     data object History : Destination { override val id = "history" }
     data object Playlists : Destination { override val id = "playlists" }
     data object Saved : Destination { override val id = "saved" }
-    data object Settings : Destination { override val id = "settings" }
 
     companion object {
         fun of(item: YTItem): Destination? = when (item) {
@@ -210,7 +209,6 @@ fun DetailScreen(
         Destination.History -> HistoryScreen(actions)
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
-        Destination.Settings -> app.wave.music.ui.settings.SettingsScreen(onBack = actions.back)
     }
     }
 }
@@ -278,12 +276,19 @@ private fun <T> PageFrame(
                             // Side by side on wide screens, over the art blurred across the window.
                             BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
                             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.55f), 1f to c.background.copy(alpha = 0.88f))))
-                            Row(Modifier.fillMaxSize()) {
-                                SideHero(info, Modifier.weight(0.42f).fillMaxHeight())
-                                LazyColumn(
-                                    Modifier.weight(0.58f).fillMaxHeight(),
-                                    contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = 140.dp, end = 16.dp),
-                                ) { content(load.value) }
+                            // A generous info column, and the songs right beside it at a readable width,
+                            // so big windows feel full without stretching rows edge to edge.
+                            BoxWithConstraints(Modifier.fillMaxSize()) {
+                                val side = (maxWidth * 0.34f).coerceIn(320.dp, 500.dp)
+                                Row(Modifier.fillMaxSize()) {
+                                    SideHero(info, Modifier.width(side).fillMaxHeight())
+                                    Box(Modifier.weight(1f).fillMaxHeight()) {
+                                        LazyColumn(
+                                            Modifier.widthIn(max = 1100.dp).fillMaxSize(),
+                                            contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = 140.dp, start = 8.dp, end = 24.dp),
+                                        ) { content(load.value) }
+                                    }
+                                }
                             }
                         } else {
                             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 140.dp)) {
@@ -370,11 +375,12 @@ private fun SideHero(info: HeaderInfo, modifier: Modifier) {
     Column(
         modifier
             .statusBarsPadding()
-            .padding(start = 32.dp, end = 16.dp, top = 72.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.Center,
+            .padding(start = 32.dp, end = 24.dp, top = 84.dp, bottom = 24.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current),
+        verticalArrangement = Arrangement.Top,
     ) {
         BoxWithConstraints(Modifier.weight(1f, fill = false)) {
-            val side = minOf(maxWidth, maxHeight, 380.dp)
+            // The cover fills the column's width (as tall as the window allows).
+            val side = minOf(maxWidth, maxHeight, 460.dp)
             AsyncImage(
                 model = info.art?.atSize(ArtSize.CARD),
                 contentDescription = null,
@@ -387,10 +393,10 @@ private fun SideHero(info: HeaderInfo, modifier: Modifier) {
         }
         Spacer(Modifier.height(20.dp))
         Text(info.eyebrow, style = MaterialTheme.typography.labelSmall, color = c.primary)
-        Text(info.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(info.title, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.ExtraBold, color = c.onBackground, maxLines = 3, overflow = TextOverflow.Ellipsis)
         info.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         Spacer(Modifier.height(16.dp))
-        Box(Modifier.widthIn(max = 420.dp)) { HeroButtons(info) }
+        Box(Modifier.widthIn(max = 460.dp)) { HeroButtons(info) }
     }
 }
 
