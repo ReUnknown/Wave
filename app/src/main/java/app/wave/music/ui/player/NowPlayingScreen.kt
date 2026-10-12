@@ -345,7 +345,7 @@ private fun Header(
             Spacer(Modifier.width(8.dp))
         }
         GlassCircle(Icons.Rounded.MoreVert, "More options") {
-            menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl))
+            menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl, album = song.album, nowPlaying = true))
         }
     }
 }

@@ -43,11 +43,38 @@ fun rememberArtColorScheme(artUrl: String?, base: ColorScheme = MaterialTheme.co
             ImageRequest.Builder(context).data(artUrl.atSize(ArtSize.THUMB)).size(128).allowHardware(false).build(),
         )
         val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@LaunchedEffect
-        val palette = withContext(Dispatchers.Default) { Palette.from(bitmap).generate() }
-        val seed = palette.vibrantSwatch?.rgb ?: palette.dominantSwatch?.rgb ?: return@LaunchedEffect
+        val seed = withContext(Dispatchers.Default) {
+            // No filters: whites and blacks count toward how much of the cover each color covers.
+            pickSeed(Palette.from(bitmap).maximumColorCount(24).clearFilters().generate())
+        } ?: return@LaunchedEffect
         scheme = schemeFromSeed(Color(seed), base).also { schemes.put(artUrl, it) }
     }
     return animate(scheme)
+}
+
+/**
+ * The color a cover is "about", the way Pixel picks it: the colorful family that covers the most
+ * of the art, not whichever swatch happens to be most vibrant. A speck of blue on a white cover
+ * covers almost nothing, so it never wins; a cover with no real color gets a neutral scheme.
+ */
+private fun pickSeed(palette: Palette): Int? {
+    val swatches = palette.swatches
+    val total = swatches.sumOf { it.population }.toFloat()
+    if (total <= 0f) return null
+    fun hueGap(a: Float, b: Float) = kotlin.math.abs(a - b).let { if (it > 180f) 360f - it else it }
+    fun colorful(hsl: FloatArray) = hsl[1] >= 0.22f && hsl[2] in 0.12f..0.88f
+    val colorfulOnes = swatches.filter { colorful(it.hsl) }
+    // How much of the cover is in this color's family (similar hue, actually colored).
+    fun familyShare(hue: Float) = colorfulOnes.filter { hueGap(it.hsl[0], hue) <= 22f }.sumOf { it.population } / total
+    val best = colorfulOnes
+        .filter { it.hsl[1] >= 0.28f && it.hsl[2] in 0.18f..0.82f }
+        .map { it to familyShare(it.hsl[0]) }
+        // A family has to be a real part of the cover to set the colors.
+        .filter { (_, share) -> share >= 0.08f }
+        // Mostly how much of the cover it is, then how rich the color is, then how much this exact
+        // shade is used (so the family's most typical shade wins over its brightest speck).
+        .maxByOrNull { (swatch, share) -> share * 0.6f + swatch.hsl[1] * 0.25f + (swatch.population / total) * 0.15f }
+    return best?.first?.rgb ?: palette.dominantSwatch?.rgb
 }
 
 private fun tone(seed: Color, lightness: Float, maxSaturation: Float): Color {

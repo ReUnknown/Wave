@@ -32,7 +32,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import android.Manifest
 import android.os.Build
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -247,7 +246,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             preparing = true
             build()
                 .onSuccess { PlayerConnection.play(it, startPositionMs) }
-                .onFailure { Toast.makeText(context, "Couldn't play that right now", Toast.LENGTH_SHORT).show() }
+                .onFailure { app.wave.music.ui.components.Notices.show("Couldn't play that right now") }
             preparing = false
         }
     }
@@ -270,6 +269,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Songs play; artists, albums and playlists open their page.
     val openItem: (YTItem) -> Unit = { item -> Destination.of(item)?.let { push(it) } ?: playItem(item, false) }
     var menuTarget by remember { mutableStateOf<MenuTarget?>(null) }
+    // A menu opened on the playing song moves on with the music (its colors and name too).
+    LaunchedEffect(player.current?.videoId) {
+        val open = menuTarget as? MenuTarget.Song ?: return@LaunchedEffect
+        val now = player.current ?: return@LaunchedEffect
+        if (open.nowPlaying && open.videoId != now.videoId) {
+            menuTarget = MenuTarget.Song(now.videoId, now.title, now.artist, now.artworkUrl, album = now.album, nowPlaying = true)
+        }
+    }
     var createPlaylist by remember { mutableStateOf(false) }
     val myPlaylists by LibraryRepository.playlists.collectAsState()
     LaunchedEffect(session) { LibraryRepository.refresh() }
@@ -278,7 +285,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             val request = if (item is SongItem) Result.success(QueueBuilder.single(item)) else QueueBuilder.forItem(item)
             request.onSuccess {
                 PlayerConnection.addToQueue(it)
-                Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
+                app.wave.music.ui.components.Notices.show("Added to queue", Icons.AutoMirrored.Rounded.QueueMusic)
             }
         }
     }
@@ -287,7 +294,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             val request = if (item is SongItem) Result.success(QueueBuilder.single(item)) else QueueBuilder.forItem(item)
             request.onSuccess {
                 PlayerConnection.playNext(it)
-                Toast.makeText(context, "Playing next", Toast.LENGTH_SHORT).show()
+                app.wave.music.ui.components.Notices.show("Playing next", Icons.Rounded.PlayArrow)
             }
         }
     }
@@ -803,6 +810,20 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 openTo = playerPanel,
             )
         }
+        // Wave's notices, just above whatever's at the bottom: the player bar, the mini player,
+        // or the open player's tray.
+        app.wave.music.ui.components.NoticeHost(
+            enabled = menuTarget == null || desktop,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = when {
+                    showPlayer -> 96.dp
+                    player.current == null -> 20.dp
+                    shell -> 116.dp
+                    else -> 112.dp
+                }),
+        )
         // The divider between the app and the docked player. Drag it to pick a size; drag it most of
         // the way across and let go for the full window.
         if (docked) {

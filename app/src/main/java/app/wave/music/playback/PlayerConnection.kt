@@ -291,6 +291,8 @@ object PlayerConnection {
         val upcoming = listOfNotNull(c.currentMediaItem, c.nextMediaItemIndex.takeIf { it >= 0 }?.let { c.getMediaItemAt(it) })
         upcoming.forEach { item ->
             val song = item.toNowPlaying()
+            // Its artist and album links too, so its menu can go to them without waiting.
+            app.wave.music.data.SongLinks.prefetch(song.videoId)
             scope.launch(Dispatchers.IO) {
                 app.wave.music.data.LyricsRepository.load(song.videoId, song.title, song.artist, song.durationMs ?: 0L, song.album)
             }

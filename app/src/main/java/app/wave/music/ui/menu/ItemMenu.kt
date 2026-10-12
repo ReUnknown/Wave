@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import app.wave.music.ui.components.LocalDesktop
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -97,14 +96,20 @@ sealed interface MenuTarget {
         val artworkUrl: String?,
         val item: SongItem? = null,
         val removeFrom: RemoveFrom? = null,
+        /** The album's name, when known up front (songs from the player and queue). */
+        val album: String? = null,
+        /** Opened on whatever's playing: the menu moves on to the next song with the music. */
+        val nowPlaying: Boolean = false,
     ) : MenuTarget
 
     /** [onItsPage]: opened from that item's own page, so "Open …" would go nowhere. */
     data class Collection(val item: YTItem, val onItsPage: Boolean = false) : MenuTarget
 }
 
-fun SongItem.menuTarget(removeFrom: RemoveFrom? = null) =
-    MenuTarget.Song(id, title, artists.joinToString { it.name }, thumbnail, this, removeFrom)
+fun SongItem.menuTarget(removeFrom: RemoveFrom? = null): MenuTarget.Song {
+    app.wave.music.data.SongLinks.remember(this)
+    return MenuTarget.Song(id, title, artists.joinToString { it.name }, thumbnail, this, removeFrom, album = album?.name)
+}
 
 /** Long-press anywhere calls this to open the options menu. */
 fun interface MenuOpener {
@@ -144,7 +149,7 @@ fun ItemMenuHost(
     var dialog by remember { mutableStateOf(Dialog.None) }
     var pendingVideo by remember { mutableStateOf<String?>(null) }
     var dialogTarget by remember { mutableStateOf<PlaylistItem?>(null) }
-    val toast: (String) -> Unit = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    val toast: (String) -> Unit = { app.wave.music.ui.components.Notices.show(it) }
 
     LaunchedEffect(createRequested) {
         if (createRequested) {
@@ -173,15 +178,28 @@ fun ItemMenuHost(
             action()
             if (desktop) onDismiss() else scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() }
         }
-        // Songs opened from Now Playing only know their id; look up artist and album links.
-        var resolved by remember(target) { mutableStateOf((target as? MenuTarget.Song)?.item) }
-        var lookedUp by remember(target) { mutableStateOf(target !is MenuTarget.Song || target.item?.album != null) }
+        // Songs from the player and queue only know their id and names; their artist and album
+        // links are usually already looked up (see SongLinks), and otherwise arrive in the
+        // background. The names show right away either way.
+        val songTarget = target as? MenuTarget.Song
+        var resolved by remember(target) {
+            mutableStateOf(songTarget?.item?.takeIf { it.album != null } ?: songTarget?.let { app.wave.music.data.SongLinks.cached(it.videoId) } ?: songTarget?.item)
+        }
+        var lookedUp by remember(target) { mutableStateOf(target !is MenuTarget.Song || resolved?.album != null) }
         LaunchedEffect(target) {
-            if (target is MenuTarget.Song && !lookedUp) {
-                YouTube.next(WatchEndpoint(videoId = target.videoId)).getOrNull()
-                    ?.items?.firstOrNull { it.id == target.videoId }
+            if (songTarget != null && !lookedUp) {
+                app.wave.music.data.SongLinks.lookup(songTarget.videoId).await()
                     ?.let { found -> resolved = found.copy(album = found.album ?: resolved?.album) }
                 lookedUp = true
+            }
+        }
+        /** Goes to a link as soon as it's known (instantly, almost always). */
+        fun whenResolved(go: (SongItem) -> Unit) {
+            val now = resolved
+            if (now != null && lookedUp) { go(now); return }
+            scope.launch {
+                val found = songTarget?.let { app.wave.music.data.SongLinks.lookup(it.videoId).await() } ?: now
+                found?.let(go)
             }
         }
         MenuContainer(desktop, sheet, onDismiss) {
@@ -212,21 +230,27 @@ fun ItemMenuHost(
                         }
                         OptionGroup {
                             Option(Icons.Rounded.Sensors, "Start radio") { choose { actions.playItem(song, false) } }
-                            // Always shown, so the list never jumps; usable once the links are known.
-                            val artist = song.artists.firstOrNull { it.id != null }
+                            // Named straight away from what the song already says; the links behind
+                            // them are almost always known by now, and otherwise followed once they are.
+                            val artistName = song.artists.firstOrNull { it.id != null }?.name
+                                ?: target.artist.split(",", " & ", " x ", " feat. ").first().trim().ifBlank { null }
                             Option(
                                 Icons.Rounded.Person,
-                                artist?.let { "Go to ${it.name}" } ?: "Go to artist",
-                                enabled = artist != null,
-                                loading = artist == null && !lookedUp,
-                            ) { artist?.id?.let { id -> choose { actions.navigate(Destination.Artist(id)) } } }
-                            val album = song.album
+                                artistName?.let { "Go to $it" } ?: "Go to artist",
+                                enabled = !lookedUp || song.artists.any { it.id != null },
+                            ) {
+                                whenResolved { found ->
+                                    found.artists.firstOrNull { it.id != null }?.id?.let { id -> choose { actions.navigate(Destination.Artist(id)) } }
+                                }
+                            }
+                            val albumName = song.album?.name ?: target.album?.takeIf { it.isNotBlank() }
                             Option(
                                 Icons.Rounded.Album,
-                                album?.let { "Go to ${it.name}" } ?: "Go to album",
-                                enabled = album != null,
-                                loading = album == null && !lookedUp,
-                            ) { album?.let { choose { actions.navigate(Destination.Album(it.id)) } } }
+                                albumName?.let { "Go to $it" } ?: "Go to album",
+                                enabled = !lookedUp || song.album != null,
+                            ) {
+                                whenResolved { found -> found.album?.let { choose { actions.navigate(Destination.Album(it.id)) } } }
+                            }
                             target.removeFrom?.let { from ->
                                 Option(Icons.Rounded.PlaylistRemove, "Remove from this playlist", danger = true) {
                                     choose {
@@ -421,13 +445,18 @@ private fun MenuContainer(desktop: Boolean, sheet: androidx.compose.material3.Sh
         }
     } else {
         ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-            Column(
-                Modifier
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) { content() }
+            Box {
+                Column(
+                    Modifier
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) { content() }
+                // Notices from inside the menu (liking a song) show on the menu itself, not under its shade,
+                // over its header so they never cover an option.
+                app.wave.music.ui.components.NoticeHost(Modifier.align(Alignment.TopCenter))
+            }
         }
     }
 }
