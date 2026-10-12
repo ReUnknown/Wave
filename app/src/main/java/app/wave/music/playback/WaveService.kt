@@ -67,6 +67,8 @@ class WaveService : MediaSessionService() {
         /** The file's true size in bytes, or -1 if YouTube didn't say. */
         val contentLength: Long,
         val expiresAt: Long,
+        /** Which YouTube client the link came from, so a failing one can be skipped next time. */
+        val client: String,
     )
 
     private val streams = ConcurrentHashMap<String, ResolvedStream>()
@@ -287,7 +289,11 @@ class WaveService : MediaSessionService() {
             override fun onPlayerError(error: PlaybackException) {
                 // A stream URL can expire or get rejected: get a fresh one and pick up where it
                 // stopped. If a song keeps failing, move on instead of going silent.
-                player.currentMediaItem?.mediaId?.let(streams::remove)
+                // That link's client gets skipped for this song for a while, so the retry asks
+                // a different one instead of getting the same broken stream again.
+                player.currentMediaItem?.mediaId?.let { id ->
+                    streams.remove(id)?.let { StreamResolver.markStreamClientFailed(id, it.client) }
+                }
                 val attempt = ++failures
                 scope.launch {
                     if (attempt <= 2) runCatching { StreamResolver.refreshAfterStreamRejection() }
@@ -491,6 +497,7 @@ class WaveService : MediaSessionService() {
                 boundedChunk = if (data.requireBoundedRange || data.useRangeChunks) data.rangeChunkSizeBytes else 0L,
                 contentLength = data.format.contentLength ?: -1L,
                 expiresAt = now + data.streamExpiresInSeconds * 1000L - 30_000L,
+                client = data.streamClient,
             ).also { streams[videoId] = it }
         }
 

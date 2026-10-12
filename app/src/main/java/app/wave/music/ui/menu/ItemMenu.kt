@@ -300,13 +300,13 @@ fun ItemMenuHost(
                                 if (editable) {
                                     Option(Icons.Rounded.Edit, "Rename playlist") {
                                         choose {
-                                            dialogTarget = item as PlaylistItem
+                                            dialogTarget = item
                                             dialog = Dialog.Rename
                                         }
                                     }
                                     Option(Icons.Rounded.Delete, "Delete playlist", danger = true) {
                                         choose {
-                                            dialogTarget = item as PlaylistItem
+                                            dialogTarget = item
                                             dialog = Dialog.Delete
                                         }
                                     }

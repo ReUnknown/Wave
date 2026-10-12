@@ -112,10 +112,6 @@ object StreamResolver {
         }
     }
 
-    fun clearStreamClientFailures() {
-        streamClientFailures.clear()
-    }
-
     suspend fun refreshAfterStreamRejection(): Boolean = bundle().cipherService.refreshAfterStreamRejection()
 
     internal fun failedStreamClients(

@@ -623,9 +623,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .fillMaxWidth()
                     .height(statusTop + headerBand)
                     .background(
-                        // On the computer layout's shared backdrop, match the sidebar's tint.
+                        // Computers: the shared art background already carries the header (and the
+                        // sidebar beside it); a tint here would set home apart from the sidebar.
                         if (desktopShell) {
-                            Brush.verticalGradient(0f to scrim.copy(alpha = 0.3f), 0.6f to scrim.copy(alpha = 0.14f), 1f to Color.Transparent)
+                            androidx.compose.ui.graphics.SolidColor(Color.Transparent)
                         } else {
                             Brush.verticalGradient(
                                 0f to c.background.copy(alpha = 0.72f),
