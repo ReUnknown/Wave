@@ -111,6 +111,7 @@ import app.wave.music.ui.components.ItemRow
 import app.wave.music.ui.components.rememberArtColorScheme
 import app.wave.music.ui.components.subtitle
 import coil3.compose.AsyncImage
+import androidx.compose.ui.draw.shadow
 import com.metrolist.innertube.models.ArtistItem
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.YTItem
@@ -198,7 +199,9 @@ fun SearchScreen(
     }
 
     val ready = results as? Results.Ready
-    val topResult = ready?.groups?.firstOrNull()?.items?.firstOrNull()
+    // Only a result that really matches what you typed gets the big top spot (typing "e" shouldn't
+    // crown whatever YouTube happens to list first).
+    val topResult = ready?.groups?.firstOrNull()?.items?.firstOrNull()?.takeIf { isStrongMatch(submitted.orEmpty(), it) }
     val showingResults = submitted != null && query == submitted
 
     MaterialTheme(colorScheme = rememberArtColorScheme(if (showingResults && matchColors) topResult?.thumbnail?.atSize(600) else null)) {
@@ -308,7 +311,7 @@ fun SearchScreen(
                             }
                             if (r.groups.isEmpty() || tab != SearchTab.Top) showMine()
                             r.groups.forEachIndexed { index, group ->
-                                if (index == 0 && tab == SearchTab.Top && group.items.isNotEmpty()) {
+                                if (index == 0 && tab == SearchTab.Top && topResult != null && group.items.firstOrNull() == topResult) {
                                     item { TopResult(group.items.first(), onPlay, onPlayNext, onOpen) }
                                     showMine()
                                     val rest = group.items.drop(1)
@@ -422,14 +425,39 @@ private fun TopResult(item: YTItem, onPlay: (YTItem, Boolean) -> Unit, onPlayNex
         Modifier
             .fillMaxWidth()
             .clickable(interactionSource = null, indication = null) { if (isSong) onPlay(item, false) else onOpen(item) }
-            .padding(start = 20.dp, end = 20.dp, top = 120.dp, bottom = 16.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 16.dp),
     ) {
-        Text("TOP RESULT", style = MaterialTheme.typography.labelSmall, color = c.primary)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(item.title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.displayMedium, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (!isSong) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(40.dp), tint = c.onBackground)
+        // A sharp cover (a circle for artists) beside the name, so you can always tell who or what
+        // it is; the blurred art behind it is the backdrop.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            val shape = if (item is ArtistItem) CircleShape else RoundedCornerShape(24.dp)
+            AsyncImage(
+                item.thumbnail?.atSize(ArtSize.CARD),
+                item.title,
+                Modifier
+                    .size(112.dp)
+                    .shadow(20.dp, shape)
+                    .clip(shape)
+                    .background(c.surfaceContainerHigh),
+                contentScale = ContentScale.Crop,
+            )
+            Column(Modifier.weight(1f)) {
+                Text("TOP RESULT", style = MaterialTheme.typography.labelSmall, color = c.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        item.title,
+                        Modifier.weight(1f, fill = false),
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = c.onBackground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (!isSong) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(32.dp), tint = c.onBackground)
+                }
+                subtitle(item)?.let { Text(it, color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
         }
-        subtitle(item)?.let { Text(it, color = c.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Spacer(Modifier.height(16.dp))
         val (primary, secondary) = when (item) {
             is SongItem -> Triple("Play", Icons.Rounded.PlayArrow) { onPlay(item, false) } to
@@ -520,4 +548,16 @@ private fun SuggestionRow(
         Text(text, Modifier.weight(1f).padding(start = 16.dp), color = MaterialTheme.colorScheme.onBackground, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         IconButton(onClick = onTrailing) { Icon(trailingIcon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
     }
+}
+
+/**
+ * Whether [item] is what you were looking for: every word you typed starts a word of its name
+ * (or, for songs and albums, its artist), and you typed enough to mean something.
+ */
+private fun isStrongMatch(query: String, item: YTItem): Boolean {
+    fun words(text: String) = text.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+    val typed = words(query)
+    if (typed.joinToString("").length < 3) return false
+    val name = words(item.title + " " + (subtitle(item) ?: ""))
+    return typed.all { t -> name.any { it.startsWith(t) } }
 }

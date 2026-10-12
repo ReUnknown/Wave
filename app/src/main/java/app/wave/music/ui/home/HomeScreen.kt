@@ -475,7 +475,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.28f), 0.5f to c.background.copy(alpha = 0.35f), 1f to c.background)))
             }
         }
-        Row(Modifier.fillMaxSize()) {
+        // Docked: the app's content keeps clear of the player's edge (the strip tucked under its
+        // corner plus some breathing room), whichever side the player is on.
+        val clearStart by androidx.compose.animation.core.animateDpAsState(if (docked && dockSide < 0) 44.dp else 0.dp, tween(260, easing = WaveMotion.Emphasized), label = "clearStart")
+        val clearEnd by androidx.compose.animation.core.animateDpAsState(if (docked && dockSide > 0) 44.dp else 0.dp, tween(260, easing = WaveMotion.Emphasized), label = "clearEnd")
+        Row(Modifier.fillMaxSize().padding(start = clearStart, end = clearEnd)) {
         // Computers only: tablets keep the library in the account panel, like phones.
         if (sidebar) {
             Sidebar(

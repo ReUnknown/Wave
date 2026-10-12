@@ -170,6 +170,8 @@ fun NowPlayingScreen(
     var showQueue by remember { mutableStateOf(openTo == "queue" && !roomy) }
     var showLyrics by remember { mutableStateOf(openTo == "lyrics" && !roomy) }
 
+    // Docked: a little extra room on the side facing the app, clear of the divider.
+    val inner = Modifier.padding(start = if (docked && dockSide > 0) 16.dp else 0.dp, end = if (docked && dockSide < 0) 16.dp else 0.dp)
     MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl)) {
         val c = MaterialTheme.colorScheme
         Box(
@@ -196,6 +198,7 @@ fun NowPlayingScreen(
         val wide = maxWidth >= 600.dp && maxWidth > maxHeight
         if (wide) {
             WideNowPlaying(
+                inner = inner,
                 state, song, position,
                 roomy = maxWidth >= 840.dp && maxHeight >= 560.dp,
                 onToggleSize = onToggleSize,
@@ -287,15 +290,15 @@ fun NowPlayingScreen(
                     ),
             )
 
-            Header(state, song, onClose, Modifier.statusBarsPadding(), onToggleSize, docked)
+            Header(state, song, onClose, Modifier.statusBarsPadding().then(inner), onToggleSize, docked)
 
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
             ) {
-                Controls(state, song, position, Modifier.padding(horizontal = 20.dp))
-                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true })
+                Controls(state, song, position, inner.padding(horizontal = 20.dp))
+                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner)
             }
         }
         }
@@ -356,6 +359,7 @@ private fun Header(
  */
 @Composable
 private fun WideNowPlaying(
+    inner: Modifier,
     state: PlayerUiState,
     song: NowPlaying,
     position: androidx.compose.runtime.State<Long>,
@@ -375,7 +379,7 @@ private fun WideNowPlaying(
             BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.45f), 1f to c.background.copy(alpha = 0.82f))))
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().then(inner)) {
             Header(state, song, onClose, onToggleSize = onToggleSize, docked = docked)
             Row(
                 Modifier
