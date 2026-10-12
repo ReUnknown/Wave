@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Sensors
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.ThumbUp
@@ -211,7 +212,6 @@ fun ItemMenuHost(
                             artists = listOf(Artist(target.artist, null)),
                             thumbnail = target.artworkUrl.orEmpty(),
                         )
-                        var liked by remember(target) { mutableStateOf(PlayerConnection.isLiked(target.videoId)) }
                         SheetHeader(target.artworkUrl, target.title, target.artist, round = false)
                         QuickRow {
                             QuickAction(Icons.Rounded.SkipNext, "Play next") { choose { actions.playNext(song) } }
@@ -222,10 +222,9 @@ fun ItemMenuHost(
                                     dialog = Dialog.AddToPlaylist
                                 }
                             }
-                            QuickAction(if (liked) Icons.Rounded.ThumbUp else Icons.Outlined.ThumbUp, if (liked) "Liked" else "Like", on = liked) {
-                                liked = !liked
-                                PlayerConnection.setLiked(target.videoId, liked)
-                                toast(if (liked) "Added to Liked music" else "Removed from Liked music")
+                            // Like lives on the player's big button; the menu shares instead.
+                            QuickAction(Icons.Rounded.Share, "Share") {
+                                choose { share(context, target.title, "https://music.youtube.com/watch?v=${target.videoId}") }
                             }
                         }
                         OptionGroup {
@@ -271,6 +270,7 @@ fun ItemMenuHost(
                             if (item is ArtistItem) {
                                 QuickAction(Icons.Rounded.Shuffle, "Shuffle") { choose { actions.playItem(item, true) } }
                                 QuickAction(Icons.Rounded.Sensors, "Radio") { choose { actions.playItem(item, false) } }
+                                QuickAction(Icons.Rounded.Share, "Share") { choose { share(context, item.title, item.shareLink) } }
                             } else {
                                 QuickAction(Icons.Rounded.PlayArrow, "Play", on = true) { choose { actions.playItem(item, false) } }
                                 QuickAction(Icons.Rounded.Shuffle, "Shuffle") { choose { actions.playItem(item, true) } }
@@ -281,8 +281,11 @@ fun ItemMenuHost(
                         val open = Destination.of(item)?.takeUnless { target.onItsPage }
                         val albumArtist = (item as? AlbumItem)?.artists?.firstOrNull { it.id != null }
                         val editable = item is PlaylistItem && item.isEditable && LibraryRepository.idOf(item) != "LM"
-                        if (open != null || albumArtist != null || editable) {
+                        run {
                             OptionGroup {
+                                if (item !is ArtistItem) {
+                                    Option(Icons.Rounded.Share, "Share") { choose { share(context, item.title, item.shareLink) } }
+                                }
                                 if (open != null) {
                                     val label = when (item) {
                                         is ArtistItem -> "Open artist page"
@@ -623,4 +626,13 @@ private fun PlaylistChoice(art: String?, title: String, isNew: Boolean, onClick:
         }
         Text(title, fontSize = 16.sp, fontWeight = if (isNew) FontWeight.Bold else FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/** Android's share sheet with a YouTube Music link (anyone with Wave can open it in Wave). */
+private fun share(context: android.content.Context, title: String, url: String) {
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(android.content.Intent.EXTRA_TEXT, url)
+        .putExtra(android.content.Intent.EXTRA_TITLE, title)
+    context.startActivity(android.content.Intent.createChooser(send, title).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
 }

@@ -105,6 +105,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -268,6 +269,29 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
     // Songs play; artists, albums and playlists open their page.
     val openItem: (YTItem) -> Unit = { item -> Destination.of(item)?.let { push(it) } ?: playItem(item, false) }
+    // A YouTube Music link opened in (or shared to) Wave: songs play, pages open.
+    val link by app.wave.music.data.Links.pending.collectAsState()
+    LaunchedEffect(link) {
+        val opened = link ?: return@LaunchedEffect
+        app.wave.music.data.Links.consume()
+        showSearch = false
+        when (opened) {
+            is app.wave.music.data.Link.Song -> start({
+                val song = app.wave.music.data.SongLinks.lookup(opened.videoId).await()
+                    ?: SongItem(id = opened.videoId, title = "", artists = emptyList(), thumbnail = "")
+                QueueBuilder.forItem(song)
+            })
+            // Mixes and radios play; real playlists open their page.
+            is app.wave.music.data.Link.Playlist -> if (opened.id.startsWith("RD")) {
+                start({ QueueBuilder.forItem(PlaylistItem(opened.id, "Mix", null, null, null, null, null, null)) })
+            } else {
+                showPlayer = false
+                push(Destination.Playlist(opened.id))
+            }
+            is app.wave.music.data.Link.Album -> { showPlayer = false; push(Destination.Album(opened.browseId)) }
+            is app.wave.music.data.Link.Artist -> { showPlayer = false; push(Destination.Artist(opened.channelId)) }
+        }
+    }
     var menuTarget by remember { mutableStateOf<MenuTarget?>(null) }
     // A menu opened on the playing song moves on with the music (its colors and name too).
     LaunchedEffect(player.current?.videoId) {
@@ -434,6 +458,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
     MaterialTheme(colorScheme = appScheme) {
         val c = MaterialTheme.colorScheme
+        // What darkens (dark mode) or lightens (light mode) a busy picture under text.
+        val scrim = if (c.background.luminance() < 0.5f) Color.Black else Color.White
         val backdrop = rememberBackdrop()
         val listState = rememberLazyListState()
         val greetingAlpha by remember {
@@ -479,7 +505,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 Crossfade(ambient?.atSize(ArtSize.BLUR), Modifier.matchParentSize(), animationSpec = tween(500), label = "ambient") { a ->
                     BlurredImage(a, Modifier.fillMaxSize().clipToBounds().graphicsLayer { scaleX = 1.25f; scaleY = 1.25f }, radius = 96.dp, fadeBottom = 0.45f)
                 }
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.28f), 0.5f to c.background.copy(alpha = 0.35f), 1f to c.background)))
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to scrim.copy(alpha = 0.28f), 0.5f to c.background.copy(alpha = 0.35f), 1f to c.background)))
             }
         }
         // Docked: the app's content keeps clear of the player's edge (the strip tucked under its
@@ -599,7 +625,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .background(
                         // On the computer layout's shared backdrop, match the sidebar's tint.
                         if (desktopShell) {
-                            Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.3f), 0.6f to Color.Black.copy(alpha = 0.14f), 1f to Color.Transparent)
+                            Brush.verticalGradient(0f to scrim.copy(alpha = 0.3f), 0.6f to scrim.copy(alpha = 0.14f), 1f to Color.Transparent)
                         } else {
                             Brush.verticalGradient(
                                 0f to c.background.copy(alpha = 0.72f),
@@ -624,17 +650,17 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         .sharedContainer("search", this, CircleShape)
                         .fillMaxWidth()
                         .height(56.dp)
-                        .pressable(CircleShape, Color.White.copy(alpha = 0.12f), pressedScale = 0.97f) { showSearch = true }
-                        .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+                        .pressable(CircleShape, c.onBackground.copy(alpha = 0.1f), pressedScale = 0.97f) { showSearch = true }
+                        .border(1.dp, c.onBackground.copy(alpha = 0.14f), CircleShape)
                         .padding(start = 16.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     // The sidebar carries the Wave mark on big screens.
-                    if (!shell) WaveMark(Color.White)
+                    if (!shell) WaveMark(c.onBackground)
                     Text(
                         "Search songs, artists, albums",
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = c.onBackground.copy(alpha = 0.85f),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
@@ -647,7 +673,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         if (session.photoUrl != null) {
                             AsyncImage(session.photoUrl, "Your Google account", avatar, contentScale = ContentScale.Crop)
                         } else {
-                            Icon(Icons.Rounded.AccountCircle, "Your Google account", avatar, tint = Color.White)
+                            Icon(Icons.Rounded.AccountCircle, "Your Google account", avatar, tint = c.onBackground)
                         }
                         AccountMenu(
                             session = session,
@@ -668,8 +694,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         .padding(top = 18.dp, start = 4.dp)
                         .alpha(greetingAlpha),
                 ) {
-                    Text(greeting(), color = Color.White.copy(alpha = 0.88f), fontSize = 22.sp, fontWeight = FontWeight.Medium)
-                    Text(session.name.substringBefore(' '), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(greeting(), color = c.onBackground.copy(alpha = 0.88f), fontSize = 22.sp, fontWeight = FontWeight.Medium)
+                    Text(session.name.substringBefore(' '), color = c.onBackground, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
 
@@ -1265,7 +1291,7 @@ private fun SectionRow(
 private fun JumpBackIn(items: List<YTItem>, onOpen: (YTItem) -> Unit, modifier: Modifier) {
     val c = MaterialTheme.colorScheme
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("JUMP BACK IN", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+        Text("JUMP BACK IN", style = MaterialTheme.typography.labelSmall, color = c.onBackground.copy(alpha = 0.8f))
         items.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 pair.forEach { item ->
@@ -1273,12 +1299,12 @@ private fun JumpBackIn(items: List<YTItem>, onOpen: (YTItem) -> Unit, modifier: 
                         Modifier
                             .weight(1f)
                             .height(64.dp)
-                            .pressable(RoundedCornerShape(16.dp), Color.White.copy(alpha = 0.1f), pressedScale = 0.96f) { onOpen(item) },
+                            .pressable(RoundedCornerShape(16.dp), c.onBackground.copy(alpha = 0.08f), pressedScale = 0.96f) { onOpen(item) },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         AsyncImage(item.thumbnail?.atSize(ArtSize.THUMB), null, Modifier.size(64.dp).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
-                        Text(item.title, Modifier.padding(end = 10.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(item.title, Modifier.padding(end = 10.dp), color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))

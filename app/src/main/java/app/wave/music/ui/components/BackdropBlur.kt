@@ -120,8 +120,25 @@ fun ProgressiveBlurImage(
     end: Float = 0.95f,
     maxRadius: Dp = 64.dp,
 ) {
-    Box(modifier.clipToBounds()) {
+    ProgressiveBlur(modifier, start, end, maxRadius) {
         AsyncImage(model, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    }
+}
+
+/**
+ * Any [content], sharp above [start] and blurring progressively to [maxRadius] at [end] (fractions
+ * of the height). Everything is blurred as one picture, so parts of it never meet at a seam.
+ */
+@Composable
+fun ProgressiveBlur(
+    modifier: Modifier = Modifier,
+    start: Float = 0.4f,
+    end: Float = 0.95f,
+    maxRadius: Dp = 64.dp,
+    content: @Composable () -> Unit,
+) {
+    Box(modifier.clipToBounds()) {
+        content()
         val span = end - start
         STEPS.forEachIndexed { i, step ->
             // Each stronger copy fades in a little lower down.
@@ -131,9 +148,8 @@ fun ProgressiveBlurImage(
                 radius = maxRadius * step,
                 modifier = Modifier.fillMaxSize(),
                 mask = Brush.verticalGradient(0f to Color.Transparent, from to Color.Transparent, to to Color.Black, 1f to Color.Black),
-            ) {
-                AsyncImage(model, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            }
+                content = content,
+            )
         }
     }
 }

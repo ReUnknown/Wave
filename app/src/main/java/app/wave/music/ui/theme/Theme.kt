@@ -37,13 +37,21 @@ private val WaveDarkBlue = darkColorScheme(
     outlineVariant = Color(0xFF43474E),
 )
 
+/** The dark scheme, even in light mode: Now Playing stays dark and immersive over the art. */
+@Composable
+fun darkBaseScheme(): androidx.compose.material3.ColorScheme =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(LocalContext.current) else WaveDarkBlue
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WaveTheme(content: @Composable () -> Unit) {
-    val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        dynamicDarkColorScheme(LocalContext.current)
-    } else {
-        WaveDarkBlue
+    // Follows the phone: light mode when the system is light.
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val context = LocalContext.current
+    val colorScheme = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (dark) dynamicDarkColorScheme(context) else androidx.compose.material3.dynamicLightColorScheme(context)
+        dark -> WaveDarkBlue
+        else -> androidx.compose.material3.lightColorScheme()
     }
     MaterialExpressiveTheme(
         colorScheme = colorScheme,

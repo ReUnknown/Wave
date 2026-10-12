@@ -102,6 +102,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -172,7 +173,8 @@ fun NowPlayingScreen(
 
     // Docked: a little extra room on the side facing the app, clear of the divider.
     val inner = Modifier.padding(start = if (docked && dockSide > 0) 16.dp else 0.dp, end = if (docked && dockSide < 0) 16.dp else 0.dp)
-    MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl)) {
+    // Always dark (light mode too): the player is the art, and its words sit on it.
+    MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl, base = app.wave.music.ui.theme.darkBaseScheme())) {
         val c = MaterialTheme.colorScheme
         Box(
             Modifier
@@ -250,27 +252,33 @@ fun NowPlayingScreen(
                     .backdropSource(topBlur),
                 label = "art",
             ) { art ->
-            Box(Modifier.fillMaxSize()) {
-                // Fully blurred, so a small copy of the art is plenty.
-                BlurredImage(
-                    art?.atSize(ArtSize.BLUR),
-                    Modifier
-                        // Tucked a few dp under the art above, so the two never show a seam.
-                        .offset(y = artHeight - 6.dp)
-                        .fillMaxWidth()
-                        .height(artHeight + 6.dp)
-                        .graphicsLayer { scaleY = -1f },
-                    radius = 72.dp,
-                )
-                ProgressiveBlurImage(
-                    art,
-                    Modifier
-                        .fillMaxWidth()
-                        .height(artHeight),
-                    start = 0.58f,
-                    end = 1f,
-                    maxRadius = 72.dp,
-                )
+            // The art, and a mirrored copy of it continuing under the controls, blurred together
+            // as one picture: sharp at the top, then blurring all the way down with no edge.
+            // Fractions of the screen: the art is the top 62%, blurring from 58% of the way down it.
+            app.wave.music.ui.components.ProgressiveBlur(
+                Modifier.fillMaxSize(),
+                start = 0.62f * 0.58f,
+                end = 0.62f,
+                maxRadius = 72.dp,
+            ) {
+                // Sized as fractions of the box, never in dp: the blurred copies are drawn smaller
+                // and scaled up, and must line up exactly with the sharp one.
+                Box(Modifier.fillMaxSize()) {
+                    AsyncImage(art, null, Modifier.fillMaxWidth().fillMaxHeight(0.62f), contentScale = ContentScale.Crop)
+                    AsyncImage(
+                        art,
+                        null,
+                        Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.62f)
+                            .layout { measurable, constraints ->
+                                val placeable = measurable.measure(constraints)
+                                layout(placeable.width, placeable.height) { placeable.place(0, placeable.height) }
+                            }
+                            .graphicsLayer { scaleY = -1f },
+                        contentScale = ContentScale.Crop,
+                    )
+                }
             }
             }
             // Frosted top so "Playing from" always reads, whatever the art.

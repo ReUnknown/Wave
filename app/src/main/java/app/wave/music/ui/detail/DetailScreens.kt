@@ -1,5 +1,10 @@
 package app.wave.music.ui.detail
 
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.Check
 import app.wave.music.ui.components.WheelRow
 import androidx.compose.ui.draw.clipToBounds
 import coil3.compose.AsyncImage
@@ -229,6 +234,8 @@ private class HeaderInfo(
     val onPrimary: () -> Unit,
     val secondary: Pair<String, ImageVector>,
     val onSecondary: () -> Unit,
+    /** A third button joined to the end of the pair (Follow, on artist pages). */
+    val extra: (@Composable () -> Unit)? = null,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -380,13 +387,19 @@ private fun HeroButtons(info: HeaderInfo) {
             Modifier
                 .weight(1f)
                 .fillMaxSize()
-                .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), c.onBackground.copy(alpha = 0.12f), pressedScale = 0.95f, onClick = info.onSecondary),
+                .pressable(
+                    if (info.extra != null) RoundedCornerShape(10.dp) else RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp),
+                    c.onBackground.copy(alpha = 0.12f),
+                    pressedScale = 0.95f,
+                    onClick = info.onSecondary,
+                ),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(info.secondary.second, null, tint = c.onBackground)
             Text("  ${info.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold)
         }
+        info.extra?.invoke()
     }
 }
 
@@ -554,6 +567,7 @@ private fun ArtistScreen(browseId: String, actions: PageActions) {
                 onPrimary = { actions.playItem(p.artist, true) },
                 secondary = "Radio" to Icons.Rounded.Sensors,
                 onSecondary = { actions.playItem(p.artist, false) },
+                extra = { FollowButton(p.artist.channelId ?: browseId, p.isSubscribed, p.artist.title) },
             )
         },
     ) { p ->
@@ -807,7 +821,7 @@ private fun SavedScreen(actions: PageActions) {
         },
     ) { d ->
         if (d.artists.isNotEmpty()) {
-            item { SectionTitle("Artists") }
+            item { SectionTitle("Following") }
             item {
                 WheelRow {
                     items(d.artists) { ItemCard(it, onClick = actions.open) }
@@ -825,6 +839,48 @@ private fun SavedScreen(actions: PageActions) {
                     Modifier.padding(20.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+/** Follows changed this session, so a cached artist page doesn't show the old state. */
+private val followed = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+/** Follow (subscribe to) an artist on YouTube Music; they show up under Following in your library. */
+@Composable
+private fun FollowButton(channelId: String, initiallyFollowing: Boolean, name: String) {
+    val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var following by remember(channelId) { mutableStateOf(followed[channelId] ?: initiallyFollowing) }
+    val fill by animateColorAsState(if (following) c.primary else c.onBackground.copy(alpha = 0.12f), tween(180), label = "followFill")
+    val ink by animateColorAsState(if (following) c.onPrimary else c.onBackground, tween(180), label = "followInk")
+    Row(
+        Modifier
+            .fillMaxHeight()
+            .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), fill, pressedScale = 0.93f) {
+                val next = !following
+                following = next
+                scope.launch {
+                    YouTube.subscribeChannel(channelId, next)
+                        .onSuccess {
+                            followed[channelId] = next
+                            app.wave.music.ui.components.Notices.show(if (next) "Following $name" else "Unfollowed $name")
+                        }
+                        .onFailure {
+                            following = !next
+                            app.wave.music.ui.components.Notices.show("Couldn't update that")
+                        }
+                }
+            }
+            .padding(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.animation.AnimatedContent(following, label = "follow") { on ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (on) Icons.Rounded.Check else Icons.Rounded.PersonAdd, null, tint = ink)
+                Text(if (on) "  Following" else "  Follow", color = ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
     }

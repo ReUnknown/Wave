@@ -1,5 +1,6 @@
 package app.wave.music.ui.search
 
+import androidx.compose.ui.graphics.luminance
 import app.wave.music.ui.components.WheelRow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.widthIn
@@ -252,7 +253,7 @@ fun SearchScreen(
                     Modifier
                         .fillMaxWidth()
                         .height(backdropHeight)
-                        .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.25f), 0.35f to Color.Transparent, 0.7f to c.background.copy(alpha = 0.55f), 1f to c.background)),
+                        .background(Brush.verticalGradient(0f to (if (c.background.luminance() < 0.5f) Color.Black else Color.White).copy(alpha = 0.25f), 0.35f to Color.Transparent, 0.7f to c.background.copy(alpha = 0.55f), 1f to c.background)),
                 )
             }
 
@@ -358,8 +359,8 @@ fun SearchScreen(
                         .fillMaxWidth()
                         .height(60.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+                        .background(c.onBackground.copy(alpha = 0.1f))
+                        .border(1.dp, c.onBackground.copy(alpha = 0.14f), CircleShape)
                         .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -395,7 +396,7 @@ fun SearchScreen(
                         items(SearchTab.entries) { t ->
                             val selected = t == tab
                             // The chosen filter fills in and rounds out; the rest relax back.
-                            val fill by animateColorAsState(if (selected) c.primary else Color.White.copy(alpha = 0.1f), tween(160), label = "chip")
+                            val fill by animateColorAsState(if (selected) c.primary else c.onBackground.copy(alpha = 0.1f), tween(160), label = "chip")
                             val ink by animateColorAsState(if (selected) c.onPrimary else c.onBackground, tween(160), label = "chipInk")
                             val corner by animateDpAsState(if (selected) 20.dp else 12.dp, WaveMotion.bouncy(), label = "chipShape")
                             Box(

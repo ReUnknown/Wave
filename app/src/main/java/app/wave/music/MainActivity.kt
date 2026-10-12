@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        app.wave.music.data.Links.receive(intent)
         // Debug builds: a preview launch can arrive while Wave is already open.
         if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_preview", false)) SessionRepository.startPreview()
         if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_desktop", false)) desktopMode.value = true
@@ -92,6 +93,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
         PlayerConnection.connect(this)
+        // Opened from a YouTube Music link (or one shared to Wave).
+        if (savedInstanceState == null) app.wave.music.data.Links.receive(intent)
         // Covers fade in as they load instead of popping in.
         // Covers are saved for reuse, but never more than 200 MB of them.
         SingletonImageLoader.setSafe { context ->

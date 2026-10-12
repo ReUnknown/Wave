@@ -86,20 +86,20 @@ fun Sidebar(
             Box(Modifier.size(36.dp).clip(CircleShape).background(c.primary), contentAlignment = Alignment.Center) {
                 WaveMark(c.onPrimary, size = 22.dp)
             }
-            Text("Wave", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Text("Wave", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = c.onBackground)
         }
         NavRow(Icons.Rounded.Home, "Home", selected = current == null, onClick = onHome)
         NavRow(Icons.Rounded.Album, "Albums & artists", selected = current == Destination.Saved) { onOpen(Destination.Saved) }
         NavRow(Icons.Rounded.History, "History", selected = current == Destination.History) { onOpen(Destination.History) }
 
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 18.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("PLAYLISTS", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Color.White.copy(alpha = 0.75f))
+            Text("PLAYLISTS", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = c.onBackground.copy(alpha = 0.75f))
             Box(
                 Modifier
                     .size(36.dp)
                     .pressable(CircleShape, pressedScale = 0.88f, onClick = onNewPlaylist),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.Add, "New playlist", tint = Color.White.copy(alpha = 0.85f)) }
+            ) { Icon(Icons.Rounded.Add, "New playlist", tint = c.onBackground.copy(alpha = 0.85f)) }
         }
         val menu = LocalItemMenu.current
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -121,8 +121,8 @@ fun Sidebar(
                         contentScale = ContentScale.Crop,
                     )
                     Column(Modifier.weight(1f)) {
-                        Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        p.songCountText?.let { Text(it, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1) }
+                        Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        p.songCountText?.let { Text(it, fontSize = 12.sp, color = c.onBackground.copy(alpha = 0.7f), maxLines = 1) }
                     }
                 }
             }
@@ -145,12 +145,12 @@ private fun NavRow(icon: ImageVector, label: String, selected: Boolean, onClick:
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(icon, null, tint = if (selected) c.onSecondaryContainer else Color.White.copy(alpha = 0.8f))
+        Icon(icon, null, tint = if (selected) c.onSecondaryContainer else c.onBackground.copy(alpha = 0.8f))
         Text(
             label,
             fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-            color = if (selected) c.onSecondaryContainer else Color.White,
+            color = if (selected) c.onSecondaryContainer else c.onBackground,
         )
     }
 }

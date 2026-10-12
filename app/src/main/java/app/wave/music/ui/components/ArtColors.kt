@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.ColorUtils
@@ -36,18 +37,21 @@ private val schemes = LruCache<String, ColorScheme>(96)
 @Composable
 fun rememberArtColorScheme(artUrl: String?, base: ColorScheme = MaterialTheme.colorScheme): ColorScheme {
     val context = LocalContext.current
-    var scheme by remember(artUrl, base) { mutableStateOf(artUrl?.let { schemes.get(it) } ?: base) }
-    LaunchedEffect(artUrl, base) {
-        if (artUrl == null || schemes.get(artUrl) != null) return@LaunchedEffect
+    // Light and dark schemes from the same cover are different schemes.
+    val dark = base.background.luminance() < 0.5f
+    val key = artUrl?.let { "$it|$dark" }
+    var scheme by remember(key, base) { mutableStateOf(key?.let { schemes.get(it) } ?: base) }
+    LaunchedEffect(key, base) {
+        if (artUrl == null || schemes.get(key) != null) return@LaunchedEffect
         val result = SingletonImageLoader.get(context).execute(
             ImageRequest.Builder(context).data(artUrl.atSize(ArtSize.THUMB)).size(128).allowHardware(false).build(),
         )
         val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@LaunchedEffect
-        val seed = withContext(Dispatchers.Default) {
+        val (seed, mood) = withContext(Dispatchers.Default) {
             // No filters: whites and blacks count toward how much of the cover each color covers.
             pickSeed(Palette.from(bitmap).maximumColorCount(24).clearFilters().generate())
         } ?: return@LaunchedEffect
-        scheme = schemeFromSeed(Color(seed), base).also { schemes.put(artUrl, it) }
+        scheme = (if (dark) darkScheme(Color(seed), mood, base) else lightScheme(Color(seed), base)).also { schemes.put(key, it) }
     }
     return animate(scheme)
 }
@@ -57,10 +61,12 @@ fun rememberArtColorScheme(artUrl: String?, base: ColorScheme = MaterialTheme.co
  * of the art, not whichever swatch happens to be most vibrant. A speck of blue on a white cover
  * covers almost nothing, so it never wins; a cover with no real color gets a neutral scheme.
  */
-private fun pickSeed(palette: Palette): Int? {
+private fun pickSeed(palette: Palette): Pair<Int, Float>? {
     val swatches = palette.swatches
     val total = swatches.sumOf { it.population }.toFloat()
     if (total <= 0f) return null
+    // How bright the cover is overall, so a dark cover gets calm colors, not neon ones.
+    val mood = swatches.sumOf { (it.population * it.hsl[2]).toDouble() }.toFloat() / total
     fun hueGap(a: Float, b: Float) = kotlin.math.abs(a - b).let { if (it > 180f) 360f - it else it }
     fun colorful(hsl: FloatArray) = hsl[1] >= 0.22f && hsl[2] in 0.12f..0.88f
     val colorfulOnes = swatches.filter { colorful(it.hsl) }
@@ -74,7 +80,7 @@ private fun pickSeed(palette: Palette): Int? {
         // Mostly how much of the cover it is, then how rich the color is, then how much this exact
         // shade is used (so the family's most typical shade wins over its brightest speck).
         .maxByOrNull { (swatch, share) -> share * 0.6f + swatch.hsl[1] * 0.25f + (swatch.population / total) * 0.15f }
-    return best?.first?.rgb ?: palette.dominantSwatch?.rgb
+    return (best?.first?.rgb ?: palette.dominantSwatch?.rgb ?: return null) to mood
 }
 
 private fun tone(seed: Color, lightness: Float, maxSaturation: Float): Color {
@@ -85,26 +91,56 @@ private fun tone(seed: Color, lightness: Float, maxSaturation: Float): Color {
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
-private fun schemeFromSeed(seed: Color, base: ColorScheme): ColorScheme {
-    val background = tone(seed, 0.09f, 0.45f)
-    val onBackground = tone(seed, 0.93f, 0.35f)
+/**
+ * Dark mode: deep background, light accents. [mood] (the cover's overall brightness) calms things
+ * down for dark covers: less saturated, a little dimmer, so a moody cover stays moody.
+ */
+private fun darkScheme(seed: Color, mood: Float, base: ColorScheme): ColorScheme {
+    val calm = ((mood - 0.12f) / 0.33f).coerceIn(0f, 1f) // 0 = very dark cover, 1 = normal
+    val sat = 0.48f + 0.44f * calm
+    val background = tone(seed, 0.09f, 0.42f * sat)
+    val onBackground = tone(seed, 0.93f, 0.3f * sat)
     return base.copy(
-        primary = tone(seed, 0.78f, 0.85f),
-        onPrimary = tone(seed, 0.16f, 0.9f),
-        primaryContainer = tone(seed, 0.26f, 0.6f),
-        onPrimaryContainer = tone(seed, 0.9f, 0.8f),
-        secondaryContainer = tone(seed, 0.2f, 0.35f),
-        onSecondaryContainer = tone(seed, 0.88f, 0.4f),
-        tertiaryContainer = tone(seed.rotateHue(40f), 0.24f, 0.45f),
-        onTertiaryContainer = tone(seed.rotateHue(40f), 0.9f, 0.6f),
+        primary = tone(seed, 0.6f + 0.17f * calm, 0.75f * sat),
+        onPrimary = tone(seed, 0.16f, 0.85f * sat),
+        primaryContainer = tone(seed, 0.25f, 0.52f * sat),
+        onPrimaryContainer = tone(seed, 0.9f, 0.7f * sat),
+        secondaryContainer = tone(seed, 0.2f, 0.3f * sat),
+        onSecondaryContainer = tone(seed, 0.88f, 0.35f * sat),
+        tertiaryContainer = tone(seed.rotateHue(40f), 0.24f, 0.4f * sat),
+        onTertiaryContainer = tone(seed.rotateHue(40f), 0.9f, 0.55f * sat),
         background = background,
         onBackground = onBackground,
         surface = background,
         onSurface = onBackground,
-        onSurfaceVariant = tone(seed, 0.78f, 0.25f),
+        onSurfaceVariant = tone(seed, 0.78f, 0.22f * sat),
         surfaceContainer = Color.White.copy(alpha = 0.06f).compositeOver(background),
         surfaceContainerHigh = Color.White.copy(alpha = 0.1f).compositeOver(background),
         surfaceContainerHighest = Color.White.copy(alpha = 0.14f).compositeOver(background),
+    )
+}
+
+/** Light mode: a softly tinted paper background with deeper accents. */
+private fun lightScheme(seed: Color, base: ColorScheme): ColorScheme {
+    val background = tone(seed, 0.965f, 0.35f)
+    val onBackground = tone(seed, 0.11f, 0.3f)
+    return base.copy(
+        primary = tone(seed, 0.36f, 0.7f),
+        onPrimary = tone(seed, 0.98f, 0.4f),
+        primaryContainer = tone(seed, 0.86f, 0.6f),
+        onPrimaryContainer = tone(seed, 0.16f, 0.7f),
+        secondaryContainer = tone(seed, 0.9f, 0.35f),
+        onSecondaryContainer = tone(seed, 0.18f, 0.4f),
+        tertiaryContainer = tone(seed.rotateHue(40f), 0.88f, 0.45f),
+        onTertiaryContainer = tone(seed.rotateHue(40f), 0.16f, 0.55f),
+        background = background,
+        onBackground = onBackground,
+        surface = background,
+        onSurface = onBackground,
+        onSurfaceVariant = tone(seed, 0.34f, 0.18f),
+        surfaceContainer = Color.Black.copy(alpha = 0.04f).compositeOver(background),
+        surfaceContainerHigh = Color.Black.copy(alpha = 0.07f).compositeOver(background),
+        surfaceContainerHighest = Color.Black.copy(alpha = 0.1f).compositeOver(background),
     )
 }
 
