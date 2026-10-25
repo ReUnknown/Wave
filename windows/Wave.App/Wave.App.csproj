@@ -18,6 +18,7 @@
     <!-- Builds Wave.pri, which points WinUI at its own control styles (with no XAML files the
          build would otherwise skip it, and WinUI can't find themeresources.xaml). -->
     <AppxGeneratePriEnabled>true</AppxGeneratePriEnabled>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- A plain app folder (no MSIX), carrying its own .NET and Windows App SDK. -->
@@ -46,4 +47,8 @@
   <ItemGroup>
     <Content Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- Wave.pri belongs next to Wave.exe in the published app (unpackaged publishing can leave it out). -->
+  <Target Name="WavePublishPri" AfterTargets="Publish" Condition="'$(PublishSingleFile)' != 'true'">
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pri" DestinationFolder="$(PublishDir)" Condition="Exists('$(TargetDir)$(TargetName).pri')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
