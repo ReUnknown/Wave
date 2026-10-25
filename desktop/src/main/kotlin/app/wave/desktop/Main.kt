@@ -72,6 +72,8 @@ fun main(args: Array<String>) {
         // A comfortable size on a laptop screen, centered.
         val window = rememberWindowState(size = DpSize(1120.dp, 740.dp))
         var mainWindow by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<java.awt.Window?>(null) }
+        // Room Wave leaves at the top for the system's window buttons (window units).
+        var titleBarInset by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(if (DesktopPlatform.isMac) 28 else 0) }
         val miniOpen by MiniPlayer.open.collectAsState()
         // The mini player takes Wave's place: the main window minimizes while it's open.
         LaunchedEffect(miniOpen) { if (miniOpen) window.isMinimized = true }
@@ -93,7 +95,8 @@ fun main(args: Array<String>) {
             )
         }
         Window(
-            onCloseRequest = ::exitApplication,
+            // Closing Wave quits it completely: nothing keeps running in the background.
+            onCloseRequest = ::quit,
             title = "Wave",
             state = window,
             icon = WaveIcon.painter(),
@@ -112,7 +115,10 @@ fun main(args: Array<String>) {
                     this@Window.window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
                     this@Window.window.rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
                 }
-                if (DesktopPlatform.isWindows) WindowsTitleBar.apply(this@Window.window, 0xFF111418.toInt())
+                if (DesktopPlatform.isWindows) {
+                    if (WindowsTitleBar.extendIntoTitleBar(this@Window.window, dark = true)) titleBarInset = WindowsTitleBar.HEIGHT
+                    else WindowsTitleBar.apply(this@Window.window, 0xFF111418.toInt())
+                }
                 // Decorative motion only while Wave is in front: on screen and focused.
                 AppFocus.onStarted(true)
                 BeatBus.visible = true
@@ -129,7 +135,8 @@ fun main(args: Array<String>) {
             val base = LocalDensity.current
             CompositionLocalProvider(
                 LocalDensity provides Density(base.density * zoom, base.fontScale),
-                LocalTitleBarInset provides if (DesktopPlatform.isMac) 28.dp else 0.dp,
+                // In window units, so it stays the buttons' height at any interface size.
+                LocalTitleBarInset provides (titleBarInset / zoom).dp,
             ) {
                 WaveApp(
                     computer = true,
@@ -140,6 +147,14 @@ fun main(args: Array<String>) {
             if (DesktopPlatform.debug) FrameStats()
         }
     }
+}
+
+/** Saves your place, stops the music and ends the process (audio and network threads included). */
+internal fun quit() {
+    runCatching { DesktopPlayer.shutdown() }
+    // A stuck shutdown never leaves Wave running: after 3 s it's ended outright.
+    Thread { Thread.sleep(3000); Runtime.getRuntime().halt(0) }.apply { isDaemon = true }.start()
+    kotlin.system.exitProcess(0)
 }
 
 /**

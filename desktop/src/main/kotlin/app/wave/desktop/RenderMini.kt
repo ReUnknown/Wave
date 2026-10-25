@@ -49,13 +49,18 @@ fun main(args: Array<String>) {
         override fun reset() {}
     }
     val out = File(args.getOrNull(2) ?: "build/mini").apply { mkdirs() }
-    PopOutSize.entries.forEach { size ->
-        val scene = ImageComposeScene(size.widthDp * 2, size.heightDp * 2, Density(2f)) {
-            WaveTheme { PopOutPlayer(size, {}, {}, {}, Modifier.size(size.widthDp.dp, size.heightDp.dp)) }
+    // Each size, Bigger with its tray open, and tucked away.
+    val shots = PopOutSize.entries.map { Triple(it.name, it, false) } + Triple("Bigger-tray", PopOutSize.Bigger, true) + Triple("Tucked", PopOutSize.Compact, false)
+    shots.forEach { (name, size, tray) ->
+        val tucked = name == "Tucked"
+        val w = if (tucked) 56 else size.widthDp
+        val h = if (tucked) 56 else size.heightDp + if (tray) app.wave.music.ui.player.POP_OUT_TRAY_DP else 0
+        val scene = ImageComposeScene(w * 2, h * 2, Density(2f)) {
+            WaveTheme { PopOutPlayer(size, {}, {}, {}, Modifier.size(w.dp, h.dp), tray = tray, tucked = tucked) }
         }
         var image = scene.render(0)
         for (i in 1..40) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
-        File(out, "${size.name}-${if (playing) "playing" else "paused"}.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        File(out, "$name-${if (playing) "playing" else "paused"}.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         scene.close()
     }
     println("done")

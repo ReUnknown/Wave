@@ -1,6 +1,13 @@
 package app.wave.music.ui.player
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -69,6 +76,7 @@ import app.wave.music.playback.PlayerUiState
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.BlurredImage
 import app.wave.music.ui.components.PlayPauseIcon
+import app.wave.music.ui.components.WaveMark
 import app.wave.music.ui.components.WaveMotion
 import app.wave.music.ui.components.atSize
 import app.wave.music.ui.components.maskedBy
@@ -88,7 +96,9 @@ enum class PopOutSize(val widthDp: Int, val heightDp: Int) {
  * The mini player that stays on top of other windows (computers): the cover's face fading into
  * the song's colors, the song, progress and controls. Its window buttons (bigger/smaller, back to
  * Wave, close) show on hover in a spot of their own, never over the controls; right-click for
- * every size. The window around it (moving, snapping, staying on top) is the platform's.
+ * every size. Bigger has a tray under its controls (drag up or click the handle) with volume and
+ * speed. [tucked]: flung to the edge of the screen, it's just a round Wave button. The window
+ * around it (moving, snapping, resizing, staying on top) is the platform's.
  */
 @Composable
 fun PopOutPlayer(
@@ -97,6 +107,9 @@ fun PopOutPlayer(
     onBack: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    tray: Boolean = false,
+    onTray: (Boolean) -> Unit = {},
+    tucked: Boolean = false,
 ) {
     val state by PlayerConnection.state.collectAsState()
     val song = state.current
@@ -104,13 +117,21 @@ fun PopOutPlayer(
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
     var menu by remember { mutableStateOf(false) }
-    val radius = when (size) {
-        PopOutSize.Tiny -> 34.dp
-        PopOutSize.Compact -> 26.dp
-        PopOutSize.Bigger -> 30.dp
-    }
 
     MaterialTheme(colorScheme = scheme) {
+        if (tucked) {
+            // Out of the way: a round Wave button at the edge of the screen.
+            Box(
+                modifier.fillMaxSize().clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) { WaveMark(MaterialTheme.colorScheme.onPrimary, size = 28.dp) }
+            return@MaterialTheme
+        }
+        val radius = when (size) {
+            PopOutSize.Tiny -> 34.dp
+            PopOutSize.Compact -> 26.dp
+            PopOutSize.Bigger -> 30.dp
+        }
         Box(
             modifier
                 .fillMaxSize()
@@ -134,10 +155,23 @@ fun PopOutPlayer(
 
             if (song != null) {
                 val chrome by animateFloatAsState(if (hovered) 1f else 0f, tween(180), label = "popChrome")
-                when (size) {
-                    PopOutSize.Compact -> Compact(song, state, chrome, onSize, onBack, onClose)
-                    PopOutSize.Bigger -> Bigger(song, state, chrome, onSize, onBack, onClose)
-                    PopOutSize.Tiny -> Tiny(song, state, onSize)
+                // Changing size: the new layout fades and grows in as the window reshapes.
+                AnimatedContent(
+                    size,
+                    Modifier.fillMaxSize(),
+                    transitionSpec = {
+                        (fadeIn(tween(260, delayMillis = 60)) + scaleIn(tween(320, easing = WaveMotion.EmphasizedDecelerate), initialScale = 0.94f))
+                            .togetherWith(fadeOut(tween(120)))
+                    },
+                    label = "popSize",
+                ) { shown ->
+                    Box(Modifier.fillMaxSize()) {
+                        when (shown) {
+                            PopOutSize.Compact -> Compact(song, state, chrome, onSize, onBack, onClose)
+                            PopOutSize.Bigger -> Bigger(song, state, chrome, tray, onTray, onSize, onBack, onClose)
+                            PopOutSize.Tiny -> Tiny(song, state, onSize)
+                        }
+                    }
                 }
             }
 
@@ -157,7 +191,7 @@ fun PopOutPlayer(
 
 /** 420 × 156: the cover's face on the left, fading into the card. */
 @Composable
-private fun BoxScope.Compact(
+private fun Compact(
     song: NowPlaying,
     state: PlayerUiState,
     chrome: Float,
@@ -189,43 +223,86 @@ private fun BoxScope.Compact(
     }
 }
 
+/** Height of Bigger's tray (volume and speed). */
+const val POP_OUT_TRAY_DP = 56
+
 /** 320 × 480: the cover fills the top and fades down into the song's colors. */
 @Composable
-private fun BoxScope.Bigger(
+private fun Bigger(
     song: NowPlaying,
     state: PlayerUiState,
     chrome: Float,
+    tray: Boolean,
+    onTray: (Boolean) -> Unit,
     onSize: (PopOutSize) -> Unit,
     onBack: () -> Unit,
     onClose: () -> Unit,
 ) {
-    Face(song, Modifier.fillMaxWidth().height(340.dp), horizontal = false)
-    Box(Modifier.align(Alignment.TopEnd).padding(12.dp)) {
-        WindowButtons(chrome, Icons.Rounded.CloseFullscreen, "Smaller mini player", { onSize(PopOutSize.Compact) }, onBack, onClose)
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            Face(song, Modifier.fillMaxSize(), horizontal = false)
+            Box(Modifier.align(Alignment.TopEnd).padding(12.dp)) {
+                WindowButtons(chrome, Icons.Rounded.CloseFullscreen, "Smaller mini player", { onSize(PopOutSize.Compact) }, onBack, onClose)
+            }
+            Row(
+                Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SongText(song, Modifier.weight(1f), titleSize = 22)
+                LikeButton(state.liked)
+            }
+        }
+        Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp)) {
+            Progress(state, Modifier.fillMaxWidth())
+            Row(Modifier.padding(top = 14.dp).fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(28.dp, 12.dp, 12.dp, 28.dp), MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), Color.White, 72) { PlayerConnection.previous() }
+                PlayButton(state.isPlaying, Modifier.weight(1f).fillMaxHeight(), playingCorner = 16.dp, pausedCorner = 28.dp, iconSize = 26.dp)
+                GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(12.dp, 28.dp, 28.dp, 12.dp), MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), Color.White, 72) { PlayerConnection.next() }
+            }
+        }
+        TrayHandle(tray, onTray)
+        AnimatedVisibility(tray, enter = fadeIn(tween(200, delayMillis = 80)), exit = fadeOut(tween(100))) {
+            Row(
+                Modifier.fillMaxWidth().height(POP_OUT_TRAY_DP.dp).padding(start = 12.dp, end = 18.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SlimVolume(Color.White)
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                SpeedButton(state.speed)
+            }
+        }
     }
-    Column(
+}
+
+/** The handle under Bigger's controls: drag it up (or click) for volume and speed, down to tuck them away. */
+@Composable
+private fun TrayHandle(open: Boolean, onTray: (Boolean) -> Unit) {
+    Box(
         Modifier
-            .align(Alignment.BottomCenter)
             .fillMaxWidth()
-            .padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .height(24.dp)
+            .pointerInput(open) {
+                var pulled = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { pulled = 0f },
+                    onDragEnd = { if (pulled < -12f) onTray(true) else if (pulled > 12f) onTray(false) },
+                ) { change, dy ->
+                    change.consume()
+                    pulled += dy
+                }
+            }
+            .clickable { onTray(!open) }
+            .semantics { contentDescription = if (open) "Hide volume and speed" else "Volume and speed" },
+        contentAlignment = Alignment.Center,
     ) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SongText(song, Modifier.weight(1f), titleSize = 22)
-            LikeButton(state.liked)
-        }
-        Progress(state, Modifier.fillMaxWidth())
-        Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(28.dp, 12.dp, 12.dp, 28.dp), MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), Color.White, 72) { PlayerConnection.previous() }
-            PlayButton(state.isPlaying, Modifier.weight(1f).fillMaxHeight(), playingCorner = 16.dp, pausedCorner = 28.dp, iconSize = 26.dp)
-            GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(12.dp, 28.dp, 28.dp, 12.dp), MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), Color.White, 72) { PlayerConnection.next() }
-        }
+        Box(Modifier.size(width = 36.dp, height = 4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.45f)))
     }
 }
 
 /** 300 × 68: a pill with the song and play/pause. Click the song for the everyday size. */
 @Composable
-private fun BoxScope.Tiny(song: NowPlaying, state: PlayerUiState, onSize: (PopOutSize) -> Unit) {
+private fun Tiny(song: NowPlaying, state: PlayerUiState, onSize: (PopOutSize) -> Unit) {
     Face(song, Modifier.width(130.dp).fillMaxHeight(), horizontal = true)
     Row(
         Modifier.fillMaxSize().padding(start = 92.dp, end = 10.dp),
@@ -282,6 +359,8 @@ private fun Progress(state: PlayerUiState, modifier: Modifier) {
             wavelength = 14.dp,
             onSeek = { PlayerConnection.seekTo((it * state.durationMs).toLong()) },
             modifier = Modifier.weight(1f).height(14.dp),
+            // A small window that's always on screen: the wave moves at 24 fps, not 60+.
+            maxFps = 24,
         )
         Time(state.durationMs)
     }

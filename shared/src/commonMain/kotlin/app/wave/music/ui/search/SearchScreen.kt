@@ -207,6 +207,7 @@ fun SearchScreen(
 
     MaterialTheme(colorScheme = rememberArtColorScheme(if (showingResults && matchColors) topResult?.thumbnail?.atSize(600) else null)) {
         val c = MaterialTheme.colorScheme
+        if (showingResults) app.wave.music.ui.components.ReportPageLook(c, topResult?.thumbnail)
         val statusTop = topInset()
         val backdrop = rememberBackdrop()
         Box(

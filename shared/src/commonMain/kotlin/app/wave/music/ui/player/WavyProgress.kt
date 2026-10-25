@@ -72,14 +72,23 @@ fun WavyProgress(
     onSeek: ((Float) -> Unit)? = null,
     /** 0..1 loudness; the wave grows with it when "Move with the music" is on. */
     energy: () -> Float = { -1f },
+    /** Caps how often the wave moves (0 = every frame), for small always-on windows. */
+    maxFps: Int = 0,
 ) {
     // The wave only travels while music plays; paused, nothing animates and no frames are drawn.
     val phase = remember { mutableFloatStateOf(0f) }
     // ...and it holds still while Wave isn't in front (minimized or another window focused).
     val active by app.wave.music.ui.components.AppFocus.active.collectAsState()
-    LaunchedEffect(playing, active) {
+    LaunchedEffect(playing, active, maxFps) {
         if (!playing || !active) return@LaunchedEffect
         val start = withFrameMillis { it } - (phase.floatValue * 1400f).toLong()
+        if (maxFps > 0) {
+            // Timed steps instead of every frame: the window only redraws this often.
+            while (true) {
+                kotlinx.coroutines.delay(1000L / maxFps)
+                withFrameMillis { phase.floatValue = ((it - start) % 1400L) / 1400f }
+            }
+        }
         while (true) withFrameMillis { phase.floatValue = ((it - start) % 1400L) / 1400f }
     }
     val waveScale = animateFloatAsState(if (playing) 1f else 0f, label = "amp")

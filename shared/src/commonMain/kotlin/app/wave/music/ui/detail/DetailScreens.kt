@@ -255,6 +255,7 @@ private fun <T> PageFrame(
     val matchColors = WaveSettings.state.collectAsState().value.matchSongColors
     MaterialTheme(colorScheme = rememberArtColorScheme(if (matchColors) art?.atSize(600) else null)) {
         val c = MaterialTheme.colorScheme
+        app.wave.music.ui.components.ReportPageLook(c, art)
         val backdrop = rememberBackdrop()
         val statusTop = topInset()
         Box(

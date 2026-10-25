@@ -130,6 +130,17 @@ fun ProgressiveBlurImage(
     end: Float = 0.95f,
     maxRadius: Dp = 64.dp,
 ) {
+    if (BlurBudget.light) {
+        // Computers: the sharp art under two blurred copies baked once (see BakedBlur), each
+        // fading in lower down. Nothing is blurred again while the window redraws.
+        val mid = start + (end - start) * 0.45f
+        Box(modifier.clipToBounds()) {
+            AsyncImage(model, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            BakedBlur(model, maxRadius * 0.3f, Modifier.fillMaxSize().maskedBy(Brush.verticalGradient(start to Color.Transparent, mid to Color.Black)))
+            BakedBlur(model, maxRadius, Modifier.fillMaxSize().maskedBy(Brush.verticalGradient(mid to Color.Transparent, end to Color.Black)))
+        }
+        return
+    }
     ProgressiveBlur(modifier, start, end, maxRadius) {
         AsyncImage(model, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
     }
@@ -173,8 +184,57 @@ fun BlurredImage(model: Any?, modifier: Modifier = Modifier, radius: Dp = 64.dp,
     val fade = if (fadeBottom > 0f) {
         Modifier.maskedBy(Brush.verticalGradient(0f to Color.Black, (1f - fadeBottom) to Color.Black, 1f to Color.Transparent))
     } else Modifier
+    if (BlurBudget.light) {
+        BakedBlur(model, radius, modifier.then(fade))
+        return
+    }
     LowResBlur(radius, modifier.then(fade)) {
         AsyncImage(model, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    }
+}
+
+private val baked = app.wave.music.data.Lru<String, androidx.compose.ui.graphics.ImageBitmap>(48)
+
+/** Longest side of a baked blur: plenty for something with no detail left. */
+private const val BAKED_SIZE = 64
+
+/**
+ * Computers: [model] blurred by [radius] once, into a tiny bitmap that's simply scaled up when
+ * drawn. A live blur would be worked out again on every frame (and the window redraws every
+ * frame while the progress wave moves), which is what made big windows lag.
+ */
+@Composable
+private fun BakedBlur(model: Any?, radius: Dp, modifier: Modifier) {
+    BoxWithConstraints(modifier.clipToBounds()) {
+        val density = LocalDensity.current
+        val shown = maxOf(
+            if (constraints.hasBoundedWidth) constraints.maxWidth else 0,
+            if (constraints.hasBoundedHeight) constraints.maxHeight else 0,
+        ).coerceAtLeast(BAKED_SIZE)
+        // The bitmap is drawn about shown/BAKED_SIZE times bigger, so its blur shrinks to match.
+        val small = with(density) { radius.toPx() } * BAKED_SIZE / shown
+        val sigma = (0.57735f * small + 0.5f).coerceAtLeast(0.5f)
+        val key = model?.let { "$it|${(sigma * 4).toInt()}" }
+        val context = coil3.compose.LocalPlatformContext.current
+        var bitmap by remember(key) { androidx.compose.runtime.mutableStateOf(key?.let { baked.get(it) }) }
+        androidx.compose.runtime.LaunchedEffect(key) {
+            if (key == null || bitmap != null) return@LaunchedEffect
+            val result = coil3.SingletonImageLoader.get(context).execute(
+                coil3.request.ImageRequest.Builder(context).data(model).size(BAKED_SIZE * 2).forPixels().build(),
+            )
+            val image = (result as? coil3.request.SuccessResult)?.image ?: return@LaunchedEffect
+            bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { bakeBlur(image, BAKED_SIZE, sigma) }
+                ?.also { baked.put(key, it) }
+        }
+        bitmap?.let {
+            androidx.compose.foundation.Image(
+                it,
+                null,
+                Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium,
+            )
+        }
     }
 }
 

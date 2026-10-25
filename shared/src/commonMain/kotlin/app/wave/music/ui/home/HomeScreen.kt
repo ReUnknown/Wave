@@ -419,6 +419,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             openPlayer(null)
         }
     }
+    val pageLook = remember { app.wave.music.ui.components.PageLook() }
     val appScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)
     val pageCovers = rememberCovered(stack.isNotEmpty())
     val playerCovers = rememberCovered(showPlayer && player.current != null && !docked)
@@ -446,6 +447,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // The mini player floats over the bottom: pages keep their buttons clear of it.
         app.wave.music.ui.components.LocalMiniPlayerSpace provides if (!shell && player.current != null && !showPlayer) 116.dp else 0.dp,
         app.wave.music.ui.components.LocalShell provides shell,
+        app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
     // Colors follow the song that's playing; otherwise the art at the top of home.
     MaterialTheme(colorScheme = appScheme) {
@@ -461,7 +463,12 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
         val statusTop = topInset()
 
-        BoxWithConstraints(Modifier.fillMaxSize().background(c.background)) {
+        // A page on top (an artist, an album) brings its own art and colors to the sidebar (and the
+        // top of the window) too.
+        val page = pageLook.current?.takeIf { stack.isNotEmpty() || showSearch }
+        val sideScheme = page?.scheme ?: c
+        val sideBackground by androidx.compose.animation.animateColorAsState(sideScheme.background, tween(400), label = "sideBg")
+        BoxWithConstraints(Modifier.fillMaxSize().background(sideBackground)) {
         val windowPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val windowHeightPx = constraints.maxHeight.toFloat()
         // With the player docked, the app reflows into the rest of the window. It reaches a little
@@ -482,7 +489,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // sidebar and home alike, fading into the solid background below (like home on a phone).
         // It scrolls away with home.
         if (desktopShell) {
-            val ambient = player.current?.artworkUrl ?: (ui as? HomeUi.Ready)?.feed?.recent?.firstOrNull()?.thumbnail ?: hero?.art
+            val ambient = page?.art ?: player.current?.artworkUrl ?: (ui as? HomeUi.Ready)?.feed?.recent?.firstOrNull()?.thumbnail ?: hero?.art
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -497,7 +504,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 Crossfade(ambient?.atSize(ArtSize.BLUR), Modifier.matchParentSize(), animationSpec = tween(500), label = "ambient") { a ->
                     BlurredImage(a, Modifier.fillMaxSize().clipToBounds().graphicsLayer { scaleX = 1.25f; scaleY = 1.25f }, radius = 96.dp, fadeBottom = 0.45f)
                 }
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to scrim.copy(alpha = 0.28f), 0.5f to c.background.copy(alpha = 0.35f), 1f to c.background)))
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to scrim.copy(alpha = 0.28f), 0.5f to sideBackground.copy(alpha = 0.35f), 1f to sideBackground)))
             }
         }
         // Docked: the app's content keeps clear of the player's edge (the strip tucked under its
@@ -507,6 +514,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         Row(Modifier.fillMaxSize().padding(start = clearStart, end = clearEnd)) {
         // Computers only: tablets keep the library in the account panel, like phones.
         if (sidebar) {
+          MaterialTheme(colorScheme = sideScheme) {
             Sidebar(
                 current = stack.lastOrNull(),
                 playlists = myPlaylists,
@@ -518,6 +526,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 onNewPlaylist = { createPlaylist = true },
                 onPlaylist = openItem,
             )
+          }
         }
         Box(Modifier.weight(1f).fillMaxHeight()) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully

@@ -16,5 +16,5 @@ object WaveIcon {
 
 /** This version of Wave (the installers pass it in too). */
 object WaveVersion {
-    const val NAME = "1.1.0-beta.2"
+    const val NAME = "1.1.0-beta.3"
 }

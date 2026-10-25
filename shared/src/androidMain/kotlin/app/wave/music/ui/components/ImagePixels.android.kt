@@ -10,3 +10,5 @@ internal actual fun imagePixels(image: coil3.Image): IntArray? = runCatching {
 }.getOrNull()
 
 internal actual fun ImageRequest.Builder.forPixels(): ImageRequest.Builder = allowHardware(false)
+
+internal actual fun bakeBlur(image: coil3.Image, size: Int, sigma: Float): androidx.compose.ui.graphics.ImageBitmap? = null

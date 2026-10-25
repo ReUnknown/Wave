@@ -49,7 +49,11 @@ object DesktopPlatform : Platform {
     override fun installUpdate(file: File) {
         runCatching {
             when {
-                isWindows -> ProcessBuilder(file.absolutePath).start()
+                // Windows: installs quietly over this copy (closing it), then reopens Wave.
+                isWindows -> {
+                    ProcessBuilder(file.absolutePath, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/RELAUNCH=1").start()
+                    quit()
+                }
                 // Inside Flatpak the host's flatpak installs the new bundle over this one.
                 isFlatpak -> ProcessBuilder("flatpak-spawn", "--host", "flatpak", "install", "--user", "--noninteractive", "--reinstall", file.absolutePath).start()
                 else -> Desktop.getDesktop().open(file)

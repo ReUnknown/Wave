@@ -408,10 +408,26 @@ object DesktopPlayer : PlayerBackend {
 
     // ---- Keeping your place ----
 
+    /** Wave is closing: remember where you are (right now, not in the background) and stop the audio. */
+    fun shutdown() {
+        if (queue.isNotEmpty()) QueueFile.write(snapshot())
+        fadingOut?.stop()
+        voice?.stop()
+    }
+
     /** Saves the queue and where you are, and "resume where you left off" for playlists and albums. */
     private fun save() {
         if (queue.isEmpty()) return
-        val snapshot = QueueFile.Saved(
+        val snapshot = snapshot()
+        scope.launch(Dispatchers.IO) { QueueFile.write(snapshot) }
+        val ctx = context ?: return
+        val list = ctx.playlistId ?: return
+        if (!ctx.isCollection) return
+        val state = ResumeState(ctx.id, ctx.title, ctx.artworkUrl, list, index, queue.size, position, queue.getOrNull(index)?.title, System.currentTimeMillis())
+        scope.launch(Dispatchers.IO) { ResumeStore.save(state) }
+    }
+
+    private fun snapshot() = QueueFile.Saved(
             items = queue.map { QueueFile.Item(it.videoId, it.title, it.artist, it.artworkUrl, it.album, it.durationMs) },
             index = index,
             positionMs = position,
@@ -420,13 +436,6 @@ object DesktopPlayer : PlayerBackend {
             order = order.toList(),
             context = context?.let { QueueFile.Context(it.id, it.title, it.artworkUrl, it.playlistId, it.isCollection) },
         )
-        scope.launch(Dispatchers.IO) { QueueFile.write(snapshot) }
-        val ctx = context ?: return
-        val list = ctx.playlistId ?: return
-        if (!ctx.isCollection) return
-        val state = ResumeState(ctx.id, ctx.title, ctx.artworkUrl, list, index, queue.size, position, queue.getOrNull(index)?.title, System.currentTimeMillis())
-        scope.launch(Dispatchers.IO) { ResumeStore.save(state) }
-    }
 
     /** Puts the last queue back, paused, when Wave starts with nothing playing. */
     fun restore() {

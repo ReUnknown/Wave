@@ -53,10 +53,12 @@ dependencies {
     }
     implementation("${libs.ffmpeg.get()}:$javacppPlatform")
     implementation("${libs.javacpp.get()}:$javacppPlatform")
+    // JetBrains Runtime's window API: Wave's colors under the Windows title bar, like on macOS.
+    implementation("org.jetbrains.runtime:jbr-api:1.9.0")
 }
 
 // The version the computer app shows and checks updates against (jpackage needs plain numbers).
-val waveVersion = "1.1.0-beta.2"
+val waveVersion = "1.1.0-beta.3"
 val buildingOnMac = System.getProperty("os.name").lowercase().contains("mac")
 
 compose.desktop {
@@ -74,12 +76,21 @@ compose.desktop {
             "--enable-native-access=ALL-UNNAMED",
             // Smoothness: FFmpeg's native bridge (JavaCPP) asks for a full garbage collection whenever
             // its memory count passes a limit tied to the heap, which froze the window for ~250 ms every
-            // half minute. No such limit, a collector that doesn't pause the app, and a roomier heap.
+            // half minute. No such limit, and any collection that's asked for runs alongside the app.
             "-Dorg.bytedeco.javacpp.maxBytes=0",
             "-Dorg.bytedeco.javacpp.maxPhysicalBytes=0",
             "-XX:+ExplicitGCInvokesConcurrent",
-            "-Xms256m",
-            "-XX:+UseZGC",
+            // Memory: G1 with short pauses, a small starting heap, and memory handed back to the
+            // system while idle (ZGC kept far more and Windows counts its memory several times over).
+            "-XX:+UseG1GC",
+            "-XX:MaxGCPauseMillis=8",
+            "-Xms48m",
+            "-XX:MinHeapFreeRatio=10",
+            "-XX:MaxHeapFreeRatio=25",
+            "-XX:G1PeriodicGCInterval=15000",
+            "-XX:+UseStringDeduplication",
+            "-XX:ReservedCodeCacheSize=64m",
+            "-Xss512k",
             "-Dwave.version=$waveVersion",
         )
         if (buildingOnMac) {
@@ -97,10 +108,8 @@ compose.desktop {
         }
         nativeDistributions {
             appResourcesRootDir.set(layout.buildDirectory.dir("appResources"))
-            targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
-            )
+            // Windows gets its own installer (windows/wave.iss, built in CI from this app folder).
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg)
             packageName = "Wave"
             packageVersion = waveVersion.substringBefore('-')
             description = "Your YouTube Music. Nothing in the way."
@@ -119,12 +128,8 @@ compose.desktop {
                 appCategory = "public.app-category.music"
             }
             windows {
+                // The icon of Wave.exe; the installer itself is windows/wave.iss.
                 iconFile.set(project.file("icons/wave.ico"))
-                menuGroup = "Wave"
-                shortcut = true
-                dirChooser = true
-                perUserInstall = true
-                upgradeUuid = "6a3c4f1e-9b2d-4c7e-8f51-2d0e7a9b4c61"
             }
             linux {
                 iconFile.set(project.file("icons/wave.png"))

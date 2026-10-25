@@ -21,9 +21,47 @@ object WindowsTitleBar {
     private const val CAPTION_COLOR = 35
     private const val TEXT_COLOR = 36
 
+    /** Height of Wave's own title bar strip, in window units. */
+    const val HEIGHT = 36
+
+    private var titleBar: com.jetbrains.WindowDecorations.CustomTitleBar? = null
+
+    /**
+     * Wave draws all the way to the top of the window, like on macOS: the system's caption
+     * buttons (minimize, maximize, close) float over Wave's colors, and the strip they sit in
+     * still drags, snaps and double-click-maximizes the window. Works on the JetBrains Runtime
+     * Wave ships with; returns false (keep the normal title bar) anywhere else.
+     */
+    fun extendIntoTitleBar(window: java.awt.Frame, dark: Boolean): Boolean = runCatching {
+        if (!com.jetbrains.JBR.isWindowDecorationsSupported()) return false
+        val decorations = com.jetbrains.JBR.getWindowDecorations()
+        val bar = decorations.createCustomTitleBar().apply {
+            height = HEIGHT.toFloat()
+            putProperty("controls.dark", dark)
+        }
+        decorations.setCustomTitleBar(window, bar)
+        titleBar = bar
+        true
+    }.getOrDefault(false)
+
+    /** Light or dark caption buttons, to suit what's under them. */
+    private fun controls(window: Window, dark: Boolean): Boolean {
+        val bar = titleBar ?: return false
+        val frame = window as? java.awt.Frame ?: return false
+        return runCatching {
+            if (bar.properties["controls.dark"] != dark) {
+                bar.putProperty("controls.dark", dark)
+                com.jetbrains.JBR.getWindowDecorations().setCustomTitleBar(frame, bar)
+            }
+            true
+        }.getOrDefault(false)
+    }
+
     private val dwm by lazy { runCatching { Native.load("dwmapi", Dwm::class.java) }.getOrNull() }
 
     fun apply(window: Window, argb: Int, dark: Boolean = true) {
+        // Wave's own title bar: only the buttons need to suit the colors.
+        if (controls(window, dark)) return
         runCatching {
             val dwm = dwm ?: return
             val hwnd = WinDef.HWND(Native.getComponentPointer(window))

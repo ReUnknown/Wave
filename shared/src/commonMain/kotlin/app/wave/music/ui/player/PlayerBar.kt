@@ -247,7 +247,7 @@ private fun BarIcon(icon: ImageVector, label: String, tint: Color = Color.White,
 
 /** Playback speed: shows the current speed; click for the choices. */
 @Composable
-private fun SpeedButton(speed: Float) {
+internal fun SpeedButton(speed: Float) {
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val label = if (speed == 1f) "1×" else "${speed.toString().trimEnd('0').trimEnd('.')}×"
     Box {
