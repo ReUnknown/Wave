@@ -7,7 +7,7 @@
 ; - Closes every running Wave first, and removes the older-style (MSI) Wave if it's there.
 ; - Options: a desktop shortcut, and opening Wave when done. Never starts with Windows.
 ; - Deletes its own installer file when it's done.
-; - Updates from inside Wave run it silently: /VERYSILENT /RELAUNCH=1 (reopens Wave after).
+; - Updates from inside Wave run it with just a progress bar: /SILENT /RELAUNCH=1 (reopens Wave after).
 
 #ifndef Version
   #define Version "0.0.0"
@@ -80,13 +80,15 @@ begin
   Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
 end;
 
-{ Ends every running Wave (and its sign-in window), so its files can be replaced. }
+{ Ends every running Wave (and its sign-in window), so its files can be replaced. Never "and
+  everything it started" (/T): when Wave's updater opened this installer, that would end the
+  installer too. }
 procedure CloseWave;
 var
   Code: Integer;
 begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Wave.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM WaveSignIn.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM Wave.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM WaveSignIn.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Sleep(500);
 end;
 

@@ -58,7 +58,7 @@ dependencies {
 }
 
 // The version the computer app shows and checks updates against (jpackage needs plain numbers).
-val waveVersion = "1.1.0-beta.3"
+val waveVersion = "1.1.0-beta.4"
 val buildingOnMac = System.getProperty("os.name").lowercase().contains("mac")
 
 compose.desktop {

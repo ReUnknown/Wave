@@ -49,9 +49,10 @@ object DesktopPlatform : Platform {
     override fun installUpdate(file: File) {
         runCatching {
             when {
-                // Windows: installs quietly over this copy (closing it), then reopens Wave.
+                // Windows: installs over this copy with just a progress bar, then reopens Wave. It's
+                // started on its own (not as Wave's child process), so closing Wave can't take it along.
                 isWindows -> {
-                    ProcessBuilder(file.absolutePath, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/RELAUNCH=1").start()
+                    ProcessBuilder("cmd.exe", "/c", "start", "", file.absolutePath, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/RELAUNCH=1").start()
                     quit()
                 }
                 // Inside Flatpak the host's flatpak installs the new bundle over this one.
