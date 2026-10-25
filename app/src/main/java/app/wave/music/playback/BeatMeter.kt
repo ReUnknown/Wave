@@ -13,27 +13,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.sqrt
 
-/** Live loudness and beats of what's playing, for "Move with the music". */
-object BeatBus {
-    internal val _level = MutableStateFlow(0f)
-    /** 0..1 loudness relative to the song's recent average. */
-    val level: StateFlow<Float> = _level.asStateFlow()
-
-    /** Wave is on screen. Off screen (or with "Move with the music" off) nothing is measured. */
-    @Volatile var visible = false
-        set(value) {
-            field = value
-            _visibleFlow.value = value
-        }
-    private val _visibleFlow = MutableStateFlow(false)
-    /** Same as [visible], to react to (the service switches low-power playback on it). */
-    val visibleFlow: StateFlow<Boolean> = _visibleFlow.asStateFlow()
-
-    internal val _beat = MutableStateFlow(0L)
-    /** Changes (to the time it happened) on every detected beat. */
-    val beat: StateFlow<Long> = _beat.asStateFlow()
-}
-
 /**
  * Passes audio through untouched while measuring it: per-buffer energy, a running average,
  * and a simple onset detector for beats (a jump well above the recent average, at most every
@@ -85,8 +64,8 @@ class BeatMeter : BaseAudioProcessor() {
         if (isBeat || now - lastLevelPost > 33) {
             lastLevelPost = now
             main.postDelayed({
-                BeatBus._level.value = level
-                if (isBeat) BeatBus._beat.value = SystemClock.uptimeMillis()
+                BeatBus.levelSink.value = level
+                if (isBeat) BeatBus.beatSink.value = SystemClock.uptimeMillis()
             }, OUTPUT_LATENCY_MS)
         }
 

@@ -69,7 +69,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":innertube"))
+    implementation(project(":shared"))
     coreLibraryDesugaring(libs.desugaring)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -91,7 +91,6 @@ dependencies {
     implementation(libs.timber)
     implementation(libs.reorderable)
     implementation(libs.androidx.webkit)
-    implementation(libs.androidx.palette)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.profileinstaller)
     debugImplementation(libs.compose.ui.tooling)

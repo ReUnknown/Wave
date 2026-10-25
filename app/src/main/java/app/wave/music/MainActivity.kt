@@ -1,35 +1,18 @@
 package app.wave.music
 
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.ui.platform.LocalView
+import app.wave.music.data.SessionRepository
+import app.wave.music.playback.AndroidPlayer
+import app.wave.music.playback.PlayerConnection
+import app.wave.music.ui.WaveApp
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.request.crossfade
 import okio.Path.Companion.toPath
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalView
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import app.wave.music.data.SessionRepository
-import app.wave.music.data.WaveSettings
-import app.wave.music.playback.PlayerConnection
-import app.wave.music.ui.home.HomeScreen
-import app.wave.music.ui.components.isDesktop
-import app.wave.music.ui.login.LoginScreen
-import app.wave.music.ui.theme.WaveTheme
-import app.wave.music.ui.welcome.WelcomeScreen
-import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
@@ -45,7 +28,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        app.wave.music.data.Links.receive(intent)
+        receiveLink(intent)
         // Debug builds: a preview launch can arrive while Wave is already open.
         if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_preview", false)) SessionRepository.startPreview()
         if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_desktop", false)) desktopMode.value = true
@@ -82,6 +65,14 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    /** A YouTube Music link opened in Wave, or text shared to it. */
+    private fun receiveLink(intent: android.content.Intent?) {
+        when (intent?.action) {
+            android.content.Intent.ACTION_VIEW -> intent.dataString?.let(app.wave.music.data.Links::offer)
+            android.content.Intent.ACTION_SEND -> intent.getStringExtra(android.content.Intent.EXTRA_TEXT)?.let(app.wave.music.data.Links::offerText)
+        }
+    }
+
     override fun onStop() {
         app.wave.music.playback.BeatBus.visible = false
         app.wave.music.ui.components.AppFocus.onStarted(false)
@@ -92,9 +83,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
-        PlayerConnection.connect(this)
+        AndroidPlayer.connect(this)
         // Opened from a YouTube Music link (or one shared to Wave).
-        if (savedInstanceState == null) app.wave.music.data.Links.receive(intent)
+        if (savedInstanceState == null) receiveLink(intent)
         // Covers fade in as they load instead of popping in.
         // Covers are saved for reuse, but never more than 200 MB of them.
         SingletonImageLoader.setSafe { context ->
@@ -109,46 +100,20 @@ class MainActivity : ComponentActivity() {
                 .build()
         }
         desktopMode.value = isDesktop(this) || (BuildConfig.DEBUG && intent.getBooleanExtra("wave_desktop", false))
+        // Android 13+: the playing notification needs permission.
+        if (android.os.Build.VERSION.SDK_INT >= 33 && savedInstanceState == null) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 0)
+        }
+        val preview = BuildConfig.DEBUG && intent.getBooleanExtra("wave_preview", false)
         setContent {
             // Googlebook / ChromeOS (or, in debug builds, `--ez wave_desktop true` to try it anywhere).
-            androidx.compose.runtime.CompositionLocalProvider(app.wave.music.ui.components.LocalDesktop provides desktopMode.value) {
-            WaveTheme {
-                val context = LocalContext.current
-                val scope = rememberCoroutineScope()
-                val session by SessionRepository.session.collectAsState()
-                val restored by SessionRepository.restored.collectAsState()
-                var signingIn by rememberSaveable { mutableStateOf(false) }
-
+            val view = LocalView.current
+            WaveApp(
+                computer = desktopMode.value,
+                preview = preview,
                 // Keep the screen awake while music plays and Wave is open (lyrics, the player).
-                val view = LocalView.current
-                val playing by remember { PlayerConnection.state.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(false)
-                DisposableEffect(playing) {
-                    view.keepScreenOn = playing
-                    onDispose { view.keepScreenOn = false }
-                }
-
-                LaunchedEffect(Unit) {
-                    WaveSettings.load(context.applicationContext)
-                    if (!SessionRepository.restored.value) SessionRepository.restore(context.applicationContext)
-                    // Debug builds: `adb shell am start ... --ez wave_preview true` browses as a guest.
-                    if (BuildConfig.DEBUG && intent.getBooleanExtra("wave_preview", false)) SessionRepository.startPreview()
-                }
-
-                if (signingIn) {
-                    LoginScreen(onDone = { signingIn = false }, onCancel = { signingIn = false })
-                } else if (restored) {
-                    val current = session
-                    if (current == null) {
-                        WelcomeScreen(onSignIn = { signingIn = true })
-                    } else {
-                        HomeScreen(
-                            session = current,
-                            onSignOut = { scope.launch { app.wave.music.data.signOutAndForget(context.applicationContext) } },
-                        )
-                    }
-                }
-            }
-            }
+                onPlayingChanged = { view.keepScreenOn = it },
+            )
         }
     }
 }

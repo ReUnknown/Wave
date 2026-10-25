@@ -142,7 +142,7 @@ class WaveService : MediaSessionService() {
         ): ListenableFuture<SessionResult> {
             when (customCommand.customAction) {
                 ACTION_LIKE -> player.currentMediaItem?.mediaId?.let { id ->
-                    app.wave.music.data.Likes.set(this@WaveService, id, !app.wave.music.data.Likes.isLiked(id))
+                    app.wave.music.data.Likes.set(id, !app.wave.music.data.Likes.isLiked(id))
                 }
                 ACTION_SHUFFLE -> shuffling.shuffleModeEnabled = !player.shuffleModeEnabled
                 ACTION_SET_ORDER -> args.getIntArray(KEY_ORDER)?.let { shuffling.restoreOrder(it.toList()) }
@@ -179,7 +179,7 @@ class WaveService : MediaSessionService() {
             val old = File(cacheDir, "audio")
             if (old.exists()) runCatching { SimpleCache.delete(old, StandaloneDatabaseProvider(this@WaveService)) }
         }
-        runBlocking { WaveSettings.load(this@WaveService) }
+        runBlocking { WaveSettings.load() }
 
         val http = OkHttpDataSource.Factory(OkHttpClient.Builder().build())
         val cached = CacheDataSource.Factory()
@@ -406,7 +406,7 @@ class WaveService : MediaSessionService() {
             )
             kotlinx.coroutines.withContext(Dispatchers.IO) {
                 // Started from the widget or lock screen without the app: load the saved sign-in first.
-                if (!app.wave.music.data.SessionRepository.restored.value) app.wave.music.data.SessionRepository.restore(this@WaveService)
+                if (!app.wave.music.data.SessionRepository.restored.value) app.wave.music.data.SessionRepository.restore()
                 if (YouTube.cookie.isNullOrEmpty()) return@withContext
                 val tracking = YouTube.player(id, client = com.metrolist.innertube.models.YouTubeClient.WEB_REMIX).getOrNull()
                     ?.playbackTracking?.videostatsPlaybackUrl?.baseUrl
