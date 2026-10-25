@@ -15,6 +15,9 @@
     <!-- The interface is built in code (no XAML files), so it also compiles off Windows. -->
     <DisableXamlGeneratedMain>true</DisableXamlGeneratedMain>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Builds Wave.pri, which points WinUI at its own control styles (with no XAML files the
+         build would otherwise skip it, and WinUI can't find themeresources.xaml). -->
+    <AppxGeneratePriEnabled>true</AppxGeneratePriEnabled>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- A plain app folder (no MSIX), carrying its own .NET and Windows App SDK. -->
