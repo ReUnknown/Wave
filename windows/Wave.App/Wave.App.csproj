@@ -45,6 +45,5 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
-    <PRIResource Include="Strings\en-US\Resources.resw" />
   </ItemGroup>
 </Project>
