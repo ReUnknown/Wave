@@ -257,7 +257,7 @@ public static class PlayerParts
     {
         var text = Ui.Text("0:00", 12, ink, FontWeights.SemiBold);
         text.VerticalAlignment = VerticalAlignment.Center;
-        var timer = App.Window.DispatcherQueue.CreateTimer();
+        var timer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(500);
         void Update()
         {
