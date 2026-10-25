@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import app.wave.music.ui.components.WheelRow
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.FlowRow
@@ -457,7 +459,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 if (listState.firstVisibleItemIndex > 0) 0f else (1f - listState.firstVisibleItemScrollOffset / 260f).coerceIn(0f, 1f)
             }
         }
-        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val statusTop = topInset()
 
         BoxWithConstraints(Modifier.fillMaxSize().background(c.background)) {
         val windowPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
@@ -600,7 +602,12 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // Real backdrop blur behind the sticky header: fully frosted behind the search bar and
             // greeting, then easing off in stages until the content is sharp again.
             // A shorter frosted band on short (landscape) screens, so it doesn't cover the page.
-            val headerBand = if (currentWindowDp().screenHeightDp < 600) 150.dp else 230.dp
+            // Computers: just behind the search bar (the art banner sits right under it and stays sharp).
+            val headerBand = when {
+                desktopShell -> 96.dp
+                currentWindowDp().screenHeightDp < 600 -> 150.dp
+                else -> 230.dp
+            }
             ProgressiveBackdropBlur(
                 backdrop = backdrop,
                 modifier = Modifier
@@ -628,7 +635,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             )
             Column(
                 Modifier
-                    .statusBarsPadding()
+                    .topBarPadding()
                     .widthIn(max = 760.dp)
                     .padding(horizontal = 16.dp),
             ) {
@@ -967,7 +974,7 @@ private fun DockTargets(at: androidx.compose.ui.geometry.Offset?, target: Int, s
             Row(
                 Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
+                    .topBarPadding()
                     .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 140.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {

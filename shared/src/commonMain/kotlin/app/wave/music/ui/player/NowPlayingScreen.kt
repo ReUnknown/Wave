@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import androidx.compose.material.icons.rounded.CloseFullscreen
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -240,7 +242,7 @@ fun NowPlayingScreen(
             // Art fills the top and blurs progressively; a mirrored, fully blurred copy continues it
             // under the controls, so there's no edge where the picture ends.
             val topBlur = rememberBackdrop()
-            val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            val statusTop = topInset()
             // A new song's art fades in over the old one instead of popping.
             AnimatedContent(
                 targetState = song.artworkUrl,
@@ -296,7 +298,7 @@ fun NowPlayingScreen(
                     ),
             )
 
-            Header(state, song, onClose, Modifier.statusBarsPadding().then(inner), onToggleSize, docked)
+            Header(state, song, onClose, Modifier.topBarPadding().then(inner), onToggleSize, docked)
 
             Column(
                 Modifier
@@ -385,7 +387,7 @@ private fun WideNowPlaying(
             BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.45f), 1f to c.background.copy(alpha = 0.82f))))
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().then(inner)) {
+        Column(Modifier.fillMaxSize().topBarPadding().navigationBarsPadding().then(inner)) {
             Header(state, song, onClose, onToggleSize = onToggleSize, docked = docked)
             Row(
                 Modifier

@@ -30,6 +30,8 @@ data class Settings(
     val splitPlayer: Boolean = false,
     /** Wave's own volume (0..1), separate from the device's, like YouTube's volume slider. */
     val appVolume: Float = 1f,
+    /** Computers: how big Wave draws everything (1 = the system's own size). */
+    val uiScale: Float = 0.9f,
 )
 
 
@@ -46,6 +48,7 @@ object WaveSettings {
     private val updates = booleanPreferencesKey("check_updates")
     private val split = booleanPreferencesKey("split_player")
     private val volume = androidx.datastore.preferences.core.floatPreferencesKey("app_volume")
+    private val scale = androidx.datastore.preferences.core.floatPreferencesKey("ui_scale")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -66,6 +69,7 @@ object WaveSettings {
             checkUpdates = p[updates] ?: true,
             splitPlayer = p[split] ?: false,
             appVolume = p[volume] ?: 1f,
+            uiScale = p[scale] ?: 0.9f,
         )
         loaded = true
     }
@@ -85,6 +89,7 @@ object WaveSettings {
             it[updates] = next.checkUpdates
             it[split] = next.splitPlayer
             it[volume] = next.appVolume
+            it[scale] = next.uiScale
         }
     }
 

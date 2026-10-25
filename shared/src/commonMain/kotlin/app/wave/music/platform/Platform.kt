@@ -1,6 +1,15 @@
 package app.wave.music.platform
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import java.io.File
@@ -14,6 +23,8 @@ interface Platform {
     val dataDir: File
     /** A computer (Googlebook/ChromeOS, Windows, macOS, Linux): dropdown menus, shortcuts, no swipes. */
     val isComputer: Boolean
+    /** The computer app (Windows, macOS, Linux), where Wave sets its own interface size. */
+    val scalesInterface: Boolean get() = false
     /** A hardware keyboard is attached. */
     val hasKeyboard: Boolean
     /** This version of Wave, e.g. "1.0.0". */
@@ -47,3 +58,18 @@ fun currentWindowDp(): WindowDp {
     val density = LocalDensity.current.density
     return WindowDp((size.width / density).toInt(), (size.height / density).toInt())
 }
+
+/**
+ * Extra room at the top of the window for the platform's own title bar when Wave draws under it
+ * (macOS: the traffic-light buttons float over Wave's colors). Zero on phones and tablets.
+ */
+val LocalTitleBarInset = androidx.compose.runtime.compositionLocalOf { 0.dp }
+
+/** Keeps content below the status bar (phones) or the title bar's buttons (computers). */
+fun Modifier.topBarPadding(): Modifier = composed {
+    statusBarsPadding().padding(top = LocalTitleBarInset.current)
+}
+
+/** How far down content starts: the status bar (phones) or title bar (computers). */
+@Composable
+fun topInset(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + LocalTitleBarInset.current

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Wave
+Comment=Your YouTube Music. Nothing in the way.
+Exec=wave %u
+Icon=app.wave.Wave
+Categories=AudioVideo;Audio;Music;Player;
+MimeType=x-scheme-handler/https;
+StartupWMClass=app-wave-desktop-MainKt

@@ -34,6 +34,8 @@ import kotlinx.coroutines.launch
 fun WaveApp(computer: Boolean, preview: Boolean = false, onPlayingChanged: (Boolean) -> Unit = {}) {
     CompositionLocalProvider(LocalDesktop provides computer) {
         WaveTheme {
+          // Text and icons default to the theme's color (black on a dark window otherwise).
+          CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.material3.MaterialTheme.colorScheme.onBackground) {
             val scope = rememberCoroutineScope()
             val session by SessionRepository.session.collectAsState()
             val restored by SessionRepository.restored.collectAsState()
@@ -61,6 +63,7 @@ fun WaveApp(computer: Boolean, preview: Boolean = false, onPlayingChanged: (Bool
                     HomeScreen(session = current, onSignOut = { scope.launch { signOutAndForget() } })
                 }
             }
+          }
         }
     }
 }

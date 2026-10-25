@@ -72,6 +72,7 @@ javacv = { module = "org.bytedeco:javacv", version.ref = "javacv" }
 ffmpeg = { module = "org.bytedeco:ffmpeg", version.ref = "ffmpeg" }
 javacpp = { module = "org.bytedeco:javacpp", version.ref = "javacv" }
 
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }

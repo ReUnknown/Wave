@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.widthIn
 import kotlinx.coroutines.flow.collectLatest
@@ -320,7 +322,7 @@ fun LyricsScreen(
         )
         Row(
             Modifier
-                .statusBarsPadding()
+                .topBarPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

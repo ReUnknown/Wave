@@ -49,7 +49,17 @@ import coil3.compose.AsyncImage
  */
 
 /** Blur strengths, weakest → strongest, as a fraction of the maximum radius. */
-private val STEPS = listOf(0.06f, 0.14f, 0.26f, 0.42f, 0.62f, 0.82f, 1f)
+private val FINE_STEPS = listOf(0.06f, 0.14f, 0.26f, 0.42f, 0.62f, 0.82f, 1f)
+
+/** Fewer, wider steps: on big computer windows each step is a full-window pass, so they're rationed. */
+private val LIGHT_STEPS = listOf(0.12f, 0.4f, 1f)
+
+private val STEPS get() = if (BlurBudget.light) LIGHT_STEPS else FINE_STEPS
+
+/** How many layers progressive blurs use; computers ask for the light version. */
+object BlurBudget {
+    var light = false
+}
 
 private fun Modifier.maskedBy(brush: Brush): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }

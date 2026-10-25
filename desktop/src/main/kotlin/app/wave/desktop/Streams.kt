@@ -100,4 +100,16 @@ object AppDirs {
         }
         dir.apply { mkdirs() }
     }
+
+    /** Re-creatable files (cover images, the player config). */
+    val cache: File by lazy {
+        val home = System.getProperty("user.home")
+        val os = System.getProperty("os.name").lowercase()
+        val dir = when {
+            os.contains("mac") -> File(home, "Library/Caches/Wave")
+            os.contains("win") -> File(System.getenv("LOCALAPPDATA") ?: home, "Wave/Cache")
+            else -> File(System.getenv("XDG_CACHE_HOME") ?: "$home/.cache", "wave")
+        }
+        dir.apply { mkdirs() }
+    }
 }

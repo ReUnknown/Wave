@@ -1,5 +1,7 @@
 package app.wave.music.ui.search
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import androidx.compose.ui.graphics.luminance
 import app.wave.music.ui.components.WheelRow
 import app.wave.music.platform.currentWindowDp
@@ -205,7 +207,7 @@ fun SearchScreen(
 
     MaterialTheme(colorScheme = rememberArtColorScheme(if (showingResults && matchColors) topResult?.thumbnail?.atSize(600) else null)) {
         val c = MaterialTheme.colorScheme
-        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val statusTop = topInset()
         val backdrop = rememberBackdrop()
         Box(
             Modifier
@@ -349,7 +351,7 @@ fun SearchScreen(
                     .height(statusTop + if (showingResults) 132.dp else 80.dp)
                     .background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.7f), 0.7f to c.background.copy(alpha = 0.35f), 1f to Color.Transparent)),
             )
-            Column(Modifier.align(Alignment.TopCenter).widthIn(max = 900.dp).statusBarsPadding()) {
+            Column(Modifier.align(Alignment.TopCenter).widthIn(max = 900.dp).topBarPadding()) {
                 Row(
                     Modifier
                         .padding(horizontal = 12.dp, vertical = 8.dp)

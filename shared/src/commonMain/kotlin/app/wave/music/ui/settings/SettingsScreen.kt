@@ -81,6 +81,16 @@ fun SettingsContent() {
                 change { it.copy(splitPlayer = on) }
             }
         }
+        // The computer app: how big everything is drawn (also ⌘/Ctrl + and −).
+        if (app.wave.music.platform.WavePlatform.current.scalesInterface) {
+            Divider()
+            Choice(
+                title = "Interface size",
+                description = "Make Wave bigger or smaller in its window. ⌘/Ctrl + and − work too.",
+                options = listOf(0.8f to "80%", 0.9f to "90%", 1f to "100%", 1.1f to "110%", 1.25f to "125%"),
+                selected = listOf(0.8f, 0.9f, 1f, 1.1f, 1.25f).minBy { kotlin.math.abs(it - settings.uiScale) },
+            ) { scale -> change { it.copy(uiScale = scale) } }
+        }
     }
 
     Eyebrow("Playback")

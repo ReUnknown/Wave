@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.layout.widthIn
@@ -199,7 +201,7 @@ fun QueueScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item {
-                Column(if (embedded) Modifier else Modifier.statusBarsPadding()) {
+                Column(if (embedded) Modifier else Modifier.topBarPadding()) {
                     Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text("Up next", color = c.onBackground, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)

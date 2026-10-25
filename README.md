@@ -4,11 +4,12 @@
 
 **Your YouTube Music. Nothing in the way.**
 
-A simple, ad-free YouTube Music client for Android: phones, tablets, foldables and Googlebook,
-built with Material 3 Expressive.
+A simple, ad-free YouTube Music client for Android, Windows, macOS and Linux:
+phones, tablets, foldables, Googlebook and computers, built with Material 3 Expressive.
 
 [![Latest release](https://img.shields.io/github/v/release/ReUnknown/Wave?include_prereleases&label=latest&color=a6d0e4)](https://github.com/ReUnknown/Wave/releases)
 ![Android 12+](https://img.shields.io/badge/Android-12%2B-3ddc84?logo=android&logoColor=white)
+![Windows · macOS · Linux](https://img.shields.io/badge/desktop-Windows%20·%20macOS%20·%20Linux-5b6ee1)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7f52ff?logo=kotlin&logoColor=white)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
@@ -35,6 +36,7 @@ of the song that's playing.
 | 📱 **Phones** | Full-art player with a floating mini player | Swipe the mini player sideways to dismiss it, swipe the player down to close it, swipe up on the tray for volume and speed |
 | 📲 **Tablets & unfolded foldables** | Grids instead of sideways rows, a player bar across the bottom | Tap to open the player full screen, or drag the bar to the left or right half to play beside the app |
 | 💻 **Googlebook & ChromeOS** | Sidebar with your library, a player bar with the song's art blurred behind it | Dropdown menus where you click, right-click menus, keyboard shortcuts, mouse-wheel scrolling everywhere, optional side-by-side player |
+| 🖥️ **Windows, macOS & Linux** | The same app and look, native on your computer | Its own audio engine, sign-in through your system's web engine, adjustable interface size, macOS-native window |
 | 🔄 **Landscape & small windows** | Adapts to the space it actually has | A narrow window falls back to the phone layout, so nothing ever gets squeezed |
 
 ## Features
@@ -70,9 +72,16 @@ of the song that's playing.
 
 ## Install
 
-1. Download `Wave-x.y.z.apk` from the [latest release](https://github.com/ReUnknown/Wave/releases/latest).
-2. Open it and allow installing from your browser or file manager when asked.
-3. Sign in with Google. Google handles your password; Wave never sees it.
+Grab the file for your device from the [releases](https://github.com/ReUnknown/Wave/releases):
+
+| Device | File | How |
+|---|---|---|
+| Android | `Wave-x.y.z.apk` | Open it and allow installing from your browser or file manager |
+| macOS (Apple Silicon) | `…-macos-arm64.dmg` | Drag Wave into Applications; the first time, right-click it → Open |
+| Windows 10/11 | `…-windows-x64.exe` | Run the installer |
+| Linux | `…-linux-x64.flatpak` | `flatpak install --user Wave-…flatpak` |
+
+Then sign in with Google. Google handles your password; Wave never sees it.
 
 Wave checks GitHub for new versions once a day and offers them with a single tap
 (**Settings → About** to check by hand or turn this off).

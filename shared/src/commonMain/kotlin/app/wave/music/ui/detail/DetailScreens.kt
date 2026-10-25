@@ -1,5 +1,7 @@
 package app.wave.music.ui.detail
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.animation.animateColorAsState
@@ -254,7 +256,7 @@ private fun <T> PageFrame(
     MaterialTheme(colorScheme = rememberArtColorScheme(if (matchColors) art?.atSize(600) else null)) {
         val c = MaterialTheme.colorScheme
         val backdrop = rememberBackdrop()
-        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val statusTop = topInset()
         Box(
             Modifier
                 .fillMaxSize()
@@ -339,7 +341,7 @@ private fun <T> PageFrame(
             )
             Box(
                 Modifier
-                    .statusBarsPadding()
+                    .topBarPadding()
                     .padding(12.dp)
                     .size(48.dp)
                     .pressable(CircleShape, Color.White.copy(alpha = 0.14f), pressedScale = 0.86f, onClick = actions.back),
@@ -351,7 +353,7 @@ private fun <T> PageFrame(
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .statusBarsPadding()
+                        .topBarPadding()
                         .padding(12.dp)
                         .size(48.dp)
                         .pressable(CircleShape, Color.White.copy(alpha = 0.14f), pressedScale = 0.86f) { menu.open(MenuTarget.Collection(pageItem, onItsPage = true)) },
@@ -452,7 +454,7 @@ private fun SideHero(info: HeaderInfo, modifier: Modifier) {
     val c = MaterialTheme.colorScheme
     Column(
         modifier
-            .statusBarsPadding()
+            .topBarPadding()
             .padding(start = 32.dp, end = 24.dp, top = 84.dp, bottom = 24.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current),
         verticalArrangement = Arrangement.Top,
     ) {

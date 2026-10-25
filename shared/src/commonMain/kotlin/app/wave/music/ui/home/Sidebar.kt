@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import app.wave.music.platform.topBarPadding
+import app.wave.music.platform.topInset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -77,7 +79,7 @@ fun Sidebar(
     Column(
         Modifier
             .fillMaxSize()
-            .statusBarsPadding()
+            .topBarPadding()
             .navigationBarsPadding()
             .padding(start = 14.dp, end = 14.dp, top = 18.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),

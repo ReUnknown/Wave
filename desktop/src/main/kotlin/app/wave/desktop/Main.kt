@@ -1,135 +1,176 @@
 package app.wave.desktop
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import app.wave.music.platform.LocalTitleBarInset
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.Alignment
+import app.wave.music.data.WaveSettings
+import app.wave.music.ui.components.BlurBudget
+import kotlinx.coroutines.launch
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import coil3.compose.AsyncImage
-import com.metrolist.innertube.YouTube
-import com.metrolist.innertube.models.SongItem
-import kotlinx.coroutines.launch
+import app.wave.music.data.Links
+import app.wave.music.platform.WavePlatform
+import app.wave.music.playback.BeatBus
+import app.wave.music.playback.PlayerConnection
+import app.wave.music.ui.WaveApp
+import app.wave.music.ui.components.AppFocus
+import app.wave.music.ui.components.Shortcuts
+import app.wave.music.ui.login.DesktopLoginHost
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.request.crossfade
+import okio.Path.Companion.toPath
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import java.io.File
 
-fun main() = application {
-    Window(onCloseRequest = ::exitApplication, title = "Wave", state = rememberWindowState(width = 1100.dp, height = 760.dp)) {
-        MaterialTheme(colorScheme = darkColorScheme()) {
-            Prototype()
+fun main(args: Array<String>) {
+    WavePlatform.current = DesktopPlatform
+    // Big windows: progressive blurs use fewer, wider layers.
+    BlurBudget.light = true
+    // Settings first, so the window opens at your interface size.
+    kotlinx.coroutines.runBlocking { WaveSettings.load() }
+    PlayerConnection.backend = DesktopPlayer
+    DesktopPlayer.restore()
+    // A YouTube Music link passed in (opened with Wave).
+    args.firstOrNull { it.startsWith("http") }?.let(Links::offer)
+    DesktopLoginHost.content = { onDone, onCancel -> DesktopLoginScreen(onDone, onCancel) }
+    // Covers are saved for reuse, but never more than 200 MB of them.
+    SingletonImageLoader.setSafe { context ->
+        ImageLoader.Builder(context)
+            .crossfade(200)
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(File(AppDirs.cache, "images").absolutePath.toPath())
+                    .maxSizeBytes(200L * 1024 * 1024)
+                    .build()
+            }
+            .build()
+    }
+    val preview = DesktopPlatform.debug && args.contains("--preview")
+
+    application {
+        // A comfortable size on a laptop screen, centered.
+        val window = rememberWindowState(size = DpSize(1120.dp, 740.dp))
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "Wave",
+            state = window,
+            icon = WaveIcon.painter(),
+            onPreviewKeyEvent = { event -> event.type == KeyEventType.KeyDown && (zoomKey(event) || shortcut(event)) },
+        ) {
+            LaunchedEffect(Unit) {
+                this@Window.window.minimumSize = java.awt.Dimension(420, 560)
+                // Open at a comfortable size for the screen it's on (never bigger than 85% of it), centered.
+                val screen = this@Window.window.graphicsConfiguration.bounds
+                this@Window.window.setSize(minOf(1120, (screen.width * 0.85).toInt()), minOf(740, (screen.height * 0.85).toInt()))
+                this@Window.window.setLocationRelativeTo(null)
+                if (DesktopPlatform.isMac) {
+                    // Wave's own colors run all the way to the top; the window buttons float over them.
+                    this@Window.window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+                    this@Window.window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
+                    this@Window.window.rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+                }
+                if (DesktopPlatform.isWindows) WindowsTitleBar.apply(this@Window.window, 0xFF111418.toInt())
+                // Decorative motion only while Wave is in front: on screen and focused.
+                AppFocus.onStarted(true)
+                BeatBus.visible = true
+                this@Window.window.addWindowListener(object : WindowAdapter() {
+                    override fun windowIconified(e: WindowEvent?) { AppFocus.onStarted(false); BeatBus.visible = false }
+                    override fun windowDeiconified(e: WindowEvent?) { AppFocus.onStarted(true); BeatBus.visible = true }
+                    override fun windowActivated(e: WindowEvent?) = AppFocus.onFocus(true)
+                    override fun windowDeactivated(e: WindowEvent?) = AppFocus.onFocus(false)
+                })
+            }
+            // Interface size: ⌘/Ctrl + and − zoom like a browser (remembered).
+            val zoom = WaveSettings.state.collectAsState().value.uiScale
+            val base = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(base.density * zoom, base.fontScale),
+                LocalTitleBarInset provides if (DesktopPlatform.isMac) 28.dp else 0.dp,
+            ) {
+                WaveApp(computer = true, preview = preview)
+            }
+            if (DesktopPlatform.debug) FrameStats()
         }
     }
 }
 
-/** First desktop milestone: search YouTube Music and play a song through the desktop audio engine. */
-@Composable
-private fun Prototype() {
-    val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<SongItem>>(emptyList()) }
-    var current by remember { mutableStateOf<SongItem?>(null) }
-    var status by remember { mutableStateOf("Search for a song") }
-    val engine by AudioEngine.state.collectAsState()
-    val c = MaterialTheme.colorScheme
+/**
+ * Space plays/pauses, Ctrl/⌘ + →/← skip, Ctrl/⌘ + L likes, Ctrl/⌘ + F or / search (Esc goes
+ * back, handled by the screens). Ignored while typing.
+ */
+private fun shortcut(event: androidx.compose.ui.input.key.KeyEvent): Boolean {
+    if (Shortcuts.typing) return false
+    val command = event.isCtrlPressed || event.isMetaPressed
+    when {
+        event.key == Key.Spacebar && !command -> PlayerConnection.togglePlay()
+        command && event.key == Key.DirectionRight -> PlayerConnection.next()
+        command && event.key == Key.DirectionLeft -> PlayerConnection.previous()
+        command && event.key == Key.L -> PlayerConnection.toggleLike()
+        (command && event.key == Key.F) || event.key == Key.Slash -> Shortcuts.requestSearch()
+        else -> return false
+    }
+    return true
+}
 
-    Column(Modifier.fillMaxSize().background(c.background).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Wave", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = c.onBackground)
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Search songs") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
-                scope.launch {
-                    status = "Searching…"
-                    YouTube.search(query, YouTube.SearchFilter.FILTER_SONG)
-                        .onSuccess { r -> results = r.items.filterIsInstance<SongItem>(); status = "${results.size} songs" }
-                        .onFailure { status = "Search failed: ${it.message}" }
+/** ⌘/Ctrl + = bigger, − smaller, 0 back to the default: steps through the Interface size setting. */
+private fun zoomKey(event: androidx.compose.ui.input.key.KeyEvent): Boolean {
+    if (!(event.isCtrlPressed || event.isMetaPressed)) return false
+    val steps = listOf(0.8f, 0.9f, 1f, 1.1f, 1.25f, 1.5f)
+    val now = WaveSettings.state.value.uiScale
+    val at = steps.indexOfFirst { it >= now - 0.001f }.let { if (it < 0) steps.lastIndex else it }
+    val next = when (event.key) {
+        Key.Equals, Key.Plus, Key.NumPadAdd -> steps[(at + 1).coerceAtMost(steps.lastIndex)]
+        Key.Minus, Key.NumPadSubtract -> steps[(at - 1).coerceAtLeast(0)]
+        Key.Zero, Key.NumPad0 -> 0.9f
+        else -> return false
+    }
+    scope.launch { WaveSettings.update { it.copy(uiScale = next) } }
+    return true
+}
+
+private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+/** Development builds: logs frame times every two seconds while anything is animating. */
+@androidx.compose.runtime.Composable
+private fun FrameStats() {
+    LaunchedEffect(Unit) {
+        var last = 0L
+        var count = 0
+        var slow = 0
+        var worst = 0L
+        var windowStart = 0L
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { now ->
+                if (last != 0L) {
+                    val ms = (now - last) / 1_000_000
+                    count++
+                    if (ms > 20) slow++
+                    worst = maxOf(worst, ms)
                 }
-            }),
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-        )
-        Text(engine.error?.let { "Playback failed: $it" } ?: status, color = c.onSurfaceVariant)
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(results, key = { it.id }) { song ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable {
-                            current = song
-                            status = "Loading ${song.title}…"
-                            scope.launch {
-                                runCatching { Streams.resolve(song.id) }
-                                    .onSuccess { AudioEngine.play(it); status = "Playing" }
-                                    .onFailure { status = "Couldn't get a stream: ${it.message}" }
-                            }
-                        }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    AsyncImage(song.thumbnail, null, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
-                    Column {
-                        Text(song.title, color = c.onBackground, fontWeight = FontWeight.SemiBold)
-                        Text(song.artists.joinToString { it.name }, color = c.onSurfaceVariant)
-                    }
+                if (windowStart == 0L) windowStart = now
+                if (now - windowStart > 2_000_000_000L) {
+                    if (count > 0) println("frames: $count in 2s, slow(>20ms) $slow, worst ${worst}ms")
+                    count = 0; slow = 0; worst = 0; windowStart = now
                 }
-            }
-        }
-        current?.let { song ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh).padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                AsyncImage(song.thumbnail, null, Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
-                Column(Modifier.weight(1f)) {
-                    Text(song.title, color = c.onSurface, fontWeight = FontWeight.Bold)
-                    LinearProgressIndicator(
-                        progress = { if (engine.durationMs > 0) engine.positionMs.toFloat() / engine.durationMs else 0f },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp),
-                    )
-                }
-                Box(Modifier.size(52.dp).clip(CircleShape).background(c.primary), contentAlignment = Alignment.Center) {
-                    IconButton(onClick = AudioEngine::togglePause) {
-                        Icon(if (engine.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = c.onPrimary)
-                    }
-                }
+                last = now
             }
         }
     }
