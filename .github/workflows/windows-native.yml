@@ -58,7 +58,7 @@ jobs:
         if: env.TAG == ''
         shell: pwsh
         run: |
-          dotnet publish windows/Wave.App/Wave.App.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=${{ env.NUMERIC }} -p:InformationalVersion=${{ env.VERSION }} -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=false -o portable
+          dotnet publish windows/Wave.App/Wave.App.csproj -c Release -r win-x64 -p:Platform=x64 -p:Version=${{ env.NUMERIC }} -p:InformationalVersion=${{ env.VERSION }} -p:PublishSingleFile=true -p:EnableMsixTooling=true -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=false -o portable
           Copy-Item portable\Wave.exe "Wave-${{ env.VERSION }}-portable.exe"
           Compress-Archive -Path windows\Wave.App\bin\publish\* -DestinationPath "Wave-${{ env.VERSION }}-folder.zip"
       - name: Test build
