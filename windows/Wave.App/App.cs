@@ -39,6 +39,18 @@ public partial class App : Application, IXamlMetadataProvider
 
     protected override void OnLaunched(LaunchActivatedEventArgs e)
     {
+        try
+        {
+            Launch();
+        }
+        catch (Exception error)
+        {
+            Crash.Report(error);
+        }
+    }
+
+    private void Launch()
+    {
         Resources.MergedDictionaries.Add(new Microsoft.UI.Xaml.Controls.XamlControlsResources());
         Theme.Install(Resources);
 
