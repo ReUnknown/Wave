@@ -23,7 +23,8 @@ phones, tablets, foldables, Googlebook and computers, built with Material 3 Expr
 
 YouTube Music has your library, your mixes and the recommendations that actually know you. Wave
 keeps all of that and drops everything else: no ads, no video clutter, no podcasts, no upsells.
-Sign in with Google and your home, playlists, likes and history are just there.
+Sign in with Google and your home, playlists, likes and history are just there, or skip signing in
+and just listen.
 
 It's built to feel at home on whatever screen you're holding, with motion that has a purpose: the
 player grows out of the mini player, play morphs into pause, and the whole app takes on the colors
@@ -36,7 +37,7 @@ of the song that's playing.
 | 📱 **Phones** | Full-art player with a floating mini player | Swipe the mini player sideways to dismiss it, swipe the player down to close it, swipe up on the tray for volume and speed |
 | 📲 **Tablets & unfolded foldables** | Grids instead of sideways rows, a player bar across the bottom | Tap to open the player full screen, or drag the bar to the left or right half to play beside the app |
 | 💻 **Googlebook & ChromeOS** | Sidebar with your library, a player bar with the song's art blurred behind it | Dropdown menus where you click, right-click menus, keyboard shortcuts, mouse-wheel scrolling everywhere, optional side-by-side player |
-| 🖥️ **Windows, macOS & Linux** | The same app and look, native on your computer | Its own audio engine, sign-in through your system's web engine, adjustable interface size, macOS-native window |
+| 🖥️ **Windows, macOS & Linux** | The same app and look, native on your computer | Its own audio engine, a mini player that stays on top (Windows), sign-in through your system's web engine, adjustable interface size, Wave's colors right up to the window's edge |
 | 🔄 **Landscape & small windows** | Adapts to the space it actually has | A narrow window falls back to the phone layout, so nothing ever gets squeezed |
 
 ## Features
@@ -52,6 +53,7 @@ of the song that's playing.
 
 **Your music**
 - Your YouTube Music home, playlists, liked songs, albums, artists and history
+- Or no account at all: browse, search and play right away, with likes kept on your device
 - Plays count toward your YouTube history and recommendations
 - Shuffle that keeps the current song first and shows the real order in Up next
 - Up next as a coverflow: swipe or click through it, drag to reorder, remove songs
@@ -78,10 +80,11 @@ Grab the file for your device from the [releases](https://github.com/ReUnknown/W
 |---|---|---|
 | Android | `Wave-x.y.z.apk` | Open it and allow installing from your browser or file manager |
 | macOS (Apple Silicon) | `…-macos-arm64.dmg` | Drag Wave into Applications; the first time, right-click it → Open |
-| Windows 10/11 | `…-windows-x64.exe` | Run the installer |
+| Windows 10/11 | `…-windows-x64.exe` | Run the installer (it updates any earlier Wave in place) |
 | Linux | `…-linux-x64.flatpak` | `flatpak install --user Wave-…flatpak` |
 
-Then sign in with Google. Google handles your password; Wave never sees it.
+Then sign in with Google (Google handles your password; Wave never sees it), or continue without
+an account.
 
 Wave checks GitHub for new versions once a day and offers them with a single tap
 (**Settings → About** to check by hand or turn this off).

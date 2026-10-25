@@ -92,6 +92,8 @@ object SessionRepository {
     }
 
     suspend fun save(session: Session) {
+        // Likes saved while a guest (or another account) mustn't stand in for this account's.
+        Likes.refreshNextLoad()
         app.wave.music.data.Stores.prefs("session").edit {
             it.remove(Keys.guest)
             it[Keys.cookie] = SecretBox.encrypt(session.cookie)

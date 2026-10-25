@@ -66,3 +66,23 @@ fun main(args: Array<String>) {
     println("done")
     kotlin.system.exitProcess(0)
 }
+
+/** Development check: renders the whole app (as a guest) to a PNG. */
+object RenderApp {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        WavePlatform.current = DesktopPlatform
+        app.wave.music.ui.components.BlurBudget.light = true
+        kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load() }
+        PlayerConnection.backend = DesktopPlayer
+        val out = File(args.getOrNull(0) ?: "build/mini").apply { mkdirs() }
+        val scene = ImageComposeScene(1120, 740, Density(1f)) {
+            app.wave.music.ui.WaveApp(computer = true, preview = true)
+        }
+        var image = scene.render(0)
+        for (i in 1..150) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
+        File(out, "app-home.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        println("done")
+        kotlin.system.exitProcess(0)
+    }
+}

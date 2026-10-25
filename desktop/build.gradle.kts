@@ -58,7 +58,7 @@ dependencies {
 }
 
 // The version the computer app shows and checks updates against (jpackage needs plain numbers).
-val waveVersion = "1.1.0-beta.4"
+val waveVersion = "1.1.0"
 val buildingOnMac = System.getProperty("os.name").lowercase().contains("mac")
 
 compose.desktop {
@@ -195,4 +195,11 @@ tasks.register<JavaExec>("renderMini") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("app.wave.desktop.RenderMiniKt")
     args("blinding lights", "playing", layout.buildDirectory.dir("mini").get().asFile.absolutePath)
+}
+
+tasks.register<JavaExec>("renderApp") {
+    javaLauncher.set(waveRuntime)
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("app.wave.desktop.RenderApp")
+    args(layout.buildDirectory.dir("mini").get().asFile.absolutePath)
 }

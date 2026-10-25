@@ -26,6 +26,11 @@ object Likes {
 
     fun isLiked(videoId: String) = videoId in _ids.value
 
+    /** Just signed in: the next [load] asks YouTube Music for your likes, however recent the saved list is. */
+    fun refreshNextLoad() {
+        runCatching { file.setLastModified(0) }
+    }
+
     suspend fun load() {
         val f = file
         val saved = withContext(Dispatchers.IO) { runCatching { f.readLines().filter { it.isNotBlank() } }.getOrNull() }

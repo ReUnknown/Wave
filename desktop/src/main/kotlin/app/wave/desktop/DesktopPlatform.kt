@@ -41,7 +41,11 @@ object DesktopPlatform : Platform {
 
     /** Windows for now (and development builds, to work on it anywhere). */
     override val hasMiniPlayer get() = isWindows || debug
-    override fun openMiniPlayer() { MiniPlayer.open.value = true }
+    override fun openMiniPlayer() {
+        // Always opens as the player, even if it was tucked away last time.
+        MiniPlayer.tucked.value = false
+        MiniPlayer.open.value = true
+    }
 
     override fun forgetAccount() = DesktopLoginScreen.forgetCookies()
 

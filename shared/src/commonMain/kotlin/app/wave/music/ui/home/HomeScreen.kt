@@ -466,8 +466,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // A page on top (an artist, an album) brings its own art and colors to the sidebar (and the
         // top of the window) too.
         val page = pageLook.current?.takeIf { stack.isNotEmpty() || showSearch }
-        val sideScheme = page?.scheme ?: c
-        val sideBackground by androidx.compose.animation.animateColorAsState(sideScheme.background, tween(400), label = "sideBg")
+        // Fades between home's colors and the page's, never jumps.
+        val sideScheme = app.wave.music.ui.components.animateScheme(page?.scheme ?: c)
+        val sideBackground = sideScheme.background
         BoxWithConstraints(Modifier.fillMaxSize().background(sideBackground)) {
         val windowPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val windowHeightPx = constraints.maxHeight.toFloat()
@@ -563,7 +564,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         val jump = if (shell) myPlaylists.take(6).ifEmpty { state.feed.recent.take(6) } else emptyList()
                         Hero(hero, jump = jump, onJump = openItem, onSharedBackdrop = desktopShell)
                     }
-                    if (!shell) {
+                    // Guests have no playlists to show (or make).
+                    if (!shell && !session.guest) {
                         item { SectionHeader("Your library", "Your playlists") }
                         item {
                             WheelRow {
@@ -701,7 +703,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         .padding(top = 18.dp, start = 4.dp)
                         .alpha(greetingAlpha),
                 ) {
-                    Text(greeting(), color = c.onBackground.copy(alpha = 0.88f), fontSize = 22.sp, fontWeight = FontWeight.Medium)
+                    Text(greeting().let { if (session.guest) it.removeSuffix(",") else it }, color = c.onBackground.copy(alpha = 0.88f), fontSize = 22.sp, fontWeight = FontWeight.Medium)
                     if (!session.guest) Text(session.name.substringBefore(' '), color = c.onBackground, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }

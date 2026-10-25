@@ -47,7 +47,7 @@ fun rememberArtColorScheme(artUrl: String?, base: ColorScheme = MaterialTheme.co
         } ?: return@LaunchedEffect
         scheme = (if (dark) darkScheme(Color(seed), mood, base) else lightScheme(Color(seed), base)).also { schemes.put(key, it) }
     }
-    return animate(scheme)
+    return animateScheme(scheme)
 }
 
 /**
@@ -146,7 +146,7 @@ private fun Color.rotateHue(degrees: Float): Color {
 
 /** Fades the colors you actually see from one song's scheme to the next. */
 @Composable
-private fun animate(target: ColorScheme): ColorScheme {
+internal fun animateScheme(target: ColorScheme): ColorScheme {
     val spec = tween<Color>(420, easing = FastOutSlowInEasing)
     val primary by animateColorAsState(target.primary, spec)
     val onPrimary by animateColorAsState(target.onPrimary, spec)

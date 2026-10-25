@@ -125,7 +125,12 @@ fun main(args: Array<String>) {
                 // (While the mini player is open, it's the one on screen.)
                 this@Window.window.addWindowListener(object : WindowAdapter() {
                     override fun windowIconified(e: WindowEvent?) { if (!MiniPlayer.open.value) { AppFocus.onStarted(false); BeatBus.visible = false } }
-                    override fun windowDeiconified(e: WindowEvent?) { AppFocus.onStarted(true); BeatBus.visible = true }
+                    override fun windowDeiconified(e: WindowEvent?) {
+                        AppFocus.onStarted(true)
+                        BeatBus.visible = true
+                        // Wave brought back from the taskbar: it takes over from the mini player.
+                        MiniPlayer.open.value = false
+                    }
                     override fun windowActivated(e: WindowEvent?) = AppFocus.onFocus(true)
                     override fun windowDeactivated(e: WindowEvent?) { if (!MiniPlayer.open.value) AppFocus.onFocus(false) }
                 })

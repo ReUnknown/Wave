@@ -8,6 +8,14 @@ import WebKit
 
 let signInURL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"
 
+/** Safari's user agent on this Mac (its version from Safari itself), as Safari sends it. */
+func safariUserAgent() -> String {
+    let info = NSDictionary(contentsOfFile: "/Applications/Safari.app/Contents/Info.plist")
+        ?? NSDictionary(contentsOfFile: "/System/Cryptexes/App/System/Applications/Safari.app/Contents/Info.plist")
+    let version = (info?["CFBundleShortVersionString"] as? String) ?? "18.0"
+    return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(version) Safari/605.1.15"
+}
+
 final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var web: WKWebView!
@@ -21,6 +29,9 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSW
         config.websiteDataStore = .default()
         web = WKWebView(frame: NSRect(x: 0, y: 0, width: 480, height: 680), configuration: config)
         web.navigationDelegate = self
+        // Google turns away sign-ins from embedded web views ("This browser or app may not be
+        // secure"). This one is Safari's own engine, so it says so, exactly as Safari does.
+        web.customUserAgent = safariUserAgent()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 680),
                           styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.title = "Sign in to Wave"
