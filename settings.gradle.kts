@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Wave"
-include(":app", ":innertube")
+include(":app", ":innertube", ":desktop")

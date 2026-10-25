@@ -8,7 +8,7 @@ import com.metrolist.innertube.models.Run
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.splitBySeparator
 import com.metrolist.innertube.utils.parseTime
-import timber.log.Timber
+import com.metrolist.innertube.Timber
 
 data class PlaylistPage(
     val playlist: PlaylistItem,
