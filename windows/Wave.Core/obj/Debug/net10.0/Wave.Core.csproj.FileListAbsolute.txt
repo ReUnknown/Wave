@@ -1,0 +1,13 @@
+/Users/ayden/Design/Wave/windows/Wave.Core/bin/Debug/net10.0/Wave.Core.deps.json
+/Users/ayden/Design/Wave/windows/Wave.Core/bin/Debug/net10.0/Wave.Core.dll
+/Users/ayden/Design/Wave/windows/Wave.Core/bin/Debug/net10.0/Wave.Core.pdb
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.csproj.AssemblyReference.cache
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.GeneratedMSBuildEditorConfig.editorconfig
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.AssemblyInfoInputs.cache
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.AssemblyInfo.cs
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.csproj.CoreCompileInputs.cache
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.sourcelink.json
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.dll
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/refint/Wave.Core.dll
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/Wave.Core.pdb
+/Users/ayden/Design/Wave/windows/Wave.Core/obj/Debug/net10.0/ref/Wave.Core.dll

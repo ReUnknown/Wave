@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Everything in native Wave for Windows that isn't the interface: YouTube Music, playback queue,
+       lyrics, colors, settings and your session. Plain .NET, so it builds and tests on any computer. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Wave</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YoutubeExplode" Version="6.6.3" />
+    <!-- Newer than the one YoutubeExplode asks for, which has a known security issue. -->
+    <PackageReference Include="AngleSharp" Version="1.8.6" />
+  </ItemGroup>
+</Project>

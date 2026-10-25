@@ -19,6 +19,8 @@ env:
 
 jobs:
   windows:
+    # 1.2.x on Windows is the native app (windows-native.yml).
+    if: ${{ !startsWith(github.event.release.tag_name || inputs.tag, 'v1.2.') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +53,8 @@ jobs:
           gh release upload "$TAG" "Wave-$VERSION-windows-x64.exe" --clobber
 
   linux:
+    # The 1.2.x betas are Windows-only.
+    if: ${{ !startsWith(github.event.release.tag_name || inputs.tag, 'v1.2.') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

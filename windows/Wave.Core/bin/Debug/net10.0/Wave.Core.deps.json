@@ -1,0 +1,57 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Wave.Core/1.0.0": {
+        "dependencies": {
+          "AngleSharp": "1.8.6",
+          "YoutubeExplode": "6.6.3"
+        },
+        "runtime": {
+          "Wave.Core.dll": {}
+        }
+      },
+      "AngleSharp/1.8.6": {
+        "runtime": {
+          "lib/net10.0/AngleSharp.dll": {
+            "assemblyVersion": "1.8.6.0",
+            "fileVersion": "1.8.6.0"
+          }
+        }
+      },
+      "YoutubeExplode/6.6.3": {
+        "runtime": {
+          "lib/net10.0/YoutubeExplode.dll": {
+            "assemblyVersion": "6.6.3.0",
+            "fileVersion": "6.6.3.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Wave.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AngleSharp/1.8.6": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-tdvrWSsHz8iRcb8U2cbFtYF6/1Mvhbe5ZxN/VdhVeIfp5vOvbwz3Bn7OZknnm2QSyGvM9ZaZLNLvfanPzNa61Q==",
+      "path": "anglesharp/1.8.6",
+      "hashPath": "anglesharp.1.8.6.nupkg.sha512"
+    },
+    "YoutubeExplode/6.6.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-/0s3+iUZyqkyV7onEDXAFwLgTji6UbFL/Ucmyd9UUgggSD8xx5tTSFbvAWBoTRQPFtas/wuaYpLupgrKDRm/cg==",
+      "path": "youtubeexplode/6.6.3",
+      "hashPath": "youtubeexplode.6.6.3.nupkg.sha512"
+    }
+  }
+}

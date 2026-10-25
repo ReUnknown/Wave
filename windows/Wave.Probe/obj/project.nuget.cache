@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "kQL3MLwrc9A=",
+  "success": true,
+  "projectFilePath": "/Users/ayden/Design/Wave/windows/Wave.Probe/Wave.Probe.csproj",
+  "expectedPackageFiles": [
+    "/Users/ayden/.nuget/packages/anglesharp/1.8.6/anglesharp.1.8.6.nupkg.sha512",
+    "/Users/ayden/.nuget/packages/youtubeexplode/6.6.3/youtubeexplode.6.6.3.nupkg.sha512"
+  ],
+  "logs": []
+}
