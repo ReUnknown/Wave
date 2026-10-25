@@ -80,13 +80,13 @@ public sealed record Playlist(
 /** A row of home, an artist page or search. [MoreBrowseId] opens the full list. */
 public sealed record Section(string Title, string? Label, IReadOnlyList<Item> Items, string? MoreBrowseId = null, string? MoreParams = null);
 
-public sealed record HomePage(IReadOnlyList<Section> Sections, string? Continuation);
+public sealed record HomeResult(IReadOnlyList<Section> Sections, string? Continuation);
 
-public sealed record AlbumPage(Album Album, IReadOnlyList<Song> Songs, string? Description, IReadOnlyList<Section> More);
+public sealed record AlbumResult(Album Album, IReadOnlyList<Song> Songs, string? Description, IReadOnlyList<Section> More);
 
-public sealed record PlaylistPage(Playlist Playlist, IReadOnlyList<Song> Songs, string? Continuation, string? Description);
+public sealed record PlaylistResult(Playlist Playlist, IReadOnlyList<Song> Songs, string? Continuation, string? Description);
 
-public sealed record ArtistPage(
+public sealed record ArtistResult(
     Artist Artist,
     string? Description,
     IReadOnlyList<Section> Sections,
@@ -98,7 +98,7 @@ public sealed record ArtistPage(
     string? RadioPlaylistId);
 
 /** A queue from "next": what plays after a song, plus where its lyrics and related music live. */
-public sealed record NextPage(
+public sealed record NextResult(
     IReadOnlyList<Song> Songs,
     string? Continuation,
     string? LyricsBrowseId,

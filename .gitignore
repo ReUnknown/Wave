@@ -10,3 +10,7 @@ dist/
 
 # Release signing key and its passwords: never commit, back up privately.
 keystore/
+
+# .NET build output (native Windows app)
+windows/**/bin/
+windows/**/obj/

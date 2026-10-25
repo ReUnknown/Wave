@@ -86,7 +86,7 @@ var ly = await lyricsSource.LoadAsync(song.VideoId, song.Title, song.ArtistNames
 Console.WriteLine($"LYRICS {ly?.Source}: {ly?.Lines.Count} lines, synced={ly?.Synced}, words={ly?.WordSynced}; line 3: {ly?.Lines.ElementAtOrDefault(3)?.Text}");
 var px = new uint[64 * 64];
 for (var i = 0; i < px.Length; i++) px[i] = i % 5 == 0 ? 0xFF2050C0u : 0xFF101014u;
-var scheme = Wave.Colors.ArtColors.FromPixels(px, dark: true)!;
+var scheme = Wave.Coloring.ArtColors.FromPixels(px, dark: true)!;
 Console.WriteLine($"COLORS primary #{scheme.Primary.Value:X8} background #{scheme.Background.Value:X8}");
 var updater = new Wave.Updater(api.Http, "1.1.0");
 var release = await updater.CheckAsync();

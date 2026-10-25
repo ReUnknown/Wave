@@ -61,7 +61,7 @@ public sealed class Services
         var added = false;
         for (var page = 0; page < 2 && continuation is not null; page++)
         {
-            HomePage? next = null;
+            HomeResult? next = null;
             try { next = await YouTube.HomeAsync(continuation); } catch (Exception) { }
             if (next is null) break;
             sections.AddRange(next.Sections);

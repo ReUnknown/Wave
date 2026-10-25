@@ -1,4 +1,4 @@
-namespace Wave.Colors;
+namespace Wave.Coloring;
 
 /** An ARGB color. */
 public readonly record struct Argb(uint Value)

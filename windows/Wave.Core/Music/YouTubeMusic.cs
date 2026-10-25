@@ -13,7 +13,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
 
     // ---------------------------------------------------------------- Home
 
-    public async Task<HomePage> HomeAsync(string? continuation = null, CancellationToken ct = default)
+    public async Task<HomeResult> HomeAsync(string? continuation = null, CancellationToken ct = default)
     {
         JsonNode root;
         JsonNode? list;
@@ -29,7 +29,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
         }
         var sections = list.Each("contents").Select(Carousel).OfType<Section>().ToList();
         var next = list.Str("continuations", 0, "nextContinuationData", "continuation");
-        return new HomePage(sections, next);
+        return new HomeResult(sections, next);
     }
 
     /** A carousel (or a shelf) of cards as a Section. */
@@ -329,7 +329,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
     private static JsonNode? Secondary(JsonNode root) =>
         root.At("contents", "twoColumnBrowseResultsRenderer", "secondaryContents", "sectionListRenderer");
 
-    public async Task<AlbumPage> AlbumAsync(string browseId, CancellationToken ct = default)
+    public async Task<AlbumResult> AlbumAsync(string browseId, CancellationToken ct = default)
     {
         var root = await Api.PostAsync("browse", new JsonObject { ["browseId"] = browseId }, ct);
         var header = HeaderOf(root);
@@ -349,10 +349,10 @@ public sealed partial class YouTubeMusic(InnerTube api)
             .ToList();
         var more = secondary.Each("contents").Skip(1).Select(Carousel).OfType<Section>().ToList();
         var description = header.At("description", "musicDescriptionShelfRenderer", "description").Text();
-        return new AlbumPage(album, songs, description, more);
+        return new AlbumResult(album, songs, description, more);
     }
 
-    public async Task<PlaylistPage> PlaylistAsync(string playlistId, CancellationToken ct = default)
+    public async Task<PlaylistResult> PlaylistAsync(string playlistId, CancellationToken ct = default)
     {
         var id = playlistId.StartsWith("VL") ? playlistId[2..] : playlistId;
         var root = await Api.PostAsync("browse", new JsonObject { ["browseId"] = "VL" + id }, ct);
@@ -366,7 +366,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
         var (songs, continuation) = PlaylistItems(shelf.Each("contents"));
         continuation ??= shelf.Str("continuations", 0, "nextContinuationData", "continuation");
         var description = header.At("description", "musicDescriptionShelfRenderer", "description").Text();
-        return new PlaylistPage(playlist, songs, continuation, description);
+        return new PlaylistResult(playlist, songs, continuation, description);
     }
 
     private static (List<Song> songs, string? continuation) PlaylistItems(IEnumerable<JsonNode> contents)
@@ -392,7 +392,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
         return (songs, next);
     }
 
-    public async Task<ArtistPage> ArtistAsync(string browseId, CancellationToken ct = default)
+    public async Task<ArtistResult> ArtistAsync(string browseId, CancellationToken ct = default)
     {
         var root = await Api.PostAsync("browse", new JsonObject { ["browseId"] = browseId }, ct);
         var header = root.At("header", "musicImmersiveHeaderRenderer") ?? root.At("header", "musicVisualHeaderRenderer") ?? root.At("header", "musicHeaderRenderer");
@@ -407,7 +407,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
             else if (Carousel(node) is { } section) sections.Add(section);
         }
         var artist = new Artist(browseId, name, art, subscribe.At("longSubscriberCountText").Text());
-        return new ArtistPage(artist, about, sections,
+        return new ArtistResult(artist, about, sections,
             subscribe.Str("channelId") ?? browseId,
             subscribe.Bool("subscribed"),
             subscribe.At("longSubscriberCountText").Text() ?? subscribe.At("subscriberCountText").Text(),
@@ -432,7 +432,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
      * The queue that plays after a song: [playlistId] for a playlist/album/radio, or the song's
      * own radio. Also says where the song's lyrics and related music are.
      */
-    public async Task<NextPage> NextAsync(string? videoId, string? playlistId = null, string? continuation = null, string? @params = null, CancellationToken ct = default)
+    public async Task<NextResult> NextAsync(string? videoId, string? playlistId = null, string? continuation = null, string? @params = null, CancellationToken ct = default)
     {
         var body = new JsonObject { ["isAudioOnly"] = true, ["enablePersistentPlaylistPanel"] = true, ["tunerSettingValue"] = "AUTOMIX_SETTING_NORMAL" };
         if (videoId is not null) body["videoId"] = videoId;
@@ -443,7 +443,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
         if (continuation is not null)
         {
             var more = root.At("continuationContents", "playlistPanelContinuation");
-            return new NextPage(more.Each("contents").Select(ParseItem).OfType<Song>().ToList(),
+            return new NextResult(more.Each("contents").Select(ParseItem).OfType<Song>().ToList(),
                 more.Str("continuations", 0, "nextRadioContinuationData", "continuation") ?? more.Str("continuations", 0, "nextContinuationData", "continuation"),
                 null, null, 0);
         }
@@ -451,7 +451,7 @@ public sealed partial class YouTubeMusic(InnerTube api)
         var panel = tabs.At(0, "tabRenderer", "content", "musicQueueRenderer", "content", "playlistPanelRenderer");
         var songs = panel.Each("contents").Select(ParseItem).OfType<Song>().ToList();
         var index = Math.Max(0, songs.FindIndex(s => s.VideoId == videoId));
-        return new NextPage(songs,
+        return new NextResult(songs,
             panel.Str("continuations", 0, "nextRadioContinuationData", "continuation") ?? panel.Str("continuations", 0, "nextContinuationData", "continuation"),
             tabs.Str(1, "tabRenderer", "endpoint", "browseEndpoint", "browseId"),
             tabs.Str(2, "tabRenderer", "endpoint", "browseEndpoint", "browseId"),
