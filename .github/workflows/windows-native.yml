@@ -47,7 +47,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Size
         shell: bash
-        run: du -sh windows/Wave.App/bin/publish Wave-*-windows-x64.exe
+        run: |
+          du -sh windows/Wave.App/bin/publish Wave-*-windows-x64.exe
+          echo "Resource indexes:"; find windows/Wave.App/bin windows/Wave.App/obj -iname "*.pri" | head -20
       - name: Attach to the release
         if: env.TAG != ''
         shell: bash
