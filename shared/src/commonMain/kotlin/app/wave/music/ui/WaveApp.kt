@@ -11,6 +11,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import app.wave.music.data.SessionRepository
 import app.wave.music.data.WaveSettings
 import app.wave.music.data.signOutAndForget
@@ -31,11 +33,21 @@ import kotlinx.coroutines.launch
  * [preview] (development builds) browses as a guest without signing in.
  */
 @Composable
-fun WaveApp(computer: Boolean, preview: Boolean = false, onPlayingChanged: (Boolean) -> Unit = {}) {
+fun WaveApp(
+    computer: Boolean,
+    preview: Boolean = false,
+    onPlayingChanged: (Boolean) -> Unit = {},
+    /** The window's background (ARGB) and whether it's dark, for a title bar that matches (Windows). */
+    onWindowColor: (argb: Int, dark: Boolean) -> Unit = { _, _ -> },
+) {
     CompositionLocalProvider(LocalDesktop provides computer) {
         WaveTheme {
           // Text and icons default to the theme's color (black on a dark window otherwise).
           CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.material3.MaterialTheme.colorScheme.onBackground) {
+            val background = androidx.compose.material3.MaterialTheme.colorScheme.background
+            LaunchedEffect(background) {
+                onWindowColor(background.toArgb(), background.luminance() < 0.5f)
+            }
             val scope = rememberCoroutineScope()
             val session by SessionRepository.session.collectAsState()
             val restored by SessionRepository.restored.collectAsState()
@@ -45,6 +57,15 @@ fun WaveApp(computer: Boolean, preview: Boolean = false, onPlayingChanged: (Bool
             DisposableEffect(playing) {
                 onPlayingChanged(playing)
                 onDispose { onPlayingChanged(false) }
+            }
+
+            // A guest tapped "Sign in with Google" somewhere in Wave.
+            val askedToSignIn by SessionRepository.signInRequested.collectAsState()
+            LaunchedEffect(askedToSignIn) {
+                if (askedToSignIn) {
+                    signingIn = true
+                    SessionRepository.signInHandled()
+                }
             }
 
             LaunchedEffect(Unit) {
@@ -58,9 +79,10 @@ fun WaveApp(computer: Boolean, preview: Boolean = false, onPlayingChanged: (Bool
             } else if (restored) {
                 val current = session
                 if (current == null) {
-                    WelcomeScreen(onSignIn = { signingIn = true })
+                    WelcomeScreen(onSignIn = { signingIn = true }, onGuest = { scope.launch { SessionRepository.startGuest() } })
                 } else {
-                    HomeScreen(session = current, onSignOut = { scope.launch { signOutAndForget() } })
+                    // A guest's "sign out" is signing in.
+                    HomeScreen(session = current, onSignOut = { if (current.guest) signingIn = true else scope.launch { signOutAndForget() } })
                 }
             }
           }

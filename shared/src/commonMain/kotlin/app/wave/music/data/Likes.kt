@@ -33,6 +33,8 @@ object Likes {
             _ids.value = _ids.value + saved
             if (System.currentTimeMillis() - f.lastModified() < FRESH_MS) return
         }
+        // Guests: likes live on this device only.
+        if (SessionRepository.isGuest) return
         val fresh = withContext(Dispatchers.IO) {
             runCatching {
                 val first = YouTube.playlist("LM").getOrThrow()
@@ -55,7 +57,7 @@ object Likes {
     fun set(videoId: String, like: Boolean) {
         _ids.value = if (like) _ids.value + videoId else _ids.value - videoId
         save()
-        scope.launch { YouTube.likeVideo(videoId, like) }
+        if (!SessionRepository.isGuest) scope.launch { YouTube.likeVideo(videoId, like) }
     }
 
     private fun save() {

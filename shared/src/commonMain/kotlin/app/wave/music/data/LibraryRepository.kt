@@ -39,17 +39,23 @@ object LibraryRepository {
         return items
     }
 
+    /** Guests have no library: nothing to load, and edits need an account. */
+    private fun <T> needsAccount(): Result<T> {
+        app.wave.music.ui.components.Notices.show("Sign in with Google to make playlists")
+        return Result.failure(IllegalStateException("Not signed in"))
+    }
+
     /** Albums you've saved to your library. */
-    suspend fun savedAlbums(): Result<List<AlbumItem>> = runCatching {
+    suspend fun savedAlbums(): Result<List<AlbumItem>> = if (SessionRepository.isGuest) Result.success(emptyList()) else runCatching {
         loadAll("FEmusic_liked_albums").filterIsInstance<AlbumItem>().distinctBy { it.browseId }
     }
 
     /** Artists you follow or have saved music from. */
-    suspend fun savedArtists(): Result<List<ArtistItem>> = runCatching {
+    suspend fun savedArtists(): Result<List<ArtistItem>> = if (SessionRepository.isGuest) Result.success(emptyList()) else runCatching {
         loadAll("FEmusic_library_corpus_artists").filterIsInstance<ArtistItem>().filterNot { it.isProfile }.distinctBy { it.id }
     }
 
-    suspend fun refresh(): Result<List<PlaylistItem>> = runCatching {
+    suspend fun refresh(): Result<List<PlaylistItem>> = if (SessionRepository.isGuest) Result.success(emptyList<PlaylistItem>().also { _playlists.value = it }) else runCatching {
         val items = loadAll("FEmusic_liked_playlists")
         items.filterIsInstance<PlaylistItem>()
             .filterNot { it.isPodcast }
@@ -66,11 +72,11 @@ object LibraryRepository {
         return _playlists.value.filter { it.title.contains(q, ignoreCase = true) }
     }
 
-    suspend fun create(title: String): Result<String> = runCatching {
+    suspend fun create(title: String): Result<String> = if (SessionRepository.isGuest) needsAccount() else runCatching {
         YouTube.createPlaylist(title.trim()).also { edited() }
     }
 
-    suspend fun add(playlistId: String, videoId: String): Result<Unit> =
+    suspend fun add(playlistId: String, videoId: String): Result<Unit> = if (SessionRepository.isGuest) needsAccount() else
         YouTube.addToPlaylist(playlistId, videoId).map { edited() }
 
     suspend fun remove(playlistId: String, videoId: String, setVideoId: String): Result<Unit> =

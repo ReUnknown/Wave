@@ -44,6 +44,14 @@ import java.io.File
 
 internal data class PageAuth(val cookie: String, val visitorData: String, val dataSyncId: String, val authUser: String)
 
+/** How a run of the sign-in window ended. */
+internal sealed interface SignInResult {
+    data class Done(val auth: PageAuth) : SignInResult
+    data object Closed : SignInResult
+    /** [code] is the helper's ("webview2-missing", "crash", ...) or "start" when it couldn't run at all. */
+    data class Failed(val code: String, val detail: String) : SignInResult
+}
+
 /**
  * Google sign-in on computers, on the web engine the computer already has (Safari's WebKit on
  * macOS, Edge WebView2 on Windows, WebKitGTK on Linux): Wave opens a small sign-in window (a
@@ -55,30 +63,62 @@ internal object NativeSignIn {
     private fun helper(): List<String>? {
         val dir = System.getProperty("compose.application.resources.dir")?.let(::File) ?: return null
         return when {
-            DesktopPlatform.isMac -> File(dir, "WaveSignIn").takeIf { it.exists() }?.let { listOf(it.absolutePath) }
+            DesktopPlatform.isMac -> File(dir, "WaveSignIn").takeIf { it.exists() }?.let { listOf(runnable(it).absolutePath) }
             DesktopPlatform.isWindows -> File(dir, "WaveSignIn.exe").takeIf { it.exists() }?.let { listOf(it.absolutePath) }
             else -> File(dir, "wave-signin.py").takeIf { it.exists() }?.let { listOf("python3", it.absolutePath) }
         }
     }
 
+    /**
+     * The helper, ready to run. Packaging can drop its "executable" bit; if it can't be set back
+     * in place (a read-only install), a runnable copy is made in Wave's cache.
+     */
+    private fun runnable(file: File): File {
+        if (file.canExecute() || file.setExecutable(true)) return file
+        val copy = File(AppDirs.cache, file.name)
+        if (!copy.exists() || copy.length() != file.length()) file.copyTo(copy, overwrite = true)
+        copy.setExecutable(true)
+        return copy
+    }
+
     val available: Boolean get() = helper() != null
 
-    /** Runs the sign-in window and waits for it: the session, or null if it was closed. */
-    suspend fun signIn(url: String? = null): PageAuth? = withContext(Dispatchers.IO) {
-        val command = helper() ?: return@withContext null
-        val process = ProcessBuilder(command + listOfNotNull(url)).redirectErrorStream(false).start()
-        val line = process.inputStream.bufferedReader().readLine()
-        process.waitFor()
-        val values = line?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return@withContext null
+    /** Runs the sign-in window and waits for it. Never throws: problems come back as [SignInResult.Failed]. */
+    suspend fun signIn(url: String? = null): SignInResult = withContext(Dispatchers.IO) {
+        val command = helper() ?: return@withContext SignInResult.Failed("missing", "")
+        val line = try {
+            val process = ProcessBuilder(command + listOfNotNull(url))
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+            process.inputStream.bufferedReader().readLine().also { process.waitFor() }
+        } catch (e: Exception) {
+            return@withContext SignInResult.Failed("start", e.message.orEmpty())
+        }
+        val values = line?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() }
+            ?: return@withContext SignInResult.Closed
         fun get(key: String) = values[key]?.jsonPrimitive?.content.orEmpty()
+        if (values.containsKey("error")) return@withContext SignInResult.Failed(get("error"), get("detail"))
         PageAuth(get("cookie"), get("visitorData"), get("dataSyncId").substringBefore("||"), get("authUser").filter(Char::isDigit).ifBlank { "0" })
             .takeIf { it.cookie.isNotBlank() && it.visitorData.isNotBlank() }
+            ?.let { SignInResult.Done(it) }
+            ?: SignInResult.Closed
     }
 
     /** Sign-out: the sign-in window forgets the web session too. */
     fun signOut() {
-        val command = helper() ?: return
-        runCatching { ProcessBuilder(command + "--sign-out").start().waitFor() }
+        runCatching {
+            val command = helper() ?: return
+            ProcessBuilder(command + "--sign-out").redirectError(ProcessBuilder.Redirect.DISCARD).start().waitFor()
+        }
+    }
+
+    /** What to tell you when the sign-in window couldn't do its job. */
+    fun explain(failure: SignInResult.Failed): String = when (failure.code) {
+        "webview2-missing" -> "Signing in needs Microsoft Edge WebView2, which this PC doesn't have. Install it (it's free, from Microsoft), then try again."
+        "gtk-webkit-missing" -> "Signing in needs WebKitGTK, which wasn't found on this computer."
+        "missing" -> "Wave's sign-in window is missing from this install. Reinstalling Wave fixes it."
+        "start" -> "Wave's sign-in window couldn't start" + (failure.detail.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ".")
+        else -> "The sign-in window ran into a problem" + (failure.detail.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ".")
     }
 }
 
@@ -99,6 +139,7 @@ fun DesktopLoginScreen(onDone: () -> Unit, onCancel: () -> Unit) {
     var pendingAuth by remember { mutableStateOf<PageAuth?>(null) }
     var chosen by remember { mutableStateOf<YouTubeAccount?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    var failure by remember { mutableStateOf<SignInResult.Failed?>(null) }
 
     suspend fun finish(auth: PageAuth) {
         stage = Stage.Finishing
@@ -114,11 +155,15 @@ fun DesktopLoginScreen(onDone: () -> Unit, onCancel: () -> Unit) {
 
     LaunchedEffect(attempt) {
         stage = Stage.Waiting
-        if (!NativeSignIn.available) {
-            error = "Wave's sign-in window is missing from this install. Reinstalling Wave fixes it."
-            return@LaunchedEffect
+        val auth = when (val result = NativeSignIn.signIn()) {
+            is SignInResult.Done -> result.auth
+            SignInResult.Closed -> return@LaunchedEffect onCancel()
+            is SignInResult.Failed -> {
+                failure = result
+                error = NativeSignIn.explain(result)
+                return@LaunchedEffect
+            }
         }
-        val auth = NativeSignIn.signIn() ?: return@LaunchedEffect onCancel()
         SessionRepository.applyToClient(auth.cookie, auth.visitorData, auth.dataSyncId, auth.authUser)
         val list = withContext(Dispatchers.IO) { YouTube.accountsList().getOrNull().orEmpty() }
         if (list.size > 1) {
@@ -191,7 +236,7 @@ fun DesktopLoginScreen(onDone: () -> Unit, onCancel: () -> Unit) {
                         } else {
                             // Switch the web session to that channel, then read it again.
                             stage = Stage.Waiting
-                            val switched = NativeSignIn.signIn(pick.signinUrl)
+                            val switched = (NativeSignIn.signIn(pick.signinUrl) as? SignInResult.Done)?.auth
                             if (switched == null) onCancel()
                             else finish(switched.copy(dataSyncId = pick.dataSyncId?.substringBefore("||")?.ifBlank { null } ?: switched.dataSyncId))
                         }
@@ -207,12 +252,25 @@ fun DesktopLoginScreen(onDone: () -> Unit, onCancel: () -> Unit) {
             title = { Text("Sign-in problem") },
             text = { Text(message) },
             confirmButton = {
+                if (failure?.code == "webview2-missing") {
+                    TextButton(onClick = { DesktopPlatform.openUrl("https://go.microsoft.com/fwlink/p/?LinkId=2124703") }) { Text("Get WebView2") }
+                }
                 TextButton(onClick = {
                     error = null
+                    failure = null
                     attempt++
                 }) { Text("Try again") }
             },
-            dismissButton = { TextButton(onClick = { error = null; onCancel() }) { Text("Cancel") } },
+            // Signing in is optional: Wave works without an account too.
+            dismissButton = {
+                TextButton(onClick = {
+                    error = null
+                    scope.launch {
+                        SessionRepository.startGuest()
+                        onCancel()
+                    }
+                }) { Text("Use without an account") }
+            },
         )
     }
 }

@@ -5,10 +5,21 @@
 #   wave-signin [url]        sign in (or open a channel-switch URL)
 #   wave-signin --sign-out   forget the web session
 import json, os, shutil, sys
-import gi
-gi.require_version("Gtk", "3.0")
-gi.require_version("WebKit2", "4.1")
-from gi.repository import GLib, Gtk, WebKit2
+
+def fail(code, detail=""):
+    """Tells Wave what went wrong (one JSON line) instead of crashing."""
+    print(json.dumps({"error": code, "detail": str(detail)}), flush=True)
+    sys.exit(2)
+
+try:
+    import gi
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("WebKit2", "4.1")
+    from gi.repository import GLib, Gtk, WebKit2
+except Exception as e:
+    fail("gtk-webkit-missing", e)
+
+sys.excepthook = lambda kind, value, tb: fail("crash", value)
 
 SIGN_IN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"
 DATA = os.path.join(GLib.get_user_data_dir(), "wave", "signin")

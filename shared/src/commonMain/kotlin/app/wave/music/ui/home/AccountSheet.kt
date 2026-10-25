@@ -87,15 +87,17 @@ fun AccountSheet(
                 }
                 Column {
                     Text(session.name, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = c.onSurface)
-                    Text(session.email ?: "Signed in with Google", fontSize = 14.sp, color = c.onSurfaceVariant)
+                    Text(accountLine(session), fontSize = 14.sp, color = c.onSurfaceVariant)
                 }
             }
 
-            Eyebrow("Your library")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Tile(Icons.Rounded.LibraryMusic, "Playlists", Modifier.weight(1f)) { onOpen(Destination.Playlists) }
-                Tile(Icons.Rounded.Album, "Albums & artists", Modifier.weight(1f)) { onOpen(Destination.Saved) }
-                Tile(Icons.Rounded.History, "History", Modifier.weight(1f)) { onOpen(Destination.History) }
+            if (!session.guest) {
+                Eyebrow("Your library")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Tile(Icons.Rounded.LibraryMusic, "Playlists", Modifier.weight(1f)) { onOpen(Destination.Playlists) }
+                    Tile(Icons.Rounded.Album, "Albums & artists", Modifier.weight(1f)) { onOpen(Destination.Saved) }
+                    Tile(Icons.Rounded.History, "History", Modifier.weight(1f)) { onOpen(Destination.History) }
+                }
             }
 
             // Swipe up: everything else lives right below.
@@ -111,7 +113,7 @@ fun AccountSheet(
                     .clickable(onClick = onSignOut)
                     .padding(horizontal = 24.dp),
                 contentAlignment = Alignment.Center,
-            ) { Text("Sign out", color = c.primary, fontWeight = FontWeight.SemiBold) }
+            ) { Text(if (session.guest) "Sign in with Google" else "Sign out", color = c.primary, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -166,18 +168,27 @@ fun AccountMenu(
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Text(session.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.onSurface)
-            Text(session.email ?: "Signed in with Google", fontSize = 13.sp, color = c.onSurfaceVariant)
+            Text(accountLine(session), fontSize = 13.sp, color = c.onSurfaceVariant)
         }
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
-        if (library) {
+        if (library && !session.guest) {
             MenuRow(Icons.Rounded.LibraryMusic, "Playlists") { onOpen(Destination.Playlists) }
             MenuRow(Icons.Rounded.Album, "Albums & artists") { onOpen(Destination.Saved) }
             MenuRow(Icons.Rounded.History, "History") { onOpen(Destination.History) }
             androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
         }
         MenuRow(Icons.Rounded.Settings, "Settings", onSettings)
-        MenuRow(Icons.AutoMirrored.Rounded.Logout, "Sign out", onSignOut)
+        if (session.guest) {
+            MenuRow(Icons.Rounded.AccountCircle, "Sign in with Google", onSignOut)
+        } else {
+            MenuRow(Icons.AutoMirrored.Rounded.Logout, "Sign out", onSignOut)
+        }
     }
+}
+
+private fun accountLine(session: Session) = when {
+    session.guest -> "Not signed in. Likes stay on this device."
+    else -> session.email ?: "Signed in with Google"
 }
 
 @Composable

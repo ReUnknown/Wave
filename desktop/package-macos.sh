@@ -12,6 +12,8 @@ LAUNCHER="$APP/Contents/MacOS/Wave"
 vtool -set-build-version macos 11.0 "$SDK" -replace -output "$LAUNCHER.new" "$LAUNCHER"
 mv "$LAUNCHER.new" "$LAUNCHER"
 chmod +x "$LAUNCHER"
+# Packaging drops the sign-in helper's "executable" bit; without it sign-in can't start.
+chmod +x "$APP/Contents/app/resources/WaveSignIn"
 codesign --force --deep -s - "$APP"
 OUT=dist/Wave-$VERSION-macos-arm64.dmg
 STAGE=$(mktemp -d)

@@ -41,6 +41,10 @@ interface Platform {
     fun forgetAccount()
     /** Hands a downloaded update to the system installer. */
     fun installUpdate(file: File)
+
+    /** A mini player that stays on top of other windows (Windows). */
+    val hasMiniPlayer: Boolean get() = false
+    fun openMiniPlayer() {}
 }
 
 object WavePlatform {

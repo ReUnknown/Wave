@@ -1,6 +1,8 @@
 // Wave's Google sign-in window on Windows, on Edge WebView2 (nothing downloaded).
 // Google's sign-in page runs here; once it lands on music.youtube.com signed in, this prints the
-// session (cookies and page config) as one line of JSON to Wave and quits.
+// session (cookies and page config) as one line of JSON to Wave and quits. If anything goes wrong
+// it prints {"error": "..."} instead (and logs to %LOCALAPPDATA%\Wave\SignIn\signin.log), never a
+// crash dialog.
 //   WaveSignIn [url]        sign in (or open a channel-switch URL)
 //   WaveSignIn --sign-out   forget the web session
 using System;
@@ -27,6 +29,18 @@ static class Program
             try { if (Directory.Exists(DataFolder)) Directory.Delete(DataFolder, true); } catch { }
             return 0;
         }
+        // No "unhandled exception" dialogs: anything that goes wrong is reported to Wave.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (s, e) => Fail("crash", e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (s, e) => Fail("crash", e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (s, e) => { e.SetObserved(); Fail("crash", e.Exception); };
+
+        // Edge WebView2 ships with Windows 11 (and most Windows 10); without it there's nothing to sign in on.
+        string edge;
+        try { edge = CoreWebView2Environment.GetAvailableBrowserVersionString(); }
+        catch (Exception e) { return Fail("webview2-missing", e); }
+        if (string.IsNullOrEmpty(edge)) return Fail("webview2-missing", new Exception("WebView2 Runtime not found"));
+
         Application.EnableVisualStyles();
         var form = new Form { Text = "Sign in to Wave", Width = 500, Height = 720, StartPosition = FormStartPosition.CenterScreen };
         var web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(17, 20, 24) };
@@ -35,6 +49,8 @@ static class Program
         var done = false;
         form.Load += async (s, e) =>
         {
+          try
+          {
             var env = await CoreWebView2Environment.CreateAsync(null, DataFolder);
             await web.EnsureCoreWebView2Async(env);
             web.CoreWebView2.NavigationCompleted += async (s2, e2) =>
@@ -66,9 +82,41 @@ static class Program
                 if (!done) form.Show();
             };
             web.CoreWebView2.Navigate(args.Length > 0 ? args[0] : SignInUrl);
+          }
+          catch (Exception ex)
+          {
+            Fail("crash", ex);
+          }
         };
         Application.Run(form);
         return exitCode;
+    }
+
+    static readonly object reported = new object();
+    static bool failed;
+
+    /** Tells Wave what went wrong (one JSON line), logs the details and quits. */
+    static int Fail(string code, Exception e)
+    {
+        lock (reported)
+        {
+            if (failed) return 2;
+            failed = true;
+        }
+        try
+        {
+            Directory.CreateDirectory(DataFolder);
+            File.AppendAllText(Path.Combine(DataFolder, "signin.log"), DateTime.Now.ToString("s") + " " + code + ": " + e + Environment.NewLine);
+        }
+        catch { }
+        try
+        {
+            var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+            stdout.WriteLine("{\"error\":" + Json.Quote(code) + ",\"detail\":" + Json.Quote(e?.Message ?? "") + "}");
+        }
+        catch { }
+        Environment.Exit(2);
+        return 2;
     }
 }
 

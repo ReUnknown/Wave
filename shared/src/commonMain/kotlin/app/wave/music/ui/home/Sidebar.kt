@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,6 +92,29 @@ fun Sidebar(
             Text("Wave", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = c.onBackground)
         }
         NavRow(Icons.Rounded.Home, "Home", selected = current == null, onClick = onHome)
+        val guest = app.wave.music.data.SessionRepository.session.collectAsState().value?.guest != false
+        if (guest) {
+            // No library without an account: one quiet invitation instead.
+            Column(
+                Modifier
+                    .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(c.onBackground.copy(alpha = 0.06f))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("Your playlists, albums and history show up here when you sign in.", fontSize = 13.sp, color = c.onBackground.copy(alpha = 0.8f))
+                Box(
+                    Modifier
+                        .height(40.dp)
+                        .pressable(CircleShape, c.primary, pressedScale = 0.95f) { app.wave.music.data.SessionRepository.requestSignIn() }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Sign in with Google", color = c.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+            }
+            return@Column
+        }
         NavRow(Icons.Rounded.Album, "Albums & artists", selected = current == Destination.Saved) { onOpen(Destination.Saved) }
         NavRow(Icons.Rounded.History, "History", selected = current == Destination.History) { onOpen(Destination.History) }
 

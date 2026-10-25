@@ -34,10 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.wave.music.ui.components.WaveMark
 
-/** First screen when signed out: a wall of expressive shapes in your colors, then one button. */
+/** First screen when signed out: a wall of expressive shapes in your colors, then sign in (or don't). */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun WelcomeScreen(onSignIn: () -> Unit) {
+fun WelcomeScreen(onSignIn: () -> Unit, onGuest: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val shapes: List<Shape> = listOf(
         MaterialShapes.Cookie9Sided.toShape(), MaterialShapes.Pill.toShape(), MaterialShapes.Sunny.toShape(),
@@ -116,6 +116,14 @@ fun WelcomeScreen(onSignIn: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
             ) {
                 Text("Sign in with Google", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.material3.TextButton(
+                onClick = onGuest,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = CircleShape,
+            ) {
+                Text("Continue without an account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
             }
         }
     }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import app.wave.music.platform.LocalTitleBarInset
@@ -47,6 +48,7 @@ fun main(args: Array<String>) {
     BlurBudget.light = true
     // Settings first, so the window opens at your interface size.
     kotlinx.coroutines.runBlocking { WaveSettings.load() }
+    kotlinx.coroutines.runBlocking { MiniPlayer.load() }
     PlayerConnection.backend = DesktopPlayer
     DesktopPlayer.restore()
     // A YouTube Music link passed in (opened with Wave).
@@ -69,6 +71,27 @@ fun main(args: Array<String>) {
     application {
         // A comfortable size on a laptop screen, centered.
         val window = rememberWindowState(size = DpSize(1120.dp, 740.dp))
+        var mainWindow by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<java.awt.Window?>(null) }
+        val miniOpen by MiniPlayer.open.collectAsState()
+        // The mini player takes Wave's place: the main window minimizes while it's open.
+        LaunchedEffect(miniOpen) { if (miniOpen) window.isMinimized = true }
+        if (miniOpen) {
+            MiniPlayerWindow(
+                onBack = {
+                    MiniPlayer.open.value = false
+                    window.isMinimized = false
+                    mainWindow?.toFront()
+                    mainWindow?.requestFocus()
+                },
+                onClose = {
+                    MiniPlayer.open.value = false
+                    if (window.isMinimized) {
+                        AppFocus.onStarted(false)
+                        BeatBus.visible = false
+                    }
+                },
+            )
+        }
         Window(
             onCloseRequest = ::exitApplication,
             title = "Wave",
@@ -77,6 +100,7 @@ fun main(args: Array<String>) {
             onPreviewKeyEvent = { event -> event.type == KeyEventType.KeyDown && (zoomKey(event) || shortcut(event)) },
         ) {
             LaunchedEffect(Unit) {
+                mainWindow = this@Window.window
                 this@Window.window.minimumSize = java.awt.Dimension(420, 560)
                 // Open at a comfortable size for the screen it's on (never bigger than 85% of it), centered.
                 val screen = this@Window.window.graphicsConfiguration.bounds
@@ -92,11 +116,12 @@ fun main(args: Array<String>) {
                 // Decorative motion only while Wave is in front: on screen and focused.
                 AppFocus.onStarted(true)
                 BeatBus.visible = true
+                // (While the mini player is open, it's the one on screen.)
                 this@Window.window.addWindowListener(object : WindowAdapter() {
-                    override fun windowIconified(e: WindowEvent?) { AppFocus.onStarted(false); BeatBus.visible = false }
+                    override fun windowIconified(e: WindowEvent?) { if (!MiniPlayer.open.value) { AppFocus.onStarted(false); BeatBus.visible = false } }
                     override fun windowDeiconified(e: WindowEvent?) { AppFocus.onStarted(true); BeatBus.visible = true }
                     override fun windowActivated(e: WindowEvent?) = AppFocus.onFocus(true)
-                    override fun windowDeactivated(e: WindowEvent?) = AppFocus.onFocus(false)
+                    override fun windowDeactivated(e: WindowEvent?) { if (!MiniPlayer.open.value) AppFocus.onFocus(false) }
                 })
             }
             // Interface size: ⌘/Ctrl + and − zoom like a browser (remembered).
@@ -106,7 +131,11 @@ fun main(args: Array<String>) {
                 LocalDensity provides Density(base.density * zoom, base.fontScale),
                 LocalTitleBarInset provides if (DesktopPlatform.isMac) 28.dp else 0.dp,
             ) {
-                WaveApp(computer = true, preview = preview)
+                WaveApp(
+                    computer = true,
+                    preview = preview,
+                    onWindowColor = { argb, dark -> if (DesktopPlatform.isWindows) WindowsTitleBar.apply(this@Window.window, argb, dark) },
+                )
             }
             if (DesktopPlatform.debug) FrameStats()
         }
@@ -117,7 +146,7 @@ fun main(args: Array<String>) {
  * Space plays/pauses, Ctrl/⌘ + →/← skip, Ctrl/⌘ + L likes, Ctrl/⌘ + F or / search (Esc goes
  * back, handled by the screens). Ignored while typing.
  */
-private fun shortcut(event: androidx.compose.ui.input.key.KeyEvent): Boolean {
+internal fun shortcut(event: androidx.compose.ui.input.key.KeyEvent): Boolean {
     if (Shortcuts.typing) return false
     val command = event.isCtrlPressed || event.isMetaPressed
     when {

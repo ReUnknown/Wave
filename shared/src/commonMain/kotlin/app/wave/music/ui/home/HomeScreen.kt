@@ -693,7 +693,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         .alpha(greetingAlpha),
                 ) {
                     Text(greeting(), color = c.onBackground.copy(alpha = 0.88f), fontSize = 22.sp, fontWeight = FontWeight.Medium)
-                    Text(session.name.substringBefore(' '), color = c.onBackground, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                    if (!session.guest) Text(session.name.substringBefore(' '), color = c.onBackground, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
 

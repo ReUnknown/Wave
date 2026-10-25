@@ -61,7 +61,7 @@ object BlurBudget {
     var light = false
 }
 
-private fun Modifier.maskedBy(brush: Brush): Modifier = this
+internal fun Modifier.maskedBy(brush: Brush): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()

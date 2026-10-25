@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.OpenInFull
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
@@ -211,6 +212,9 @@ fun PlayerBar(
                 BarIcon(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", onClick = onQueue)
                 SpeedButton(state.speed)
                 SlimVolume(Color.White, Modifier.padding(end = 6.dp))
+                if (app.wave.music.platform.WavePlatform.current.hasMiniPlayer) {
+                    BarIcon(Icons.Rounded.PictureInPictureAlt, "Mini player") { app.wave.music.platform.WavePlatform.current.openMiniPlayer() }
+                }
                 BarIcon(Icons.Rounded.OpenInFull, "Open the player", onClick = onOpen)
             }
         }

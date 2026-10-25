@@ -215,7 +215,9 @@ fun ItemMenuHost(
                             QuickAction(Icons.Rounded.SkipNext, "Play next") { choose { actions.playNext(song) } }
                             QuickAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { choose { actions.addToQueue(song) } }
                             QuickAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist") {
-                                choose {
+                                if (app.wave.music.data.SessionRepository.isGuest) {
+                                    app.wave.music.ui.components.Notices.show("Sign in with Google to make playlists")
+                                } else choose {
                                     pendingVideo = target.videoId
                                     dialog = Dialog.AddToPlaylist
                                 }

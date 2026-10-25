@@ -39,6 +39,10 @@ object DesktopPlatform : Platform {
         runCatching { Desktop.getDesktop().browse(URI(url)) }
     }
 
+    /** Windows for now (and development builds, to work on it anywhere). */
+    override val hasMiniPlayer get() = isWindows || debug
+    override fun openMiniPlayer() { MiniPlayer.open.value = true }
+
     override fun forgetAccount() = DesktopLoginScreen.forgetCookies()
 
     /** Opens the downloaded installer; the system takes it from there. */

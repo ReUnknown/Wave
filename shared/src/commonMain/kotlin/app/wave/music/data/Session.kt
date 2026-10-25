@@ -17,7 +17,10 @@ data class Session(
     val name: String,
     val email: String?,
     val photoUrl: String?,
-)
+) {
+    /** Using Wave without an account: YouTube Music's public home, search and playback; likes stay on this device. */
+    val guest: Boolean get() = cookie.isEmpty()
+}
 
 
 /**
@@ -33,7 +36,10 @@ object SessionRepository {
         val name = stringPreferencesKey("name")
         val email = stringPreferencesKey("email")
         val photoUrl = stringPreferencesKey("photo_url")
+        val guest = androidx.datastore.preferences.core.booleanPreferencesKey("guest")
     }
+
+    private val guestSession = Session(cookie = "", visitorData = "", dataSyncId = "", authUser = "0", name = "Guest", email = null, photoUrl = null)
 
     private val _session = MutableStateFlow<Session?>(null)
     val session: StateFlow<Session?> = _session.asStateFlow()
@@ -58,6 +64,8 @@ object SessionRepository {
                 email = prefs[Keys.email],
                 photoUrl = prefs[Keys.photoUrl],
             )
+        } else if (prefs[Keys.guest] == true) {
+            guestSession
         } else {
             null
         }
@@ -73,12 +81,19 @@ object SessionRepository {
     fun startPreview() {
         previewing = true
         applyToClient(null, null, null, "0")
-        _session.value = Session(cookie = "", visitorData = "", dataSyncId = "", authUser = "0", name = "Preview", email = null, photoUrl = null)
+        _session.value = guestSession.copy(name = "Preview")
         _restored.value = true
+    }
+
+    /** Use Wave without an account (remembered until you sign in). */
+    suspend fun startGuest() {
+        app.wave.music.data.Stores.prefs("session").edit { it.clear(); it[Keys.guest] = true }
+        apply(guestSession)
     }
 
     suspend fun save(session: Session) {
         app.wave.music.data.Stores.prefs("session").edit {
+            it.remove(Keys.guest)
             it[Keys.cookie] = SecretBox.encrypt(session.cookie)
             it[Keys.visitorData] = session.visitorData
             it[Keys.dataSyncId] = session.dataSyncId
@@ -105,8 +120,17 @@ object SessionRepository {
         YouTube.useLoginForBrowse = cookie != null
     }
 
+    private val _signInRequested = MutableStateFlow(false)
+    /** Something asked to sign in (a guest tapping "Sign in with Google" anywhere in Wave). */
+    val signInRequested: StateFlow<Boolean> = _signInRequested.asStateFlow()
+    fun requestSignIn() { _signInRequested.value = true }
+    fun signInHandled() { _signInRequested.value = false }
+
+    /** Signed in to nothing (a guest, or the preview). */
+    val isGuest: Boolean get() = _session.value?.guest != false
+
     private fun apply(session: Session?) {
-        applyToClient(session?.cookie, session?.visitorData, session?.dataSyncId, session?.authUser ?: "0")
+        applyToClient(session?.cookie?.takeIf { it.isNotEmpty() }, session?.visitorData, session?.dataSyncId, session?.authUser ?: "0")
         _session.value = session
     }
 }

@@ -861,6 +861,10 @@ private fun FollowButton(channelId: String, initiallyFollowing: Boolean, name: S
         Modifier
             .fillMaxHeight()
             .pressable(RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), fill, pressedScale = 0.93f) {
+                if (app.wave.music.data.SessionRepository.isGuest) {
+                    app.wave.music.ui.components.Notices.show("Sign in with Google to follow artists")
+                    return@pressable
+                }
                 val next = !following
                 following = next
                 scope.launch {
