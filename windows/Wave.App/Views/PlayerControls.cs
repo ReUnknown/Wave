@@ -193,7 +193,7 @@ public sealed class SlimVolume : StackPanel
 public static class PlayerParts
 {
     /** The speed button: shows the speed; click for the choices. */
-    public static Tap Speed(Brush ink, Brush active)
+    public static Tap Speed(Brush ink, Brush active, Palette? palette = null)
     {
         var tap = new Tap { Height = 32, CornerRadius = new CornerRadius(16), Padding = new Thickness(10, 0, 10, 0) };
         var label = Ui.Text("1×", 13, ink, FontWeights.Bold);
@@ -208,14 +208,9 @@ public static class PlayerParts
         Show(App.Services.Player.State);
         tap.Click += () =>
         {
-            var menu = new MenuFlyout();
+            var menu = new Menu(palette);
             foreach (var speed in new[] { 0.5, 0.75, 1, 1.25, 1.5, 2 })
-            {
-                var item = new MenuFlyoutItem { Text = speed == 1 ? "Normal" : $"{speed:0.##}×" };
-                if (Math.Abs(speed - App.Services.Player.State.Speed) < 0.01) item.FontWeight = FontWeights.Bold;
-                item.Click += (_, _) => App.Services.Player.SetSpeed(speed);
-                menu.Items.Add(item);
-            }
+                menu.Add(null, speed == 1 ? "Normal" : $"{speed:0.##}×", () => App.Services.Player.SetSpeed(speed), bold: Math.Abs(speed - App.Services.Player.State.Speed) < 0.01);
             menu.ShowAt(tap);
         };
         ToolTipService.SetToolTip(tap, "Playback speed");
@@ -374,6 +369,20 @@ public sealed class PlayerBar : Grid
         foreach (var c in right.Children) ((FrameworkElement)c).VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(right.At(0, 2));
         Children.Add(row);
+
+        // Narrow windows: the song and the play controls; the rest is in the full player.
+        void Fit()
+        {
+            var narrow = window.Narrow;
+            right.Visibility = shuffleButton.Visibility = repeatButton.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+            row.ColumnDefinitions[2].Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+            row.ColumnDefinitions[1].MinWidth = narrow ? 0 : 360;
+            row.ColumnDefinitions[1].Width = narrow ? GridLength.Auto : new GridLength(1.2, GridUnitType.Star);
+            progressRow.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+            Height = narrow ? 80 : 96;
+        }
+        window.LayoutChanged += Fit;
+        Fit();
 
         App.Services.Player.Changed += Show;
         Show(App.Services.Player.State);

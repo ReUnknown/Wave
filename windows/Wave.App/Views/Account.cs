@@ -171,12 +171,28 @@ public sealed class LoginView : Grid
             var channels = await App.Services.YouTube.ChannelsAsync();
             if (channels.Count > 1)
             {
-                var list = new ListView { SelectionMode = ListViewSelectionMode.Single };
-                foreach (var c in channels) list.Items.Add(c.Name + (c.Handle is null ? "" : "  " + c.Handle));
-                list.SelectedIndex = Math.Max(0, channels.ToList().FindIndex(c => c.Selected));
-                var dialog = new ContentDialog { Title = "Which channel?", Content = list, PrimaryButtonText = "Continue", XamlRoot = XamlRoot };
+                var p = Theme.App;
+                var column = new StackPanel { Spacing = 4 };
+                Dialog? dialog = null;
+                var chosen = Math.Max(0, channels.ToList().FindIndex(c => c.Selected));
+                for (var i = 0; i < channels.Count; i++)
+                {
+                    var index = i;
+                    var c = channels[i];
+                    var tap = new Tap { CornerRadius = new CornerRadius(20), Padding = new Thickness(12), Background = c.Selected ? p.PrimaryContainer : p.SurfaceContainerHighest };
+                    var row = Ui.Grid(columns: "Auto,*");
+                    row.ColumnSpacing = 12;
+                    row.Children.Add(Ui.Art(c.Photo, 40, 20).At(0, 0));
+                    var names = Ui.Column(0, Ui.Text(c.Name, 16, p.OnBackground, FontWeights.Bold), Ui.Text(c.Handle ?? "", 13, p.OnSurfaceVariant));
+                    names.VerticalAlignment = VerticalAlignment.Center;
+                    row.Children.Add(names.At(0, 1));
+                    tap.Children.Add(row);
+                    tap.Click += () => { chosen = index; dialog?.Close(1); };
+                    column.Children.Add(tap);
+                }
+                dialog = new Dialog("Which channel?").Content(new ScrollViewer { Content = column, MaxHeight = 400 });
                 await dialog.ShowAsync();
-                var pick = channels[Math.Max(0, list.SelectedIndex)];
+                var pick = channels[chosen];
                 if (!pick.Selected && pick.DataSyncId is { } id) dataSyncId = id.Split("||")[0];
                 api.UseSession(cookie, visitor, dataSyncId, authUser);
             }

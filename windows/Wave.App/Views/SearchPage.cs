@@ -8,14 +8,15 @@ using Wave.Music;
 namespace Wave.App.Views;
 
 /**
- * Search: the field up top (suggestions while you type, your recent searches when it's empty),
+ * Search: the searchField up top (suggestions while you type, your recent searches when it's empty),
  * then results as Top / Songs / Artists / Albums / Playlists. Only a result that really matches
  * what you typed gets the big top spot.
  */
 public sealed class SearchPage : WavePage
 {
     private readonly Palette p = Theme.App;
-    private readonly TextBox box;
+    private readonly Field searchField;
+    private TextBox box => searchField.Box;
     private readonly StackPanel body = new() { Padding = new Thickness(0, 0, 0, 48) };
     private readonly StackPanel chips = Ui.Row(8);
     private string? submitted;
@@ -32,19 +33,10 @@ public sealed class SearchPage : WavePage
         top.MaxWidth = 792;
         top.HorizontalAlignment = HorizontalAlignment.Left;
         top.Children.Add(Ui.IconButton(Glyph.Back, "Back", p.OnBackground, window.Pop, 48, 24).At(0, 0));
-        box = new TextBox
-        {
-            PlaceholderText = "Search songs, artists, albums",
-            FontSize = 16,
-            Height = 56,
-            CornerRadius = new CornerRadius(28),
-            Padding = new Thickness(20, 16, 20, 0),
-            Background = p.Faint,
-            BorderBrush = p.Track,
-        };
+        searchField = new Field("Search songs, artists, albums", p, 56, Glyph.Search);
         box.TextChanged += (_, _) => OnTyping();
         box.KeyDown += OnKey;
-        top.Children.Add(box.At(0, 1));
+        top.Children.Add(searchField.At(0, 1));
         layout.Children.Add(top.At(0));
         chips.Margin = new Thickness(24, 12, 24, 4);
         chips.Visibility = Visibility.Collapsed;
@@ -158,7 +150,7 @@ public sealed class SearchPage : WavePage
         if (submitted is not { } q) return;
         chips.Visibility = Visibility.Visible;
         body.Children.Clear();
-        var ring = new ProgressRing { IsActive = true, Width = 48, Height = 48, Foreground = p.Primary, Margin = new Thickness(0, 60, 0, 0) };
+        var ring = new LoadingIndicator(64) { Margin = new Thickness(0, 60, 0, 0) };
         body.Children.Add(ring);
         var asked = filter;
         try

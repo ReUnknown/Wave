@@ -117,7 +117,22 @@ public sealed class AudioEngine : IAudioEngine
             });
             media.MediaEnded += (_, _) => engine.Post(() => { if (!disposed) Ended?.Invoke(); });
             media.MediaFailed += (_, e) => engine.Post(() => { if (!disposed) Failed?.Invoke(e.ErrorMessage); });
-            media.Source = MediaSource.CreateFromUri(new Uri(stream.Url));
+            if (stream.IsFile) _ = OpenAsync(stream.Source);
+            else media.Source = MediaSource.CreateFromUri(new Uri(stream.Source));
+        }
+
+        /** The song's downloaded file, opened for Windows' player. */
+        private async Task OpenAsync(string path)
+        {
+            try
+            {
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                if (!disposed) media.Source = MediaSource.CreateFromStorageFile(file);
+            }
+            catch (Exception e)
+            {
+                engine.Post(() => { if (!disposed) Failed?.Invoke(e.Message); });
+            }
         }
 
         public long PositionMs => disposed ? 0 : (long)media.PlaybackSession.Position.TotalMilliseconds;

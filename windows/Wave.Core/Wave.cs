@@ -23,7 +23,7 @@ public sealed class Services
     {
         Api = new InnerTube();
         YouTube = new YouTubeMusic(Api);
-        Streams = new Streams(Api.Http);
+        Streams = new Streams(Api.Http, Path.Combine(Paths.Cache, "Audio"));
         Lyrics = new LyricsSource(Api.Http, YouTube);
         Queues = new QueueBuilder(YouTube);
         Player = new Player(engine, YouTube, Streams);

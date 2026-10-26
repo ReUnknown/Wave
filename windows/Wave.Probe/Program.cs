@@ -66,12 +66,23 @@ if (next1.LyricsBrowseId is not null)
 var info = await yt.PlayerInfoAsync(song.VideoId);
 Console.WriteLine($"PLAYER loudness={info.loudnessDb} tracking={(info.trackingUrl is null ? "none" : "ok")} duration={info.durationMs}");
 
-var streams = new Streams(api.Http);
+var streams = new Streams(api.Http, Path.Combine(Path.GetTempPath(), "wave-probe-audio"));
 var t0 = DateTime.UtcNow;
 var stream = await streams.ResolveAsync(song.VideoId);
-Console.WriteLine($"STREAM {stream.Container} {stream.Bitrate / 1000} kbps {stream.SizeBytes / 1024} KB in {(DateTime.UtcNow - t0).TotalMilliseconds:0} ms");
-using var head = await api.Http.SendAsync(new HttpRequestMessage(HttpMethod.Get, stream.Url) { Headers = { Range = new System.Net.Http.Headers.RangeHeaderValue(0, 1023) } });
-Console.WriteLine($"  first KB: HTTP {(int)head.StatusCode}");
+Console.WriteLine($"STREAM {stream.Container} {stream.Bitrate / 1000} kbps ready in {(DateTime.UtcNow - t0).TotalMilliseconds:0} ms via {stream.Source}");
+using (var local = new HttpClient())
+{
+    var req = new HttpRequestMessage(HttpMethod.Get, stream.Source);
+    req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(1000, 50999);
+    t0 = DateTime.UtcNow;
+    using var res = await local.SendAsync(req);
+    var bytes = await res.Content.ReadAsByteArrayAsync();
+    Console.WriteLine($"  relay: HTTP {(int)res.StatusCode} {bytes.Length} bytes, {res.Content.Headers.ContentRange}, {res.Content.Headers.ContentType} in {(DateTime.UtcNow - t0).TotalMilliseconds:0} ms");
+}
+t0 = DateTime.UtcNow;
+await streams.PrefetchAsync(song.VideoId);
+var again = await streams.ResolveAsync(song.VideoId);
+Console.WriteLine($"  prefetched in {(DateTime.UtcNow - t0).TotalMilliseconds:0} ms; now plays from file: {again.IsFile}");
 
 // ---- Queues, lyrics, colors, updater ----
 var queues = new Wave.Playback.QueueBuilder(yt);

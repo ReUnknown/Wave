@@ -49,6 +49,10 @@ public sealed class MainWindow : Window
     private HomePage? home;
     private Palette? followed;
 
+    /** A narrow window: no sidebar (the library moves into the account menu), a slimmer player bar. */
+    public bool Narrow { get; private set; }
+    public event Action? LayoutChanged;
+
     /** The window is on screen and in front (decorative motion runs only then). */
     public bool Active { get; private set; } = true;
     public event Action? ActiveChanged;
@@ -105,11 +109,22 @@ public sealed class MainWindow : Window
         Closed += (_, _) => Quit();
 
         root.KeyDown += OnKey;
+        root.SizeChanged += (_, e) => Relayout(e.NewSize.Width);
         App.Services.Player.Changed += s => { UpdateAmbient(); if (s.Current is null && nowPlaying.Open) nowPlaying.Close(); };
         Theme.App.Changed += _ => { if (stack.Count <= 1) Side.Set(Theme.App.Scheme, animate: false); };
         SongColors.Start();
 
         ShowStart();
+    }
+
+    /** Small windows fall back to a simpler layout, so nothing ever gets squeezed. */
+    private void Relayout(double width)
+    {
+        var narrow = width < 900;
+        if (narrow == Narrow) return;
+        Narrow = narrow;
+        sidebar.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        LayoutChanged?.Invoke();
     }
 
     private void SizeAndCenter()
@@ -228,6 +243,15 @@ public sealed class MainWindow : Window
     }
 
     public void CloseOverlay(UIElement e) => overlay.Children.Remove(e);
+
+    /** Dialogs sit over everything (and under the window's drag strip). */
+    public void ShowLayer(UIElement e)
+    {
+        root.Children.Insert(root.Children.IndexOf(dragRegion), e);
+        if (e is Control c) c.Focus(FocusState.Programmatic);
+    }
+
+    public void HideLayer(UIElement e) => root.Children.Remove(e);
 
     // ---------------------------------------------------------------- Pages
 

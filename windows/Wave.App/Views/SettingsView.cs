@@ -52,33 +52,31 @@ public static class SettingsView
     public static async void Open(MainWindow window)
     {
         var p = Theme.App;
-        var column = new StackPanel { Spacing = 6, Width = 460 };
+        var column = new StackPanel { Spacing = 6, Width = 480 };
 
         void Section(string title) => column.Children.Add(Ui.LabelSmall(title, p.Primary).Margin(4, 18, 0, 4));
+
+        Border Card(UIElement child) => new() { Background = p.SurfaceContainer, CornerRadius = new CornerRadius(20), Child = child };
 
         void Toggle(string title, string detail, bool value, Func<Settings, bool, Settings> set)
         {
             var row = Ui.Grid(columns: "*,Auto");
-            row.Padding = new Thickness(16, 12, 12, 12);
+            row.ColumnSpacing = 16;
+            row.Padding = new Thickness(18, 14, 16, 14);
             var text = Ui.Column(2, Ui.Text(title, 15, p.OnBackground, FontWeights.SemiBold), Ui.Text(detail, 13, p.OnSurfaceVariant, lines: 0));
             row.Children.Add(text.At(0, 0));
-            var toggle = new ToggleSwitch { IsOn = value, OnContent = "", OffContent = "", MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
-            toggle.Toggled += (_, _) => SettingsStore.Update(s => set(s, toggle.IsOn));
+            var toggle = new Switch(value) { VerticalAlignment = VerticalAlignment.Center };
+            toggle.Toggled += on => SettingsStore.Update(s => set(s, on));
             row.Children.Add(toggle.At(0, 1));
-            column.Children.Add(new Border { Background = p.SurfaceContainer, CornerRadius = new CornerRadius(20), Child = row });
+            column.Children.Add(Card(row));
         }
 
         void Choice(string title, string[] options, int selected, Action<int> pick)
         {
-            var row = Ui.Grid(columns: "*,Auto");
-            row.Padding = new Thickness(16, 10, 12, 10);
-            var label = Ui.Text(title, 15, p.OnBackground, FontWeights.SemiBold);
-            label.VerticalAlignment = VerticalAlignment.Center;
-            row.Children.Add(label.At(0, 0));
-            var box = new ComboBox { ItemsSource = options, SelectedIndex = selected, MinWidth = 140 };
-            box.SelectionChanged += (_, _) => pick(box.SelectedIndex);
-            row.Children.Add(box.At(0, 1));
-            column.Children.Add(new Border { Background = p.SurfaceContainer, CornerRadius = new CornerRadius(20), Child = row });
+            var box = new StackPanel { Spacing = 10, Padding = new Thickness(18, 14, 16, 14) };
+            box.Children.Add(Ui.Text(title, 15, p.OnBackground, FontWeights.SemiBold));
+            box.Children.Add(new Segmented(options, selected, pick));
+            column.Children.Add(Card(box));
         }
 
         var s = SettingsStore.Current;
@@ -91,38 +89,28 @@ public static class SettingsView
         Toggle("Autoplay", "When a playlist ends, keep going with songs like it", s.Autoplay, (x, v) => x with { Autoplay = v });
         Toggle("Even volume", "Loud masters are turned down so every song plays at a similar volume", s.EvenVolume, (x, v) => x with { EvenVolume = v });
         var fades = new[] { 0, 3, 6, 9, 12 };
-        Choice("Crossfade", ["Off", "3 seconds", "6 seconds", "9 seconds", "12 seconds"], Math.Max(0, Array.IndexOf(fades, s.CrossfadeSeconds)),
+        Choice("Crossfade", ["Off", "3 s", "6 s", "9 s", "12 s"], Math.Max(0, Array.IndexOf(fades, s.CrossfadeSeconds)),
             i => SettingsStore.Update(x => x with { CrossfadeSeconds = fades[i] }));
         Toggle("Player beside the app", "The player opens on half the window instead of filling it", s.SplitPlayer, (x, v) => x with { SplitPlayer = v });
 
         Section("About");
         Toggle("Check for updates", "Look for a new version of Wave once a day", s.CheckUpdates, (x, v) => x with { CheckUpdates = v });
-        var about = new StackPanel { Spacing = 10, Padding = new Thickness(16) };
+        var about = new StackPanel { Spacing = 12, Padding = new Thickness(18, 14, 16, 16) };
         about.Children.Add(Ui.Text($"Wave {App.Version} for Windows", 15, p.OnBackground, FontWeights.SemiBold));
-        var bar = new ProgressBar { Maximum = 100, Visibility = Visibility.Collapsed };
-        if (available is { } release)
-        {
-            about.Children.Add(Ui.Button(Glyph.Update, $"Update to {release.Version}", p.Primary, p.OnPrimary, () =>
+        var bar = new ProgressBar { Maximum = 100, Visibility = Visibility.Collapsed, Foreground = p.Primary };
+        Tap action = available is { } release
+            ? Ui.Button(Glyph.Update, $"Update to {release.Version}", p.Primary, p.OnPrimary, () =>
             {
                 bar.Visibility = Visibility.Visible;
                 _ = InstallAsync(release, bar);
-            }, new CornerRadius(20), 44));
-        }
-        else
-        {
-            about.Children.Add(Ui.Button(null, "Check for updates", p.Faint, p.OnBackground, () => CheckForUpdates(force: true), new CornerRadius(20), 44));
-        }
+            }, new CornerRadius(20), 44)
+            : Ui.Button(null, "Check for updates", p.Faint, p.OnBackground, () => CheckForUpdates(force: true), new CornerRadius(20), 44);
+        action.HorizontalAlignment = HorizontalAlignment.Left;
+        about.Children.Add(action);
         about.Children.Add(bar);
-        column.Children.Add(new Border { Background = p.SurfaceContainer, CornerRadius = new CornerRadius(20), Child = about });
+        column.Children.Add(Card(about));
 
-        var dialog = new ContentDialog
-        {
-            Title = "Settings",
-            Content = new ScrollViewer { Content = column, MaxHeight = 560, Padding = new Thickness(0, 0, 12, 0) },
-            CloseButtonText = "Done",
-            XamlRoot = window.Content.XamlRoot,
-            RequestedTheme = Theme.SystemDark ? ElementTheme.Dark : ElementTheme.Light,
-        };
-        await dialog.ShowAsync();
+        await new Dialog("Settings").Content(new ScrollViewer { Content = column, MaxHeight = 540, Padding = new Thickness(0, 0, 14, 0) }).Button("Done", 0, primary: true).ShowAsync();
+        _ = window;
     }
 }

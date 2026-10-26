@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Wave.Probe")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a64f5adbb6c8f200aee541daf8b7e49edb051e73")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6f3d3a6a8a8932d2146128e1690c7af319e12c21")]
 [assembly: System.Reflection.AssemblyProductAttribute("Wave.Probe")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Wave.Probe")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

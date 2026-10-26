@@ -37,6 +37,13 @@ public sealed class NowPlayingView : Grid
     private readonly LyricsPanel lyrics;
     private readonly QueuePanel queue;
     private Tab tab = Tab.UpNext;
+    private readonly Grid body;
+    private readonly Grid left;
+    private readonly Grid panel;
+    private readonly Tap playerTab;
+    private readonly Grid narrowButtons;
+    /** Narrow windows: the player and the panel take turns. */
+    private bool panelInFront;
     private string? shownArt;
     private string? shownId;
 
@@ -70,17 +77,17 @@ public sealed class NowPlayingView : Grid
         more.Click += () =>
         {
             if (App.Services.Player.State.Current is { } s)
-                ItemMenu.ShowAt(more, new Song(s.VideoId, s.Title, [new ArtistRef(s.Artist, null)], s.Album is null ? null : new AlbumRef(s.Album, null), s.Art, s.DurationMs));
+                ItemMenu.ShowAt(more, palette: p, item: new Song(s.VideoId, s.Title, [new ArtistRef(s.Artist, null)], s.Album is null ? null : new AlbumRef(s.Album, null), s.Art, s.DurationMs));
         };
         header.Children.Add(more.At(0, 2));
         layout.Children.Add(header.At(0));
 
-        var body = Ui.Grid(columns: "*,*");
+        body = Ui.Grid(columns: "*,*");
         body.ColumnSpacing = 32;
         body.Margin = new Thickness(24, 0, 24, 16);
 
         // Left: the cover above the controls.
-        var left = Ui.Grid("*,Auto");
+        left = Ui.Grid("*,Auto");
         var coverBox = new Grid();
         coverBox.Children.Add(cover);
         coverBox.SizeChanged += (_, e) => cover.Width = cover.Height = Math.Max(0, Math.Min(e.NewSize.Width, e.NewSize.Height));
@@ -136,23 +143,31 @@ public sealed class NowPlayingView : Grid
         var extras = Ui.Grid(columns: "*,Auto");
         extras.Margin = new Thickness(0, 10, 0, 0);
         extras.Children.Add(new SlimVolume(p.OnBackground, p.Track).At(0, 0));
-        extras.Children.Add(PlayerParts.Speed(p.OnBackground, p.Faint).At(0, 1));
+        extras.Children.Add(PlayerParts.Speed(p.OnBackground, p.Faint, p).At(0, 1));
         controls.Children.Add(extras);
+        narrowButtons = Ui.Grid(columns: "*,*");
+        narrowButtons.ColumnSpacing = 8;
+        narrowButtons.Margin = new Thickness(0, 10, 0, 0);
+        narrowButtons.Children.Add(Ui.Button(Glyph.Queue, "Up next", p.Faint, p.OnBackground, () => Front(Tab.UpNext), new CornerRadius(22), 44).At(0, 0));
+        narrowButtons.Children.Add(Ui.Button(Glyph.Lyrics, "Lyrics", p.Faint, p.OnBackground, () => Front(Tab.Lyrics), new CornerRadius(22), 44).At(0, 1));
+        controls.Children.Add(narrowButtons);
         left.Children.Add(controls.At(1));
         body.Children.Add(left.At(0, 0));
 
         // Right: Lyrics and Up next, one tap apart.
-        var panel = Ui.Grid("Auto,*");
+        panel = Ui.Grid("Auto,*");
         panel.CornerRadius = new CornerRadius(32);
         panel.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(51, 0, 0, 0));
-        var tabs = Ui.Grid(columns: "*,*");
+        var tabs = Ui.Grid(columns: "Auto,*,*");
         tabs.ColumnSpacing = 3;
         tabs.Height = 44;
         tabs.Margin = new Thickness(12);
         lyricsTab = TabButton("Lyrics", new CornerRadius(22, 8, 8, 22), () => ShowTab(Tab.Lyrics));
         queueTab = TabButton("Up next", new CornerRadius(8, 22, 22, 8), () => ShowTab(Tab.UpNext));
-        tabs.Children.Add(lyricsTab.At(0, 0));
-        tabs.Children.Add(queueTab.At(0, 1));
+        playerTab = Ui.IconButton(Glyph.Back, "Back to the player", p.OnBackground, () => { panelInFront = false; Fit(); }, 44, 22);
+        tabs.Children.Add(playerTab.At(0, 0));
+        tabs.Children.Add(lyricsTab.At(0, 1));
+        tabs.Children.Add(queueTab.At(0, 2));
         panel.Children.Add(tabs.At(0));
         lyrics = new LyricsPanel(p);
         queue = new QueuePanel(p);
@@ -167,6 +182,29 @@ public sealed class NowPlayingView : Grid
         App.Services.Player.Changed += Show;
         Show(App.Services.Player.State);
         ShowTab(Tab.UpNext);
+        window.LayoutChanged += Fit;
+        Fit();
+    }
+
+    private void Front(Tab which)
+    {
+        panelInFront = true;
+        ShowTab(which);
+        Fit();
+    }
+
+    /** Wide: the player and the panel side by side. Narrow: one at a time. */
+    private void Fit()
+    {
+        var narrow = window.Narrow;
+        narrowButtons.Visibility = playerTab.Visibility = narrow ? Visibility.Visible : Visibility.Collapsed;
+        var showLeft = !narrow || !panelInFront;
+        var showPanel = !narrow || panelInFront;
+        left.Visibility = showLeft ? Visibility.Visible : Visibility.Collapsed;
+        panel.Visibility = showPanel ? Visibility.Visible : Visibility.Collapsed;
+        body.ColumnDefinitions[0].Width = showLeft ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        body.ColumnDefinitions[1].Width = showPanel ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        body.ColumnSpacing = showLeft && showPanel ? 32 : 0;
     }
 
     private void PaintShade()

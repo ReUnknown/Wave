@@ -16,7 +16,7 @@ public abstract class ArtPage : WavePage
     protected readonly Palette p = new(Theme.App.Scheme);
     protected readonly StackPanel content = new() { Padding = new Thickness(0, 0, 0, 48) };
     protected readonly ScrollViewer scroller;
-    protected readonly ProgressRing loading = new() { Width = 64, Height = 64, IsActive = true };
+    protected readonly LoadingIndicator loading;
     private string? art;
 
     public override Palette Colors => p;
@@ -25,7 +25,7 @@ public abstract class ArtPage : WavePage
     protected ArtPage()
     {
         Background = p.Background;
-        loading.Foreground = p.Primary;
+        loading = new LoadingIndicator(80, p.Primary);
         scroller = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Children.Add(scroller);
         Children.Add(Ui.Center(loading));
@@ -324,20 +324,19 @@ public sealed class ArtistPage : ArtPage
 /** Your library: saved albums & artists, or your history. */
 public sealed class LibraryPage : WavePage
 {
-    public enum Kind { Saved, History }
+    public enum Kind { Saved, History, Playlists }
 
     private readonly Palette p = Theme.App;
     private readonly StackPanel content = new() { Padding = new Thickness(0, MainWindow.TitleBarHeight + 8, 0, 48) };
-    private readonly ProgressRing loading = new() { Width = 64, Height = 64, IsActive = true };
+    private readonly LoadingIndicator loading = new(80);
     public Kind Showing { get; }
 
     public LibraryPage(Kind kind)
     {
         Showing = kind;
-        loading.Foreground = p.Primary;
         Children.Add(new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Children.Add(Ui.Center(loading));
-        content.Children.Add(Ui.HeadlineLarge(kind == Kind.Saved ? "Albums & artists" : "History", p.OnBackground).Margin(24, 16, 24, 0));
+        content.Children.Add(Ui.HeadlineLarge(kind switch { Kind.Saved => "Albums & artists", Kind.Playlists => "Playlists", _ => "History" }, p.OnBackground).Margin(24, 16, 24, 0));
         _ = LoadAsync();
     }
 
@@ -345,7 +344,12 @@ public sealed class LibraryPage : WavePage
     {
         try
         {
-            if (Showing == Kind.Saved)
+            if (Showing == Kind.Playlists)
+            {
+                var lists = await App.Services.YouTube.LibraryPlaylistsAsync();
+                content.Children.Add(Items.CardRows(lists.Select(x => Items.Card(x, p)), 50).Margin(0, 20, 0, 0));
+            }
+            else if (Showing == Kind.Saved)
             {
                 var albums = App.Services.YouTube.LibraryAlbumsAsync();
                 var artists = App.Services.YouTube.LibraryArtistsAsync();

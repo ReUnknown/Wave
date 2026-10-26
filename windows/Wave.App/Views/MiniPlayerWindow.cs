@@ -73,7 +73,7 @@ public sealed class MiniPlayerWindow : Window
         root.Children.Add(layer);
         Content = root;
         HookDrag(root);
-        root.RightTapped += (_, e) => SizeMenu().ShowAt(root, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(root) });
+        root.RightTapped += (_, e) => SizeMenu().ShowAt(root, e.GetPosition(root));
         root.KeyDown += (_, e) =>
         {
             if (e.Key == Windows.System.VirtualKey.Space) { App.Services.Player.TogglePlay(); e.Handled = true; }
@@ -84,6 +84,13 @@ public sealed class MiniPlayerWindow : Window
             App.Services.Player.Changed -= OnState;
             open = null;
         };
+        // No Windows border or Windows-rounded corners: Wave cuts its own shape (those showed as a
+        // white outline around it).
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var none = unchecked((int)0xFFFFFFFE);
+        DwmSetWindowAttribute(hwnd, 34, ref none, 4); // DWMWA_BORDER_COLOR = none
+        var square = 1;
+        DwmSetWindowAttribute(hwnd, 33, ref square, 4); // DWMWA_WINDOW_CORNER_PREFERENCE = don't round
         Place(animate: false);
         Draw();
         OnState(App.Services.Player.State);
@@ -157,6 +164,7 @@ public sealed class MiniPlayerWindow : Window
         SetWindowRgn(hwnd, region, true);
     }
 
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);
     [DllImport("gdi32.dll")] private static extern nint CreateRoundRectRgn(int x1, int y1, int x2, int y2, int w, int h);
     [DllImport("user32.dll")] private static extern int SetWindowRgn(nint hwnd, nint region, bool redraw);
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out PointInt32 point);
@@ -246,21 +254,13 @@ public sealed class MiniPlayerWindow : Window
         Place();
     }
 
-    private MenuFlyout SizeMenu()
+    private Menu SizeMenu()
     {
-        var menu = new MenuFlyout();
-        foreach (var s in Enum.GetValues<Size>())
-        {
-            var item = new MenuFlyoutItem { Text = s.ToString(), FontWeight = s == size ? FontWeights.Bold : FontWeights.Normal };
-            item.Click += (_, _) => Resize(s);
-            menu.Items.Add(item);
-        }
-        var back = new MenuFlyoutItem { Text = "Back to Wave" };
-        back.Click += (_, _) => BackToWave();
-        menu.Items.Add(back);
-        var close = new MenuFlyoutItem { Text = "Close" };
-        close.Click += (_, _) => Close();
-        menu.Items.Add(close);
+        var menu = new Menu(p);
+        foreach (var s in Enum.GetValues<Size>()) menu.Add(null, s.ToString(), () => Resize(s), bold: s == size);
+        menu.Separator();
+        menu.Add(Glyph.OpenInNew, "Back to Wave", BackToWave);
+        menu.Add(Glyph.Close, "Close", Close);
         return menu;
     }
 
@@ -452,7 +452,7 @@ public sealed class MiniPlayerWindow : Window
             extras.Height = TrayHeight;
             extras.Padding = new Thickness(12, 0, 18, 8);
             extras.Children.Add(new SlimVolume(Theme.White, Theme.White25) { VerticalAlignment = VerticalAlignment.Center }.At(0, 0));
-            extras.Children.Add(PlayerParts.Speed(Theme.White, Theme.White16).At(0, 1));
+            extras.Children.Add(PlayerParts.Speed(Theme.White, Theme.White16, p).At(0, 1));
             column.Children.Add(extras.At(4));
         }
         layer.Children.Add(column);

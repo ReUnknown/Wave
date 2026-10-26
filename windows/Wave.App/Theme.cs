@@ -27,6 +27,7 @@ public sealed class Palette
     public SolidColorBrush SurfaceContainerHigh { get; } = new();
     public SolidColorBrush SurfaceContainerHighest { get; } = new();
     public SolidColorBrush OutlineVariant { get; } = new();
+    public SolidColorBrush Outline { get; } = new();
     /** onBackground at 12% (buttons and chips on the background), 6%, and 18%. */
     public SolidColorBrush Faint { get; } = new();
     public SolidColorBrush Fainter { get; } = new();
@@ -98,6 +99,7 @@ public sealed class Palette
         SurfaceContainerHigh.Color = C(s.SurfaceContainerHigh);
         SurfaceContainerHighest.Color = C(s.SurfaceContainerHighest);
         OutlineVariant.Color = C(s.OutlineVariant);
+        Outline.Color = C(s.Outline);
         Faint.Color = C(s.OnBackground.WithAlpha(0.12));
         Fainter.Color = C(s.OnBackground.WithAlpha(0.06));
         Track.Color = C(s.OnBackground.WithAlpha(0.18));
@@ -138,5 +140,16 @@ public static class Theme
         resources["FlyoutPresenterBackground"] = App.SurfaceContainerHigh;
         resources["OverlayCornerRadius"] = new CornerRadius(20);
         resources["ControlCornerRadius"] = new CornerRadius(12);
+        // Text fields: Windows' box and underline off; Wave draws the pill around them (Field).
+        foreach (var state in new[] { "", "PointerOver", "Focused", "Disabled" })
+        {
+            resources["TextControlBackground" + state] = Clear;
+            resources["TextControlBorderBrush" + state] = Clear;
+            resources["TextControlForeground" + state] = App.OnBackground;
+            resources["TextControlPlaceholderForeground" + state] = App.OnSurfaceVariant;
+        }
+        resources["TextControlBorderThemeThickness"] = new Thickness(0);
+        resources["TextControlBorderThemeThicknessFocused"] = new Thickness(0);
+        resources["TextControlButtonForeground"] = App.OnSurfaceVariant;
     }
 }

@@ -1,7 +1,6 @@
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Wave.Coloring;
 using Wave.Data;
 using Wave.Music;
@@ -76,69 +75,53 @@ public static class Links
     }
 }
 
-/** Your account's dropdown: who you are, settings, and signing in or out. */
+/** Your account's dropdown: who you are, your library (narrow windows), settings, signing in or out. */
 public static class AccountMenu
 {
     public static void Show(FrameworkElement anchor, MainWindow window)
     {
         var session = SessionStore.Current;
-        var p = Theme.App;
-        var flyout = new Flyout { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight };
-        var column = new StackPanel { Width = 260, Spacing = 2 };
-        column.Children.Add(Ui.Text(session?.Guest == false ? session.Name : "Guest", 16, p.OnBackground, FontWeights.Bold).Margin(12, 6, 12, 0));
-        column.Children.Add(Ui.Text(session?.Guest == false ? session.Email ?? "Signed in with Google" : "Not signed in. Likes stay on this computer.", 13, p.OnSurfaceVariant, lines: 2).Margin(12, 0, 12, 8));
-        Tap Row(string glyph, string label, Action click)
+        var signedIn = session?.Guest == false;
+        var menu = new Menu().Header(signedIn ? session!.Name : "Guest",
+            signedIn ? session!.Email ?? "Signed in with Google" : "Not signed in. Likes stay on this computer.");
+        menu.Separator();
+        // Narrow windows have no sidebar: your library is here instead.
+        if (window.Narrow && signedIn)
         {
-            var tap = new Tap { Height = 44, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 0, 12, 0) };
-            var row = Ui.Row(14, Ui.Icon(glyph, 20, p.OnBackground), Ui.Text(label, 15, p.OnBackground));
-            row.VerticalAlignment = VerticalAlignment.Center;
-            tap.Children.Add(row);
-            tap.PointerEntered += (_, _) => tap.Background = p.Fainter;
-            tap.PointerExited += (_, _) => tap.Background = Theme.Clear;
-            tap.Click += () => { flyout.Hide(); click(); };
-            return tap;
+            menu.Add(Glyph.Library, "Playlists", () => window.Push(new LibraryPage(LibraryPage.Kind.Playlists)));
+            menu.Add(Glyph.Album, "Albums & artists", () => window.Push(new LibraryPage(LibraryPage.Kind.Saved)));
+            menu.Add(Glyph.History, "History", () => window.Push(new LibraryPage(LibraryPage.Kind.History)));
+            menu.Separator();
         }
-        column.Children.Add(Row(Glyph.Settings, "Settings", () => SettingsView.Open(window)));
-        if (session?.Guest == false)
+        menu.Add(Glyph.Settings, "Settings", () => SettingsView.Open(window));
+        if (signedIn)
         {
-            column.Children.Add(Row(Glyph.Logout, "Sign out", () =>
+            menu.Add(Glyph.Logout, "Sign out", () =>
             {
                 Login.SignOut();
                 SessionStore.SignOut();
                 window.SessionChanged();
-            }));
+            });
         }
-        else
-        {
-            column.Children.Add(Row(Glyph.Account, "Sign in with Google", window.SignIn));
-        }
-        flyout.Content = column;
-        flyout.ShowAt(anchor);
+        else menu.Add(Glyph.Account, "Sign in with Google", window.SignIn);
+        menu.ShowAt(anchor);
     }
 }
 
 /** Playlist dialogs: new, add to, rename, delete. */
 public static class Dialogs
 {
-    private static ContentDialog Dialog(string title, object content, string primary, string close = "Cancel") => new()
-    {
-        Title = title,
-        Content = content,
-        PrimaryButtonText = primary,
-        CloseButtonText = close,
-        DefaultButton = ContentDialogButton.Primary,
-        XamlRoot = App.Window.Content.XamlRoot,
-        RequestedTheme = Theme.SystemDark ? ElementTheme.Dark : ElementTheme.Light,
-    };
-
     public static async Task<string?> CreatePlaylistAsync()
     {
-        var box = new TextBox { PlaceholderText = "Playlist name" };
-        var dialog = Dialog("New playlist", box, "Create");
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(box.Text)) return null;
+        var field = new Field("Playlist name", height: 52);
+        var dialog = new Dialog("New playlist").Content(field).Button("Cancel", 0).Button("Create", 1, primary: true);
+        field.Box.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Enter) dialog.Close(1); };
+        var show = dialog.ShowAsync();
+        field.Box.Focus(FocusState.Programmatic);
+        if (await show != 1 || string.IsNullOrWhiteSpace(field.Text)) return null;
         try
         {
-            var id = await App.Services.YouTube.CreatePlaylistAsync(box.Text.Trim());
+            var id = await App.Services.YouTube.CreatePlaylistAsync(field.Text.Trim());
             Notices.Show("Playlist created");
             _ = App.Window.Nav.LoadPlaylistsAsync();
             return id;
@@ -148,13 +131,33 @@ public static class Dialogs
 
     public static async Task AddToPlaylistAsync(Song song)
     {
-        var lists = App.Window.Nav.Playlists.Where(p => p.Editable || p.Id != "LM").ToList();
-        var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 360 };
-        list.Items.Add("＋ New playlist");
-        foreach (var p in lists) list.Items.Add(p.Title);
-        var dialog = Dialog("Add to playlist", list, "Add");
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary || list.SelectedIndex < 0) return;
-        var target = list.SelectedIndex == 0 ? await CreatePlaylistAsync() : lists[list.SelectedIndex - 1].Id;
+        var p = Theme.App;
+        var lists = App.Window.Nav.Playlists.Where(x => x.Editable && x.Id != "LM").ToList();
+        if (lists.Count == 0 && App.Window.Nav.Playlists.Count == 0)
+            lists = (await App.Services.YouTube.LibraryPlaylistsAsync()).Where(x => x.Editable && x.Id != "LM").ToList();
+        var column = new StackPanel { Spacing = 2 };
+        Dialog? dialog = null;
+        string? picked = null;
+        Tap Row(string? art, string title, Action click)
+        {
+            var tap = new Tap { CornerRadius = new CornerRadius(16), Padding = new Thickness(8) };
+            var grid = Ui.Grid(columns: "Auto,*");
+            grid.ColumnSpacing = 12;
+            grid.Children.Add((art is null ? (FrameworkElement)new Border { Width = 44, Height = 44, CornerRadius = new CornerRadius(12), Background = p.PrimaryContainer, Child = Ui.Center(Ui.Icon(Glyph.Add, 24, p.OnPrimaryContainer)) } : Ui.Art(art, 44, 12)).At(0, 0));
+            var name = Ui.Text(title, 15, p.OnBackground, FontWeights.SemiBold);
+            name.VerticalAlignment = VerticalAlignment.Center;
+            grid.Children.Add(name.At(0, 1));
+            tap.Children.Add(grid);
+            tap.PointerEntered += (_, _) => tap.Background = p.Fainter;
+            tap.PointerExited += (_, _) => tap.Background = Theme.Clear;
+            tap.Click += click;
+            return tap;
+        }
+        column.Children.Add(Row(null, "New playlist", () => { picked = ""; dialog?.Close(1); }));
+        foreach (var list in lists) column.Children.Add(Row(list.Thumbnail, list.Title, () => { picked = list.Id; dialog?.Close(1); }));
+        dialog = new Dialog("Add to playlist").Content(new ScrollViewer { Content = column, MaxHeight = 380 }).Button("Cancel", 0);
+        if (await dialog.ShowAsync() != 1 || picked is null) return;
+        var target = picked.Length == 0 ? await CreatePlaylistAsync() : picked;
         if (target is null) return;
         try
         {
@@ -166,11 +169,13 @@ public static class Dialogs
 
     public static async Task RenamePlaylistAsync(Playlist playlist)
     {
-        var box = new TextBox { Text = playlist.Title };
-        if (await Dialog("Rename playlist", box, "Rename").ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(box.Text)) return;
+        var field = new Field("Playlist name", height: 52) { Text = playlist.Title };
+        var dialog = new Dialog("Rename playlist").Content(field).Button("Cancel", 0).Button("Rename", 1, primary: true);
+        field.Box.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Enter) dialog.Close(1); };
+        if (await dialog.ShowAsync() != 1 || string.IsNullOrWhiteSpace(field.Text)) return;
         try
         {
-            await App.Services.YouTube.RenamePlaylistAsync(playlist.Id, box.Text.Trim());
+            await App.Services.YouTube.RenamePlaylistAsync(playlist.Id, field.Text.Trim());
             Notices.Show("Renamed");
             _ = App.Window.Nav.LoadPlaylistsAsync();
         }
@@ -179,7 +184,8 @@ public static class Dialogs
 
     public static async Task DeletePlaylistAsync(Playlist playlist)
     {
-        if (await Dialog($"Delete \"{playlist.Title}\"?", "It's removed from your YouTube Music library.", "Delete").ShowAsync() != ContentDialogResult.Primary) return;
+        var dialog = new Dialog($"Delete \"{playlist.Title}\"?").Text("It's removed from your YouTube Music library.").Button("Cancel", 0).Button("Delete", 1, primary: true);
+        if (await dialog.ShowAsync() != 1) return;
         try
         {
             await App.Services.YouTube.DeletePlaylistAsync(playlist.Id);

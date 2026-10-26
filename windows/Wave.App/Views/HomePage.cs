@@ -22,7 +22,7 @@ public sealed class HomePage : WavePage
     private readonly StackPanel content = new() { Padding = new Thickness(0, 0, 0, 40) };
     private readonly ScrollViewer scroller;
     private readonly Grid heroHost = new() { Height = 560 };
-    private readonly ProgressRing loading = new() { Width = 64, Height = 64, IsActive = true };
+    private readonly LoadingIndicator loading = new(80);
     private HomeFeed? feed;
     private int attempt;
 
@@ -32,7 +32,6 @@ public sealed class HomePage : WavePage
     public HomePage(MainWindow window)
     {
         this.window = window;
-        loading.Foreground = p.Primary;
         scroller = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Disabled };
         // The space up top for the search bar, which stays put while the page scrolls under it.
         content.Children.Add(new Border { Height = MainWindow.TitleBarHeight + 64 });

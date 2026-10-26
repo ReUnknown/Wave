@@ -148,6 +148,7 @@ public sealed class Player
         AudioStream stream;
         try
         {
+            streams.LowData = SettingsStore.Current.AudioQuality == AudioQuality.Low;
             stream = await Task.Run(() => streams.ResolveAsync(song.VideoId));
         }
         catch (Exception e)
@@ -196,8 +197,7 @@ public sealed class Player
     {
         if (NextIndex() is { } next && next < queue.Count)
         {
-            var id = queue[next].VideoId;
-            _ = Task.Run(async () => { try { await streams.ResolveAsync(id); } catch (Exception) { } });
+            _ = streams.PrefetchAsync(queue[next].VideoId);
         }
     }
 
