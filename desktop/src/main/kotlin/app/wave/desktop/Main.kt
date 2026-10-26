@@ -1,6 +1,8 @@
 package app.wave.desktop
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,18 +48,28 @@ fun main(args: Array<String>) {
     WavePlatform.current = DesktopPlatform
     // Big windows: progressive blurs use fewer, wider layers.
     BlurBudget.light = true
+    // Motion that runs on its own (the progress wave, lyrics, turning shapes) at 30 fps, not the
+    // monitor's 60-144: it looks the same and costs a fraction.
+    app.wave.music.ui.components.FrameBudget.ambientFps = System.getProperty("wave.ambientFps")?.toIntOrNull() ?: 30
     // Settings first, so the window opens at your interface size.
     kotlinx.coroutines.runBlocking { WaveSettings.load() }
     kotlinx.coroutines.runBlocking { MiniPlayer.load() }
     PlayerConnection.backend = DesktopPlayer
     DesktopPlayer.restore()
+    // Development: start the saved queue right away (for measuring playback without clicking).
+    if (System.getProperty("wave.playOnStart") == "true") {
+        WaveSettings.preview { it.copy(appVolume = 0f) }
+        PlayerConnection.play()
+    }
     // A YouTube Music link passed in (opened with Wave).
     args.firstOrNull { it.startsWith("http") }?.let(Links::offer)
     DesktopLoginHost.content = { onDone, onCancel -> DesktopLoginScreen(onDone, onCancel) }
-    // Covers are saved for reuse, but never more than 200 MB of them.
+    // Covers are saved for reuse, but never more than 200 MB of them on disk, and only the
+    // covers on screen (plus a little) in memory.
     SingletonImageLoader.setSafe { context ->
         ImageLoader.Builder(context)
             .crossfade(200)
+            .memoryCache { coil3.memory.MemoryCache.Builder().maxSizeBytes(40L * 1024 * 1024).build() }
             .diskCache {
                 DiskCache.Builder()
                     .directory(File(AppDirs.cache, "images").absolutePath.toPath())
@@ -72,27 +84,21 @@ fun main(args: Array<String>) {
         // A comfortable size on a laptop screen, centered.
         val window = rememberWindowState(size = DpSize(1120.dp, 740.dp))
         var mainWindow by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<java.awt.Window?>(null) }
+        // Sized and centered once; reopened after the mini player, it comes back where it was.
+        var placed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
         // Room Wave leaves at the top for the system's window buttons (window units).
         var titleBarInset by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(if (DesktopPlatform.isMac) 28 else 0) }
         val miniOpen by MiniPlayer.open.collectAsState()
-        // The mini player takes Wave's place: the main window minimizes while it's open.
-        LaunchedEffect(miniOpen) { if (miniOpen) window.isMinimized = true }
+        // The mini player takes Wave's place. The main window isn't just minimized: it's closed,
+        // and everything it drew is let go, so the mini player is all that's running. Back to
+        // Wave (or closing the mini player) opens it again, where it was.
         if (miniOpen) {
             MiniPlayerWindow(
-                onBack = {
-                    MiniPlayer.open.value = false
-                    window.isMinimized = false
-                    mainWindow?.toFront()
-                    mainWindow?.requestFocus()
-                },
-                onClose = {
-                    MiniPlayer.open.value = false
-                    if (window.isMinimized) {
-                        AppFocus.onStarted(false)
-                        BeatBus.visible = false
-                    }
-                },
+                onBack = { MiniPlayer.open.value = false },
+                onClose = { MiniPlayer.open.value = false },
             )
+            LaunchedEffect(Unit) { MemoryTrim.soon() }
+            return@application
         }
         Window(
             // Closing Wave quits it completely: nothing keeps running in the background.
@@ -106,9 +112,12 @@ fun main(args: Array<String>) {
                 mainWindow = this@Window.window
                 this@Window.window.minimumSize = java.awt.Dimension(420, 560)
                 // Open at a comfortable size for the screen it's on (never bigger than 85% of it), centered.
-                val screen = this@Window.window.graphicsConfiguration.bounds
-                this@Window.window.setSize(minOf(1120, (screen.width * 0.85).toInt()), minOf(740, (screen.height * 0.85).toInt()))
-                this@Window.window.setLocationRelativeTo(null)
+                if (!placed) {
+                    placed = true
+                    val screen = this@Window.window.graphicsConfiguration.bounds
+                    this@Window.window.setSize(minOf(1120, (screen.width * 0.85).toInt()), minOf(740, (screen.height * 0.85).toInt()))
+                    this@Window.window.setLocationRelativeTo(null)
+                }
                 if (DesktopPlatform.isMac) {
                     // Wave's own colors run all the way to the top; the window buttons float over them.
                     this@Window.window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
@@ -123,21 +132,39 @@ fun main(args: Array<String>) {
                 AppFocus.onStarted(true)
                 BeatBus.visible = true
                 // (While the mini player is open, it's the one on screen.)
+                // Minimized (or in the background for a minute): memory goes back to the system.
                 this@Window.window.addWindowListener(object : WindowAdapter() {
-                    override fun windowIconified(e: WindowEvent?) { if (!MiniPlayer.open.value) { AppFocus.onStarted(false); BeatBus.visible = false } }
+                    override fun windowIconified(e: WindowEvent?) {
+                        AppFocus.onStarted(false)
+                        BeatBus.visible = false
+                        MemoryTrim.minimized()
+                    }
                     override fun windowDeiconified(e: WindowEvent?) {
+                        MemoryTrim.restored()
                         AppFocus.onStarted(true)
                         BeatBus.visible = true
-                        // Wave brought back from the taskbar: it takes over from the mini player.
-                        MiniPlayer.open.value = false
                     }
-                    override fun windowActivated(e: WindowEvent?) = AppFocus.onFocus(true)
-                    override fun windowDeactivated(e: WindowEvent?) { if (!MiniPlayer.open.value) AppFocus.onFocus(false) }
+                    override fun windowActivated(e: WindowEvent?) {
+                        AppFocus.onFocus(true)
+                        MemoryTrim.cancel()
+                    }
+                    override fun windowDeactivated(e: WindowEvent?) {
+                        AppFocus.onFocus(false)
+                        MemoryTrim.later()
+                    }
                 })
             }
             // Interface size: ⌘/Ctrl + and − zoom like a browser (remembered).
             val zoom = WaveSettings.state.collectAsState().value.uiScale
             val base = LocalDensity.current
+            val dormant by MemoryTrim.dormant.collectAsState()
+            if (dormant) {
+                // Minimized for a while: nothing drawn, nothing held. Brought back, it's rebuilt.
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF111418)),
+                )
+                return@Window
+            }
             CompositionLocalProvider(
                 LocalDensity provides Density(base.density * zoom, base.fontScale),
                 // In window units, so it stays the buttons' height at any interface size.

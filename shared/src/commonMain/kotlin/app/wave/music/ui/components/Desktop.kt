@@ -122,3 +122,19 @@ fun WheelRow(
         content = content,
     )
 }
+
+/**
+ * How often motion that runs on its own (the progress wave, the lyrics' word fill, turning
+ * shapes) redraws. 0 = every frame, which on a 144 Hz monitor is 144 redraws a second for a
+ * gentle wave; computers cap it, since nobody can tell 30 from 144 on something that slow.
+ */
+object FrameBudget {
+    @Volatile var ambientFps = 0
+}
+
+/** The next frame for ambient motion: every frame, or paced to [FrameBudget.ambientFps]. */
+suspend fun ambientFrame(): Long {
+    val fps = FrameBudget.ambientFps
+    if (fps > 0) kotlinx.coroutines.delay(1000L / fps)
+    return androidx.compose.runtime.withFrameMillis { it }
+}

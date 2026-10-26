@@ -82,10 +82,11 @@ fun WavyProgress(
     LaunchedEffect(playing, active, maxFps) {
         if (!playing || !active) return@LaunchedEffect
         val start = withFrameMillis { it } - (phase.floatValue * 1400f).toLong()
-        if (maxFps > 0) {
+        val fps = if (maxFps > 0) maxFps else app.wave.music.ui.components.FrameBudget.ambientFps
+        if (fps > 0) {
             // Timed steps instead of every frame: the window only redraws this often.
             while (true) {
-                kotlinx.coroutines.delay(1000L / maxFps)
+                kotlinx.coroutines.delay(1000L / fps)
                 withFrameMillis { phase.floatValue = ((it - start) % 1400L) / 1400f }
             }
         }

@@ -41,8 +41,24 @@ object WindowsTitleBar {
         }
         decorations.setCustomTitleBar(window, bar)
         titleBar = bar
+        dragStrip(window, bar)
         true
     }.getOrDefault(false)
+
+    /**
+     * Wave draws under the title bar, so its own drawing would get the clicks there and the
+     * window couldn't be dragged. Every mouse event in the top strip (left of the window buttons)
+     * is marked as title bar, so Windows drags, snaps and double-click-maximizes as usual.
+     */
+    private fun dragStrip(window: java.awt.Frame, bar: com.jetbrains.WindowDecorations.CustomTitleBar) {
+        java.awt.Toolkit.getDefaultToolkit().addAWTEventListener({ event ->
+            val e = event as? java.awt.event.MouseEvent ?: return@addAWTEventListener
+            if (javax.swing.SwingUtilities.getWindowAncestor(e.component) !== window && e.component !== window) return@addAWTEventListener
+            val p = javax.swing.SwingUtilities.convertPoint(e.component, e.point, window)
+            val buttons = bar.rightInset.toInt().coerceAtLeast(140)
+            if (p.y in 0 until HEIGHT && p.x < window.width - buttons) runCatching { bar.forceHitTest(false) }
+        }, java.awt.AWTEvent.MOUSE_EVENT_MASK or java.awt.AWTEvent.MOUSE_MOTION_EVENT_MASK)
+    }
 
     /** Light or dark caption buttons, to suit what's under them. */
     private fun controls(window: Window, dark: Boolean): Boolean {

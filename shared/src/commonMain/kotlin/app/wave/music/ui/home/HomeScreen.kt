@@ -1342,7 +1342,7 @@ private fun LeadTile(
     LaunchedEffect(moving, playing, active) {
         if (!moving || !playing || !active) return@LaunchedEffect
         var last = withFrameMillis { it }
-        while (true) withFrameMillis { now ->
+        while (true) app.wave.music.ui.components.ambientFrame().let { now ->
             spinState.floatValue = (spinState.floatValue + (now - last) * 360f / 30_000f) % 360f
             last = now
         }

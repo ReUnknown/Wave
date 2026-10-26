@@ -163,7 +163,8 @@ fun LyricsScreen(
     LaunchedEffect(song.videoId) {
         while (true) {
             if (playingNow && app.wave.music.ui.components.AppFocus.active.value) {
-                withFrameMillis { position = PlayerConnection.position }
+                app.wave.music.ui.components.ambientFrame()
+                position = PlayerConnection.position
             } else {
                 position = PlayerConnection.position
                 delay(300)

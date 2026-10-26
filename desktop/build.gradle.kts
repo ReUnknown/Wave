@@ -58,7 +58,7 @@ dependencies {
 }
 
 // The version the computer app shows and checks updates against (jpackage needs plain numbers).
-val waveVersion = "1.1.0"
+val waveVersion = "1.1.1-beta.1"
 val buildingOnMac = System.getProperty("os.name").lowercase().contains("mac")
 
 compose.desktop {
@@ -80,17 +80,23 @@ compose.desktop {
             "-Dorg.bytedeco.javacpp.maxBytes=0",
             "-Dorg.bytedeco.javacpp.maxPhysicalBytes=0",
             "-XX:+ExplicitGCInvokesConcurrent",
-            // Memory: G1 with short pauses, a small starting heap, and memory handed back to the
-            // system while idle (ZGC kept far more and Windows counts its memory several times over).
+            // Memory: G1 (it never pauses long enough to glitch the audio) on a heap capped at
+            // 512 MB, handed back to the system while idle, with fewer collector threads.
             "-XX:+UseG1GC",
             "-XX:MaxGCPauseMillis=8",
-            "-Xms48m",
+            "-Xms32m",
+            "-Xmx512m",
             "-XX:MinHeapFreeRatio=10",
             "-XX:MaxHeapFreeRatio=25",
             "-XX:G1PeriodicGCInterval=15000",
+            "-XX:ParallelGCThreads=2",
+            "-XX:ConcGCThreads=1",
             "-XX:+UseStringDeduplication",
-            "-XX:ReservedCodeCacheSize=64m",
+            "-XX:ReservedCodeCacheSize=48m",
             "-Xss512k",
+            // Drawing: two window buffers instead of three, and a cap on cached GPU textures.
+            "-Dskiko.buffering=DOUBLE",
+            "-Dskiko.gpu.resourceCacheLimit=67108864",
             "-Dwave.version=$waveVersion",
         )
         if (buildingOnMac) {
