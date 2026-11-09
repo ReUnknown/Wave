@@ -378,12 +378,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val shell = desktopShell || tabletShell
     // Computers keep your library in a sidebar when there's room for it.
     val sidebar = desktopShell && conf.screenWidthDp >= 1000
-    // The player can sit beside the app: on tablets by dragging the player bar to a side, on
-    // computers with the "Player beside the app" setting. Otherwise it opens over everything.
-    val canDock = tabletShell || (desktopShell && settings.splitPlayer && conf.screenWidthDp >= 1100)
+    // The player can sit beside the app: drag the player bar up to the left or right half (tablets,
+    // and computers with room for both). Clicking it opens the player over everything.
+    val canDock = tabletShell || (desktopShell && conf.screenWidthDp >= 1100)
     // Which side it docks on: -1 left, 1 right, 0 none (it opens full).
     var dockSide by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(desktopShell, settings.splitPlayer) { if (desktopShell) dockSide = if (settings.splitPlayer) 1 else 0 }
     var playerFull by rememberSaveable { mutableStateOf(false) }
     val wouldDock = canDock && dockSide != 0 && !playerFull && player.current != null
     val docked = wouldDock && showPlayer
@@ -409,8 +408,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     fun openPlayer(panel: String?) {
         playerPanel = panel
         droppedIn = false
-        // Tablets: tapping the player bar opens it full; drag the bar to a side to dock it.
-        if (tabletShell) dockSide = 0
+        // Tapping (or clicking) the player bar opens it full; drag the bar to a side to dock it.
+        if (shell) dockSide = 0
         showPlayer = true
     }
     LaunchedEffect(openRequested) {

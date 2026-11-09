@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 VERSION=$(grep 'val waveVersion' desktop/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
 ./gradlew -q :desktop:createReleaseDistributable
 APP=desktop/build/compose/binaries/main-release/app/Wave.app
-SDK=$(xcrun --show-sdk-version)
+SDK=$(xcrun --sdk macosx --show-sdk-version)
 LAUNCHER="$APP/Contents/MacOS/Wave"
 vtool -set-build-version macos 11.0 "$SDK" -replace -output "$LAUNCHER.new" "$LAUNCHER"
 mv "$LAUNCHER.new" "$LAUNCHER"

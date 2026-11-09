@@ -74,20 +74,14 @@ fun SettingsContent() {
         Toggle("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
             change { it.copy(moveWithMusic = on) }
         }
-        // Computers: the player can open beside the app instead of over it.
-        if (app.wave.music.ui.components.LocalDesktop.current) {
+        // Computers with the mini player: WaveMini.
+        if (app.wave.music.ui.components.LocalDesktop.current && app.wave.music.platform.WavePlatform.current.hasMiniPlayer) {
             Divider()
-            Toggle("Player beside the app", "Opens in half the window so you can keep browsing; expand it any time", settings.splitPlayer) { on ->
-                change { it.copy(splitPlayer = on) }
-            }
-            if (app.wave.music.platform.WavePlatform.current.hasMiniPlayer) {
-                Divider()
-                Toggle(
-                    "WaveMini",
-                    "The mini player becomes a whole Wave the size of a phone that stays on top: browse, search and play from it. Fling it to the edge of the screen to tuck it away",
-                    settings.waveMini,
-                ) { on -> change { it.copy(waveMini = on) } }
-            }
+            Toggle(
+                "WaveMini",
+                "The mini player with Up next, lyrics, search and quick settings built in, so you rarely need the big window. Fling it to the edge of the screen to tuck it away",
+                settings.waveMini,
+            ) { on -> change { it.copy(waveMini = on) } }
         }
         // The computer app: how big everything is drawn (also ⌘/Ctrl + and −).
         if (app.wave.music.platform.WavePlatform.current.scalesInterface) {
