@@ -54,6 +54,7 @@ fun main(args: Array<String>) {
     // Settings first, so the window opens at your interface size.
     kotlinx.coroutines.runBlocking { WaveSettings.load() }
     kotlinx.coroutines.runBlocking { MiniPlayer.load() }
+    kotlinx.coroutines.runBlocking { WaveMini.load() }
     PlayerConnection.backend = DesktopPlayer
     DesktopPlayer.restore()
     // Development: start the saved queue right away (for measuring playback without clicking).
@@ -93,10 +94,18 @@ fun main(args: Array<String>) {
         // and everything it drew is let go, so the mini player is all that's running. Back to
         // Wave (or closing the mini player) opens it again, where it was.
         if (miniOpen) {
-            MiniPlayerWindow(
-                onBack = { MiniPlayer.open.value = false },
-                onClose = { MiniPlayer.open.value = false },
-            )
+            // WaveMini (a whole Wave the size of a phone) when it's turned on in settings.
+            if (WaveSettings.state.collectAsState().value.waveMini) {
+                WaveMiniWindow(
+                    onBack = { MiniPlayer.open.value = false },
+                    onClose = { MiniPlayer.open.value = false },
+                )
+            } else {
+                MiniPlayerWindow(
+                    onBack = { MiniPlayer.open.value = false },
+                    onClose = { MiniPlayer.open.value = false },
+                )
+            }
             LaunchedEffect(Unit) { MemoryTrim.soon() }
             return@application
         }

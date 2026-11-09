@@ -76,12 +76,16 @@ object RenderApp {
         kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load() }
         PlayerConnection.backend = DesktopPlayer
         val out = File(args.getOrNull(0) ?: "build/mini").apply { mkdirs() }
-        val scene = ImageComposeScene(1120, 740, Density(1f)) {
-            app.wave.music.ui.WaveApp(computer = true, preview = true)
+        val w = args.getOrNull(1)?.toIntOrNull() ?: 1120
+        val h = args.getOrNull(2)?.toIntOrNull() ?: 740
+        val scene = ImageComposeScene(w, h, Density(1f)) {
+            androidx.compose.runtime.CompositionLocalProvider(app.wave.music.platform.LocalTitleBarInset provides 30.dp) {
+                app.wave.music.ui.WaveApp(computer = true, preview = true)
+            }
         }
         var image = scene.render(0)
         for (i in 1..150) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
-        File(out, "app-home.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        File(out, "app-$w.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         println("done")
         kotlin.system.exitProcess(0)
     }

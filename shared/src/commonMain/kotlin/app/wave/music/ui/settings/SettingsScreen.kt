@@ -80,6 +80,14 @@ fun SettingsContent() {
             Toggle("Player beside the app", "Opens in half the window so you can keep browsing; expand it any time", settings.splitPlayer) { on ->
                 change { it.copy(splitPlayer = on) }
             }
+            if (app.wave.music.platform.WavePlatform.current.hasMiniPlayer) {
+                Divider()
+                Toggle(
+                    "WaveMini",
+                    "The mini player becomes a whole Wave the size of a phone that stays on top: browse, search and play from it. Fling it to the edge of the screen to tuck it away",
+                    settings.waveMini,
+                ) { on -> change { it.copy(waveMini = on) } }
+            }
         }
         // The computer app: how big everything is drawn (also ⌘/Ctrl + and −).
         if (app.wave.music.platform.WavePlatform.current.scalesInterface) {

@@ -39,11 +39,12 @@ object DesktopPlatform : Platform {
         runCatching { Desktop.getDesktop().browse(URI(url)) }
     }
 
-    /** Windows for now (and development builds, to work on it anywhere). */
-    override val hasMiniPlayer get() = isWindows || debug
+    /** Windows and Linux (and development builds on macOS, to work on it). */
+    override val hasMiniPlayer get() = !isMac || debug
     override fun openMiniPlayer() {
         // Always opens as the player, even if it was tucked away last time.
         MiniPlayer.tucked.value = false
+        WaveMini.tucked.value = false
         MiniPlayer.open.value = true
     }
 

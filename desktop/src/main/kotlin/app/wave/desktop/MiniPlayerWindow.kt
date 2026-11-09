@@ -55,18 +55,28 @@ import java.awt.Window as AwtWindow
  * screen and it tucks away as a round Wave button (click it or pull it out to get it back).
  * It remembers its corner and size.
  */
-object MiniPlayer {
+/** A window that floats on top, snaps to corners and tucks against the screen's edge. */
+interface Floating {
+    val tucked: MutableStateFlow<Boolean>
+    /** 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right. */
+    var corner: Int
+    var tuckRight: Boolean
+    var tuckAt: Point?
+    suspend fun save()
+}
+
+object MiniPlayer : Floating {
     val open = MutableStateFlow(false)
     val size = MutableStateFlow(PopOutSize.Compact)
     /** Bigger's volume and speed tray. */
     val tray = MutableStateFlow(false)
     /** Tucked against the screen's edge as a round button. */
-    val tucked = MutableStateFlow(false)
+    override val tucked = MutableStateFlow(false)
     /** 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right. */
-    @Volatile var corner = 3
+    @Volatile override var corner = 3
     /** Where it was tucked: which edge, and the point it was let go. */
-    @Volatile var tuckRight = true
-    @Volatile var tuckAt: Point? = null
+    @Volatile override var tuckRight = true
+    @Volatile override var tuckAt: Point? = null
 
     private val store get() = Stores.prefs("mini_player")
     private val sizeKey = stringPreferencesKey("size")
@@ -78,7 +88,7 @@ object MiniPlayer {
         prefs[cornerKey]?.let { corner = it.coerceIn(0, 3) }
     }
 
-    suspend fun save() {
+    override suspend fun save() {
         store.edit {
             it[sizeKey] = size.value.name
             it[cornerKey] = corner
@@ -97,7 +107,7 @@ private fun targetSize(size: PopOutSize, tray: Boolean, tucked: Boolean): Pair<I
 }
 
 /** The screen containing [point], minus its taskbar. */
-private fun usableArea(point: Point): Rectangle {
+internal fun usableArea(point: Point): Rectangle {
     val env = GraphicsEnvironment.getLocalGraphicsEnvironment()
     val config = env.screenDevices.map { it.defaultConfiguration }.firstOrNull { it.bounds.contains(point) }
         ?: env.defaultScreenDevice.defaultConfiguration
@@ -107,7 +117,7 @@ private fun usableArea(point: Point): Rectangle {
 }
 
 /** Where a window of [w] × [h] sits in [corner] of the screen [near] is on, clear of the taskbar. */
-private fun cornerBounds(near: Point, corner: Int, w: Int, h: Int): Rectangle {
+internal fun cornerBounds(near: Point, corner: Int, w: Int, h: Int): Rectangle {
     val area = usableArea(near)
     val x = if (corner % 2 == 0) area.x + MARGIN else area.x + area.width - w - MARGIN
     val y = if (corner < 2) area.y + MARGIN else area.y + area.height - h - MARGIN
@@ -115,17 +125,17 @@ private fun cornerBounds(near: Point, corner: Int, w: Int, h: Int): Rectangle {
 }
 
 /** The round button's spot against the left or right edge, at the height it was let go. */
-private fun tuckedBounds(near: Point, right: Boolean): Rectangle {
+internal fun tuckedBounds(near: Point, right: Boolean): Rectangle {
     val area = usableArea(near)
     val x = if (right) area.x + area.width - BUBBLE - 6 else area.x + 6
     val y = (near.y - BUBBLE / 2).coerceIn(area.y + MARGIN, area.y + area.height - BUBBLE - MARGIN)
     return Rectangle(x, y, BUBBLE, BUBBLE)
 }
 
-private fun AwtWindow.center() = Point(x + width / 2, y + height / 2)
+internal fun AwtWindow.center() = Point(x + width / 2, y + height / 2)
 
 /** The corner of its screen nearest [point]. */
-private fun nearestCorner(point: Point): Int {
+internal fun nearestCorner(point: Point): Int {
     val area = usableArea(point)
     val right = point.x > area.x + area.width / 2
     val bottom = point.y > area.y + area.height / 2
@@ -133,7 +143,7 @@ private fun nearestCorner(point: Point): Int {
 }
 
 /** Springs the window from its current bounds to [target]: moving and resizing together. */
-private suspend fun glide(window: AwtWindow, target: Rectangle) {
+internal suspend fun glide(window: AwtWindow, target: Rectangle) {
     val from = window.bounds
     if (from == target) return
     val t = Animatable(0f)
@@ -148,8 +158,18 @@ private suspend fun glide(window: AwtWindow, target: Rectangle) {
  * Windows: the window itself is cut to the mini player's rounded shape (or a circle when
  * tucked). Cheaper than a see-through window, which Windows has to blend on every frame.
  */
-private fun shape(window: AwtWindow, radiusDp: Int, circle: Boolean) {
-    if (!DesktopPlatform.isWindows) return
+internal fun shape(window: AwtWindow, radiusDp: Int, circle: Boolean) {
+    if (DesktopPlatform.isMac) return
+    if (!DesktopPlatform.isWindows) {
+        // Linux: Java's own window shapes (the X Shape extension).
+        runCatching {
+            val w = window.width.toDouble()
+            val h = window.height.toDouble()
+            window.shape = if (circle) java.awt.geom.Ellipse2D.Double(0.0, 0.0, w, h)
+            else java.awt.geom.RoundRectangle2D.Double(0.0, 0.0, w, h, radiusDp * 2.0, radiusDp * 2.0)
+        }
+        return
+    }
     runCatching {
         val scale = window.graphicsConfiguration.defaultTransform.scaleX
         val w = (window.width * scale).toInt()
@@ -174,7 +194,7 @@ private fun radiusOf(size: PopOutSize) = when (size) {
  * at (or dropped against) the left or right edge, tucks away. A click on the tucked button, or
  * pulling it away from the edge, brings the player back.
  */
-private fun Modifier.movesWindow(window: AwtWindow, scope: CoroutineScope): Modifier = pointerInput(window) {
+internal fun Modifier.movesWindow(window: AwtWindow, scope: CoroutineScope, state: Floating = MiniPlayer): Modifier = pointerInput(window, state) {
     var settle: Job? = null
     val slop = viewConfiguration.touchSlop * 1.5f
     awaitEachGesture {
@@ -203,10 +223,10 @@ private fun Modifier.movesWindow(window: AwtWindow, scope: CoroutineScope): Modi
                 while (trail.size > 6) trail.removeFirst()
             }
         }
-        val tucked = MiniPlayer.tucked.value
+        val tucked = state.tucked.value
         if (!dragging) {
             // A click on the tucked button brings the player back.
-            if (tucked) MiniPlayer.tucked.value = false
+            if (tucked) state.tucked.value = false
             return@awaitEachGesture
         }
         val pointer = MouseInfo.getPointerInfo()?.location ?: window.center()
@@ -222,19 +242,19 @@ private fun Modifier.movesWindow(window: AwtWindow, scope: CoroutineScope): Modi
         val flungRight = speed > 2200 && pointer.x > area.x + area.width * 2 / 3
         if (atLeft || flungLeft || atRight || flungRight) {
             // Against an edge: tuck away (or move along the edge, already tucked).
-            MiniPlayer.tuckRight = atRight || flungRight
-            MiniPlayer.tuckAt = pointer
-            if (tucked) settle = scope.launch { glide(window, tuckedBounds(pointer, MiniPlayer.tuckRight)) }
-            else MiniPlayer.tucked.value = true
+            state.tuckRight = atRight || flungRight
+            state.tuckAt = pointer
+            if (tucked) settle = scope.launch { glide(window, tuckedBounds(pointer, state.tuckRight)) }
+            else state.tucked.value = true
         } else {
-            MiniPlayer.corner = nearestCorner(pointer)
+            state.corner = nearestCorner(pointer)
             if (tucked) {
                 // Pulled away from the edge: the player comes back, in that corner.
-                MiniPlayer.tucked.value = false
+                state.tucked.value = false
             } else {
                 settle = scope.launch {
-                    glide(window, cornerBounds(pointer, MiniPlayer.corner, window.width, window.height))
-                    MiniPlayer.save()
+                    glide(window, cornerBounds(pointer, state.corner, window.width, window.height))
+                    state.save()
                 }
             }
         }
@@ -271,6 +291,8 @@ fun MiniPlayerWindow(onBack: () -> Unit, onClose: () -> Unit) {
         val scope = rememberCoroutineScope()
         LaunchedEffect(Unit) {
             // Wave's main window is minimized, but the music is still on screen here.
+            // On every virtual desktop: it comes along when you switch.
+            Desktops.everywhere(window)
             AppFocus.onStarted(true)
             AppFocus.onFocus(true)
             BeatBus.visible = true
@@ -282,7 +304,10 @@ fun MiniPlayerWindow(onBack: () -> Unit, onClose: () -> Unit) {
             }
             window.addComponentListener(listener)
             shape(window, radiusOf(MiniPlayer.size.value), MiniPlayer.tucked.value)
-            onDispose { window.removeComponentListener(listener) }
+            onDispose {
+                window.removeComponentListener(listener)
+                Desktops.stop(window)
+            }
         }
         // A new size (or the tray, or tucking) reshapes the window smoothly, keeping its corner.
         LaunchedEffect(size, tray, tucked) {

@@ -32,6 +32,8 @@ data class Settings(
     val appVolume: Float = 1f,
     /** Computers: how big Wave draws everything (1 = the system's own size). */
     val uiScale: Float = 0.9f,
+    /** Computers: the mini player is WaveMini, a whole Wave the size of a phone, on top of everything. */
+    val waveMini: Boolean = false,
 )
 
 
@@ -49,6 +51,7 @@ object WaveSettings {
     private val split = booleanPreferencesKey("split_player")
     private val volume = androidx.datastore.preferences.core.floatPreferencesKey("app_volume")
     private val scale = androidx.datastore.preferences.core.floatPreferencesKey("ui_scale")
+    private val mini = booleanPreferencesKey("wave_mini")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -70,6 +73,7 @@ object WaveSettings {
             splitPlayer = p[split] ?: false,
             appVolume = p[volume] ?: 1f,
             uiScale = p[scale] ?: 0.9f,
+            waveMini = p[mini] ?: false,
         )
         loaded = true
     }
@@ -90,6 +94,7 @@ object WaveSettings {
             it[split] = next.splitPlayer
             it[volume] = next.appVolume
             it[scale] = next.uiScale
+            it[mini] = next.waveMini
         }
     }
 
