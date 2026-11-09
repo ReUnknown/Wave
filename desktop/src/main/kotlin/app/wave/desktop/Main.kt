@@ -48,9 +48,8 @@ fun main(args: Array<String>) {
     WavePlatform.current = DesktopPlatform
     // Big windows: progressive blurs use fewer, wider layers.
     BlurBudget.light = true
-    // Motion that runs on its own (the progress wave, lyrics, turning shapes) at 30 fps, not the
-    // monitor's 60-144: it looks the same and costs a fraction.
-    app.wave.music.ui.components.FrameBudget.ambientFps = System.getProperty("wave.ambientFps")?.toIntOrNull() ?: 30
+    // Motion runs at the monitor's own refresh rate (set a cap with -Dwave.ambientFps to test).
+    app.wave.music.ui.components.FrameBudget.ambientFps = System.getProperty("wave.ambientFps")?.toIntOrNull() ?: 0
     // Settings first, so the window opens at your interface size.
     kotlinx.coroutines.runBlocking { WaveSettings.load() }
     kotlinx.coroutines.runBlocking { MiniPlayer.load() }

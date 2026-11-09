@@ -110,6 +110,8 @@ fun PopOutPlayer(
     tray: Boolean = false,
     onTray: (Boolean) -> Unit = {},
     tucked: Boolean = false,
+    /** Off when the window around it already rounds it (computers draw the card's corners themselves). */
+    rounded: Boolean = true,
 ) {
     val state by PlayerConnection.state.collectAsState()
     val song = state.current
@@ -122,7 +124,7 @@ fun PopOutPlayer(
         if (tucked) {
             // Out of the way: a round Wave button at the edge of the screen.
             Box(
-                modifier.fillMaxSize().clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                modifier.fillMaxSize().then(if (rounded) Modifier.clip(CircleShape) else Modifier).background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
             ) { WaveMark(MaterialTheme.colorScheme.onPrimary, size = 28.dp) }
             return@MaterialTheme
@@ -135,7 +137,7 @@ fun PopOutPlayer(
         Box(
             modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(radius))
+                .then(if (rounded) Modifier.clip(RoundedCornerShape(radius)) else Modifier)
                 .background(Color.Black)
                 .hoverable(hover)
                 .pointerInput(Unit) {

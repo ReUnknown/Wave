@@ -1,5 +1,6 @@
 package app.wave.desktop
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ImageComposeScene
@@ -25,10 +26,14 @@ import java.io.File
 /** Development check: renders the mini player's sizes to PNGs. */
 fun main(args: Array<String>) {
     WavePlatform.current = DesktopPlatform
-    val song = runBlocking { YouTube.search(args.firstOrNull() ?: "blinding lights", YouTube.SearchFilter.FILTER_SONG).getOrThrow().items.filterIsInstance<SongItem>().first() }
+    val songs = runBlocking { YouTube.search(args.firstOrNull() ?: "blinding lights", YouTube.SearchFilter.FILTER_SONG).getOrThrow().items.filterIsInstance<SongItem>().take(8) }
+    val song = songs.first()
     val playing = args.getOrNull(1) != "paused"
     PlayerConnection.backend = object : PlayerBackend {
-        override val state = MutableStateFlow(PlayerUiState(current = NowPlaying(song.id, song.title, song.artists.joinToString { it.name }, song.thumbnail), isPlaying = playing, durationMs = 204_000, liked = !playing))
+        override val state = MutableStateFlow(run {
+            val q = songs.map { NowPlaying(it.id, it.title, it.artists.joinToString { a -> a.name }, it.thumbnail) }
+            PlayerUiState(current = q.first(), isPlaying = playing, durationMs = 204_000, liked = !playing, queue = q, upcoming = q.indices.drop(1), index = 0)
+        })
         override val position = 112_000L
         override fun play(request: PlayRequest, startPositionMs: Long) {}
         override fun playNext(request: PlayRequest) {}
@@ -61,6 +66,24 @@ fun main(args: Array<String>) {
         var image = scene.render(0)
         for (i in 1..40) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
         File(out, "$name-${if (playing) "playing" else "paused"}.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+    }
+    // WaveMini: Compact with each tab, and Bigger.
+    val wm = listOf(
+        Triple("WaveMini-upnext", PopOutSize.Compact, app.wave.music.ui.player.MiniTab.UpNext),
+        Triple("WaveMini-lyrics", PopOutSize.Compact, app.wave.music.ui.player.MiniTab.Lyrics),
+        Triple("WaveMini-settings", PopOutSize.Compact, app.wave.music.ui.player.MiniTab.Settings),
+        Triple("WaveMini-bigger", PopOutSize.Bigger, app.wave.music.ui.player.MiniTab.UpNext),
+    )
+    wm.forEach { (name, size, tab) ->
+        val w = if (size == PopOutSize.Bigger) 760 else 420
+        val h = if (size == PopOutSize.Bigger) 480 else 156 + 56 + 340
+        val scene = ImageComposeScene(w * 2, h * 2, Density(2f)) {
+            WaveTheme { Box(Modifier.size(w.dp, h.dp)) { WaveMiniContent(size, tab, PlayerConnection.state.value.current?.artworkUrl, Modifier, {}, {}, {}) } }
+        }
+        var image = scene.render(0)
+        for (i in 1..60) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
+        File(out, "$name.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         scene.close()
     }
     println("done")

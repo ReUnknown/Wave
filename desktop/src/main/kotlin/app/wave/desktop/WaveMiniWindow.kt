@@ -1,40 +1,27 @@
 package app.wave.desktop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.KeyboardDoubleArrowRight
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -42,30 +29,38 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import app.wave.music.data.Stores
-import app.wave.music.data.WaveSettings
-import app.wave.music.platform.LocalTitleBarInset
 import app.wave.music.playback.BeatBus
-import app.wave.music.ui.WaveApp
+import app.wave.music.playback.PlayerConnection
 import app.wave.music.ui.components.AppFocus
-import app.wave.music.ui.components.pressable
+import app.wave.music.ui.components.ArtSize
+import app.wave.music.ui.components.BlurredImage
+import app.wave.music.ui.components.atSize
+import app.wave.music.ui.components.rememberArtColorScheme
+import app.wave.music.ui.player.MiniTab
 import app.wave.music.ui.player.PopOutPlayer
 import app.wave.music.ui.player.PopOutSize
+import app.wave.music.ui.player.WaveMiniPanel
+import app.wave.music.ui.player.WaveMiniTabs
+import app.wave.music.ui.theme.darkBaseScheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import java.awt.MouseInfo
 import java.awt.Point
-import java.awt.event.ComponentAdapter
-import java.awt.event.ComponentEvent
 
 /**
- * WaveMini: the mini player as a whole Wave the size of a phone, on top of everything and on
- * every virtual desktop. It's Wave's phone layout (home, search, pages, the player, lyrics, up
- * next), with computer niceties (menus where you click, shortcuts, the mouse wheel). Drag it by
- * its top edge; it springs to the nearest corner, and flung against the side of the screen it
- * tucks away as a round button, just as you left it inside.
+ * WaveMini: the mini player with what you reach for while listening built around it, so the big
+ * window can stay closed. Up next, lyrics, search (artists, albums and playlists open right
+ * inside it) and the settings you change often, in tabs under the player (Compact) or beside it
+ * (Bigger). Click the open tab to fold the panel away and keep just the player. Floats on top,
+ * on every virtual desktop; drag it to a corner, or fling it at the screen's edge to tuck it away.
  */
 object WaveMini : Floating {
+    /** Compact (the player on top) or Bigger (the player beside the panel). */
+    val size = MutableStateFlow(PopOutSize.Compact)
+    /** The open tab; null = just the player. */
+    val tab = MutableStateFlow<MiniTab?>(MiniTab.UpNext)
     override val tucked = MutableStateFlow(false)
     @Volatile override var corner = 3
     @Volatile override var tuckRight = true
@@ -73,33 +68,45 @@ object WaveMini : Floating {
 
     private val store get() = Stores.prefs("mini_player")
     private val cornerKey = intPreferencesKey("wavemini_corner")
+    private val sizeKey = stringPreferencesKey("wavemini_size")
 
     suspend fun load() {
-        store.data.first()[cornerKey]?.let { corner = it.coerceIn(0, 3) }
+        val prefs = store.data.first()
+        prefs[cornerKey]?.let { corner = it.coerceIn(0, 3) }
+        prefs[sizeKey]?.let { name -> PopOutSize.entries.firstOrNull { it.name == name } }?.let { size.value = it }
     }
 
     override suspend fun save() {
-        store.edit { it[cornerKey] = corner }
+        store.edit {
+            it[cornerKey] = corner
+            it[sizeKey] = size.value.name
+        }
     }
 }
 
-/** The strip along WaveMini's top that drags it (window units). */
-private const val GRIP = 30
-private const val RADIUS = 28
+private const val PANEL = 340
+private const val TABS = 56
+private const val RADIUS = 14f
+
+/** The card's size (window units). */
+private fun cardSize(size: PopOutSize, tab: MiniTab?, tucked: Boolean): Pair<Int, Int> = when {
+    tucked -> BUBBLE to BUBBLE
+    size == PopOutSize.Bigger -> PopOutSize.Bigger.widthDp + 440 to PopOutSize.Bigger.heightDp
+    else -> PopOutSize.Compact.widthDp to PopOutSize.Compact.heightDp + TABS + (if (tab != null) PANEL else 0)
+}
 
 @Composable
 fun WaveMiniWindow(onBack: () -> Unit, onClose: () -> Unit) {
+    val size by WaveMini.size.collectAsState()
+    val tab by WaveMini.tab.collectAsState()
     val tucked by WaveMini.tucked.collectAsState()
-    // Phone-sized: 390 wide and as tall as fits (up to 820).
-    val full = remember {
-        val area = usableArea(MouseInfo.getPointerInfo()?.location ?: Point())
-        390 to minOf(820, (area.height * 0.9).toInt())
-    }
     val start = remember {
-        val b = cornerBounds(MouseInfo.getPointerInfo()?.location ?: Point(), WaveMini.corner, full.first, full.second)
-        WindowPosition(b.x.dp, b.y.dp)
+        val (w, h) = cardSize(WaveMini.size.value, WaveMini.tab.value, false)
+        cornerBounds(MouseInfo.getPointerInfo()?.location ?: Point(), WaveMini.corner, w, h)
     }
-    val state = rememberWindowState(size = DpSize(full.first.dp, full.second.dp), position = start)
+    val state = rememberWindowState(size = DpSize(start.width.dp, start.height.dp), position = WindowPosition(start.x.dp, start.y.dp))
+    val playing by PlayerConnection.state.collectAsState()
+    LaunchedEffect(playing.current == null) { if (playing.current == null) onBack() }
 
     Window(
         onCloseRequest = onClose,
@@ -107,119 +114,84 @@ fun WaveMiniWindow(onBack: () -> Unit, onClose: () -> Unit) {
         title = "WaveMini",
         icon = WaveIcon.painter(),
         undecorated = true,
-        transparent = DesktopPlatform.isMac,
+        transparent = seeThrough,
         resizable = false,
         alwaysOnTop = true,
-        onPreviewKeyEvent = { event -> event.type == KeyEventType.KeyDown && shortcut(event) },
+        onPreviewKeyEvent = { event -> event.type == KeyEventType.KeyDown && !app.wave.music.ui.components.Shortcuts.typing && shortcut(event) },
     ) {
         val scope = rememberCoroutineScope()
+        val frame = remember { FloatingFrame(window, start.width, start.height, RADIUS) }
         LaunchedEffect(Unit) {
             Desktops.everywhere(window)
             AppFocus.onStarted(true)
             AppFocus.onFocus(true)
             BeatBus.visible = true
+            shape(window, RADIUS.toInt(), false)
         }
-        DisposableEffect(window) {
-            val listener = object : ComponentAdapter() {
-                override fun componentResized(e: ComponentEvent?) = shape(window, RADIUS, WaveMini.tucked.value)
-            }
-            window.addComponentListener(listener)
-            shape(window, RADIUS, WaveMini.tucked.value)
-            onDispose {
-                window.removeComponentListener(listener)
-                Desktops.stop(window)
-            }
-        }
-        // Tucking and coming back reshape the window smoothly.
-        LaunchedEffect(tucked) {
-            val target = if (tucked) {
-                tuckedBounds(WaveMini.tuckAt ?: window.center(), WaveMini.tuckRight)
-            } else {
-                cornerBounds(window.center(), WaveMini.corner, full.first, full.second)
-            }
-            glide(window, target)
-            shape(window, RADIUS, tucked)
+        DisposableEffect(window) { onDispose { Desktops.stop(window) } }
+        LaunchedEffect(size, tab, tucked) {
+            val (w, h) = cardSize(size, tab, tucked)
+            val target = if (tucked) tuckedBounds(WaveMini.tuckAt ?: frame.center, WaveMini.tuckRight)
+            else cornerBounds(frame.center, WaveMini.corner, w, h)
+            frame.go(target, if (tucked) BUBBLE / 2f else RADIUS)
             WaveMini.save()
         }
+        val drag = Modifier.movesWindow(window, frame, scope, WaveMini) { frame.go(it, if (WaveMini.tucked.value) BUBBLE / 2f else RADIUS) }
+        val onSize: (PopOutSize) -> Unit = { s ->
+            when (s) {
+                PopOutSize.Bigger -> { WaveMini.size.value = PopOutSize.Bigger; if (WaveMini.tab.value == null) WaveMini.tab.value = MiniTab.UpNext }
+                PopOutSize.Compact -> WaveMini.size.value = PopOutSize.Compact
+                PopOutSize.Tiny -> { WaveMini.size.value = PopOutSize.Compact; WaveMini.tab.value = null }
+            }
+        }
 
-        val zoom = WaveSettings.state.collectAsState().value.uiScale
-        val base = LocalDensity.current
-        val fullPx = with(base) { full.first.dp.roundToPx() to full.second.dp.roundToPx() }
-        Box(Modifier.fillMaxSize().clip(RoundedCornerShape(if (tucked) 50 else RADIUS)).background(Color(0xFF111418))) {
-            // The app stays alive while tucked (so it's just as you left it) but isn't drawn.
-            KeepAlive(visible = !tucked, width = fullPx.first, height = fullPx.second) {
-                CompositionLocalProvider(
-                    LocalDensity provides Density(base.density * zoom, base.fontScale),
-                    LocalTitleBarInset provides (GRIP / zoom).dp,
-                ) {
-                    WaveApp(computer = true)
+        FloatingCard(frame) {
+            if (tucked) {
+                PopOutPlayer(PopOutSize.Compact, onSize = {}, onBack = onBack, onClose = onClose, modifier = drag, tucked = true, rounded = false)
+                return@FloatingCard
+            }
+            WaveMiniContent(size, tab, playing.current?.artworkUrl, drag, onSize, onBack, onClose)
+        }
+    }
+}
+
+/** WaveMini's card: the player with the tabs and panel under it (Compact) or beside it (Bigger). */
+@Composable
+internal fun WaveMiniContent(
+    size: PopOutSize,
+    tab: MiniTab?,
+    art: String?,
+    drag: Modifier,
+    onSize: (PopOutSize) -> Unit,
+    onBack: () -> Unit,
+    onClose: () -> Unit,
+) {
+    MaterialTheme(colorScheme = rememberArtColorScheme(art, darkBaseScheme())) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            // The song's colors behind the panel too.
+            BlurredImage(art?.atSize(ArtSize.BLUR), Modifier.fillMaxSize(), radius = 40.dp)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)))
+            if (size == PopOutSize.Bigger) {
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.width(PopOutSize.Bigger.widthDp.dp).fillMaxHeight()) {
+                        PopOutPlayer(PopOutSize.Bigger, onSize, onBack, onClose, modifier = drag, rounded = false)
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
+                        WaveMiniTabs(tab ?: MiniTab.UpNext, onTab = { WaveMini.tab.value = it ?: MiniTab.UpNext })
+                        WaveMiniPanel(tab ?: MiniTab.UpNext, onOpenWave = onBack, modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp))
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxWidth().height(PopOutSize.Compact.heightDp.dp)) {
+                        PopOutPlayer(PopOutSize.Compact, onSize, onBack, onClose, modifier = drag, rounded = false)
+                    }
+                    WaveMiniTabs(tab, onTab = { WaveMini.tab.value = it }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+                    tab?.let { open ->
+                        WaveMiniPanel(open, onOpenWave = onBack, modifier = Modifier.weight(1f).fillMaxWidth())
+                    }
                 }
             }
-            if (tucked) {
-                PopOutPlayer(
-                    size = PopOutSize.Compact,
-                    onSize = {},
-                    onBack = onBack,
-                    onClose = onClose,
-                    modifier = Modifier.movesWindow(window, scope, WaveMini),
-                    tucked = true,
-                )
-            } else {
-                Grip(
-                    modifier = Modifier.movesWindow(window, scope, WaveMini),
-                    onTuck = {
-                        val area = usableArea(window.center())
-                        WaveMini.tuckRight = window.center().x > area.x + area.width / 2
-                        WaveMini.tuckAt = window.center()
-                        WaveMini.tucked.value = true
-                    },
-                    onBack = onBack,
-                    onClose = onClose,
-                )
-            }
-        }
-    }
-}
-
-/** The top edge: drag it to move WaveMini; tuck it away, back to the full Wave, or close. */
-@Composable
-private fun Grip(modifier: Modifier, onTuck: () -> Unit, onBack: () -> Unit, onClose: () -> Unit) {
-    Box(modifier.fillMaxWidth().height(GRIP.dp)) {
-        Box(
-            Modifier
-                .align(Alignment.Center)
-                .size(width = 40.dp, height = 4.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.4f)),
-        )
-        Row(
-            Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            GripButton(Icons.Rounded.KeyboardDoubleArrowRight, "Tuck away", onTuck)
-            GripButton(Icons.Rounded.OpenInNew, "Back to the full Wave", onBack)
-            GripButton(Icons.Rounded.Close, "Close WaveMini", onClose)
-        }
-    }
-}
-
-@Composable
-private fun GripButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(22.dp)
-            .pressable(CircleShape, Color.Black.copy(alpha = 0.35f), pressedScale = 0.86f, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(14.dp)) }
-}
-
-/** Lays [content] out at a fixed size; when not [visible] it stays composed but isn't placed (or drawn). */
-@Composable
-private fun KeepAlive(visible: Boolean, width: Int, height: Int, content: @Composable () -> Unit) {
-    Layout(content) { measurables, _ ->
-        val placeables = measurables.map { it.measure(Constraints.fixed(width, height)) }
-        layout(if (visible) width else 0, if (visible) height else 0) {
-            if (visible) placeables.forEach { it.place(0, 0) }
         }
     }
 }
