@@ -19,12 +19,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.Alignment
 import app.wave.music.data.WaveSettings
 import app.wave.music.ui.components.BlurBudget
 import kotlinx.coroutines.launch
-import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import app.wave.music.data.Links

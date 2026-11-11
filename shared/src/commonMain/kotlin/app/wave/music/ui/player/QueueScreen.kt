@@ -1,13 +1,11 @@
 package app.wave.music.ui.player
 
 import app.wave.music.platform.topBarPadding
-import app.wave.music.platform.topInset
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.layout.widthIn
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -75,7 +72,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import app.wave.music.ui.components.predictiveBack
 import app.wave.music.ui.components.blocksTouchesBelow
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState

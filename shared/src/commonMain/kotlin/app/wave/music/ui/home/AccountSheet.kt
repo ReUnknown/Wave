@@ -2,14 +2,12 @@ package app.wave.music.ui.home
 
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.automirrored.rounded.Logout
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -29,14 +27,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import app.wave.music.ui.components.pressable
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,11 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.wave.music.data.Session
-import app.wave.music.data.WaveSettings
-import app.wave.music.playback.AudioQuality
 import app.wave.music.ui.detail.Destination
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.launch
 
 /**
  * Your account (design board 09). Opens halfway: who's signed in and shortcuts into your library.

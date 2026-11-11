@@ -17,7 +17,6 @@ import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.WatchEndpoint
 import com.metrolist.innertube.utils.parseTime
 import com.metrolist.innertube.models.YTItem
-import com.metrolist.innertube.models.filterExplicit
 import com.metrolist.innertube.models.getItems
 import com.metrolist.innertube.models.splitBySeparator
 

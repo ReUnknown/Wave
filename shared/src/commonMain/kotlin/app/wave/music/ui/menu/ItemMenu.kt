@@ -32,8 +32,6 @@ import androidx.compose.material.icons.rounded.Sensors
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.outlined.ThumbUp
-import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -42,7 +40,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
-import app.wave.music.playback.PlayerConnection
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -80,7 +77,6 @@ import com.metrolist.innertube.models.Artist
 import com.metrolist.innertube.models.ArtistItem
 import com.metrolist.innertube.models.PlaylistItem
 import com.metrolist.innertube.models.SongItem
-import com.metrolist.innertube.models.WatchEndpoint
 import com.metrolist.innertube.models.YTItem
 import kotlinx.coroutines.launch
 

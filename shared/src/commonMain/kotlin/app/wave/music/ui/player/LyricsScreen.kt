@@ -1,7 +1,6 @@
 package app.wave.music.ui.player
 
 import app.wave.music.platform.topBarPadding
-import app.wave.music.platform.topInset
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.widthIn
 import kotlinx.coroutines.flow.collectLatest
@@ -9,7 +8,6 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.rememberUpdatedState
 import app.wave.music.ui.components.ArtSize
 import app.wave.music.ui.components.atSize
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -38,7 +36,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -48,7 +45,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
@@ -65,19 +61,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -409,6 +402,18 @@ private fun LyricLineItem(
     val scale by animateFloatAsState(if (isActive || !synced) 1f else 0.93f, spring(dampingRatio = 0.75f, stiffness = 180f), label = "scale")
     val blur by animateFloatAsState(if (!synced || abs(distance) <= 1) 0f else (abs(distance) * 1.2f).coerceAtMost(5f), tween(500), label = "blur")
     val isBreak = synced && line.text.isBlank()
+    // When the song moves on a line, the lines below settle a beat after the scroll, the further
+    // down the later: the list feels like it's being pulled along rather than snapped.
+    val trail = remember { Animatable(0f) }
+    var lastDistance by remember { mutableStateOf(distance) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    LaunchedEffect(distance) {
+        val stepped = synced && distance in 0..7 && lastDistance == distance + 1
+        lastDistance = distance
+        if (!stepped) return@LaunchedEffect
+        trail.snapTo(with(density) { (6 + distance * 5).coerceAtMost(30).dp.toPx() })
+        trail.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 300f / (1f + distance * 0.35f)))
+    }
 
     Column(
         Modifier
@@ -421,6 +426,7 @@ private fun LyricLineItem(
                 scaleY = scale * beatBump * hookBoost
                 transformOrigin = TransformOrigin(0f, 0.5f)
             }
+            .graphicsLayer { translationY = trail.value }
             .alpha(alpha)
             .blur(blur.dp),
     ) {
@@ -434,7 +440,7 @@ private fun LyricLineItem(
                 distance < 0 -> { -> Long.MAX_VALUE }
                 else -> { -> Long.MIN_VALUE }
             }
-            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced, hook = isActive && hook, accent = accent) }
+            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced, hook = isActive && hook, accent = accent, rise = isActive) }
         }
         if (line.background.isNotEmpty()) {
             FlowRow(Modifier.padding(top = 4.dp)) {
@@ -460,6 +466,8 @@ private fun LyricWordText(
     /** Part of the hook being sung: each word bounces up as it lights, in the song's accent. */
     hook: Boolean = false,
     accent: Color = Color.White,
+    /** The word lifts a little as it's sung and stays up until its line is over. */
+    rise: Boolean = false,
 ) {
     val text = word.text + if (word.spaceAfter) " " else ""
     if (!synced) {
@@ -470,6 +478,8 @@ private fun LyricWordText(
     val emphasized = duration >= 900 && word.text.length <= 14
     fun fillAt(p: Long) = ((p - word.startMs).toFloat() / duration).coerceIn(0f, 1f)
     fun liftAt(p: Long) = if (emphasized && p in word.startMs..word.endMs) sin(PI * fillAt(p)).toFloat() else 0f
+    // 0 until the word starts, easing up to 1 as it's sung, then staying there.
+    fun riseAt(p: Long): Float = if (!rise) 0f else fillAt(p).let { it * it * (3f - 2f * it) }
 
     Box(
         Modifier.graphicsLayer {
@@ -477,7 +487,7 @@ private fun LyricWordText(
             val lift = liftAt(p)
             // Hook words pop: a quick overshooting bounce the moment they're sung.
             val pop = if (hook && p >= word.startMs) easeOutBack(((p - word.startMs) / 260f).coerceIn(0f, 1f)) else 1f
-            translationY = -lift * 4.dp.toPx() + (1f - pop) * 12.dp.toPx()
+            translationY = -lift * 4.dp.toPx() - riseAt(p) * 3.dp.toPx() + (1f - pop) * 12.dp.toPx()
             val s = (1f + lift * 0.05f) * (0.86f + 0.14f * pop)
             scaleX = s
             scaleY = s

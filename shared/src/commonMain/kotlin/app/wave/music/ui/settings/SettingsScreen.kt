@@ -12,21 +12,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -46,14 +53,13 @@ import app.wave.music.data.Updater
 import app.wave.music.data.WaveSettings
 import app.wave.music.playback.AudioQuality
 import app.wave.music.ui.components.WaveMotion
-import app.wave.music.ui.components.blocksTouchesBelow
 import app.wave.music.ui.components.pressable
 import kotlinx.coroutines.launch
 
 /**
- * Wave's settings, grouped so they stay easy to scan: how Wave looks, how it plays, battery,
- * keyboard (on computers) and about. Each setting says in plain words what it does. Shown at the
- * bottom of the account panel on phones and tablets (swipe it up), and in a dialog on computers.
+ * Wave's settings, as a few short cards: each setting has an icon, a name and one plain line
+ * saying what it does. Shown at the bottom of the account panel on phones and tablets (swipe it
+ * up), and in a dialog on computers.
  */
 @Composable
 fun SettingsContent() {
@@ -61,84 +67,87 @@ fun SettingsContent() {
     val settings by WaveSettings.state.collectAsState()
     val update by Updater.state.collectAsState()
     val c = MaterialTheme.colorScheme
+    val platform = app.wave.music.platform.WavePlatform.current
     fun change(block: (Settings) -> Settings) {
         scope.launch { WaveSettings.update(block) }
     }
     Column {
-    Eyebrow("Look & feel")
+    Eyebrow("Looks")
     Group {
-        Toggle("Match song colors", "The whole app takes on the colors of what's playing", settings.matchSongColors) { on ->
+        Toggle(Icons.Rounded.Palette, "Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on ->
             change { it.copy(matchSongColors = on) }
         }
         Divider()
-        Toggle("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
+        Toggle(Icons.Rounded.GraphicEq, "Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->
             change { it.copy(moveWithMusic = on) }
         }
         // Computers with the mini player: WaveMini.
-        if (app.wave.music.ui.components.LocalDesktop.current && app.wave.music.platform.WavePlatform.current.hasMiniPlayer) {
+        if (app.wave.music.ui.components.LocalDesktop.current && platform.hasMiniPlayer) {
             Divider()
-            Toggle(
-                "WaveMini",
-                "The mini player with Up next, lyrics, search and quick settings built in, so you rarely need the big window. Fling it to the edge of the screen to tuck it away",
-                settings.waveMini,
-            ) { on -> change { it.copy(waveMini = on) } }
+            Toggle(Icons.Rounded.PictureInPictureAlt, "WaveMini", "A tiny player that floats on top, with Up next, lyrics and search built in", settings.waveMini) { on ->
+                change { it.copy(waveMini = on) }
+            }
         }
         // The computer app: how big everything is drawn (also ⌘/Ctrl + and −).
-        if (app.wave.music.platform.WavePlatform.current.scalesInterface) {
+        if (platform.scalesInterface) {
             Divider()
             Choice(
+                icon = Icons.Rounded.ZoomIn,
                 title = "Interface size",
-                description = "Make Wave bigger or smaller in its window. ⌘/Ctrl + and − work too.",
+                description = "How big Wave is in its window (⌘/Ctrl + and − work too)",
                 options = listOf(0.8f to "80%", 0.9f to "90%", 1f to "100%", 1.1f to "110%", 1.25f to "125%"),
                 selected = listOf(0.8f, 0.9f, 1f, 1.1f, 1.25f).minBy { kotlin.math.abs(it - settings.uiScale) },
             ) { scale -> change { it.copy(uiScale = scale) } }
         }
     }
 
-    Eyebrow("Playback")
+    Eyebrow("Sound")
     Group {
         Choice(
+            icon = Icons.Rounded.HighQuality,
             title = "Audio quality",
             description = when (settings.audioQuality) {
-                AudioQuality.HIGH -> "Best available, about 160 kbps"
-                AudioQuality.AUTO -> "High on Wi-Fi, lower on mobile data"
-                AudioQuality.LOW -> "Saves data, about 50 kbps"
+                AudioQuality.HIGH -> "The best Wave can get"
+                AudioQuality.AUTO -> "Best on Wi-Fi, lighter on mobile data"
+                AudioQuality.LOW -> "Uses the least data"
             },
             options = listOf(AudioQuality.LOW to "Low", AudioQuality.AUTO to "Auto", AudioQuality.HIGH to "High"),
             selected = settings.audioQuality,
         ) { q -> change { it.copy(audioQuality = q) } }
         Divider()
-        Toggle("Even volume", "Loud songs are turned down so everything plays at about the same volume", settings.evenVolume) { on ->
+        Toggle(Icons.Rounded.VolumeUp, "Even volume", "Loud songs are turned down so everything sounds the same", settings.evenVolume) { on ->
             change { it.copy(evenVolume = on) }
         }
         Divider()
         Choice(
+            icon = Icons.Rounded.SwapHoriz,
             title = "Crossfade",
-            description = if (settings.crossfadeSeconds == 0) "Songs play one after another" else "Each song fades into the next over ${settings.crossfadeSeconds} seconds",
+            description = if (settings.crossfadeSeconds == 0) "Songs play one after another" else "Songs blend into each other over ${settings.crossfadeSeconds} seconds",
             options = listOf(0 to "Off", 3 to "3s", 6 to "6s", 9 to "9s", 12 to "12s"),
             selected = settings.crossfadeSeconds,
         ) { s -> change { it.copy(crossfadeSeconds = s) } }
-        Divider()
-        Toggle("Autoplay", "When a playlist ends, keep going with similar songs", settings.autoplay) { on ->
+    }
+
+    Eyebrow("Playback")
+    Group {
+        Toggle(Icons.Rounded.PlayCircle, "Keep the music going", "When a playlist ends, carry on with similar songs", settings.autoplay) { on ->
             change { it.copy(autoplay = on) }
         }
         Divider()
-        Toggle("Skip silence", "Trim quiet gaps between songs", settings.skipSilence) { on ->
+        Toggle(Icons.Rounded.FastForward, "Skip silence", "Trims the quiet gaps in songs", settings.skipSilence) { on ->
             change { it.copy(skipSilence = on) }
+        }
+        // Phones and tablets only: on computers there's no battery to save this way.
+        if (!platform.isComputer) {
+            Divider()
+            Toggle(Icons.Rounded.BatterySaver, "Save battery while playing", "The phone's audio chip plays the music when Wave isn't on screen (off with Skip silence)", settings.lowPowerPlayback) { on ->
+                change { it.copy(lowPowerPlayback = on) }
+            }
         }
     }
 
-    Eyebrow("Battery")
-    Group {
-        Toggle(
-            "Low-power playback",
-            "When Wave isn't on screen, your phone's audio chip plays the music so the rest of the phone can rest. Not used with Skip silence.",
-            settings.lowPowerPlayback,
-        ) { on -> change { it.copy(lowPowerPlayback = on) } }
-    }
-
     // Googlebook, ChromeOS or a keyboard case: show what the keys do.
-    if (app.wave.music.platform.WavePlatform.current.isComputer || app.wave.music.platform.WavePlatform.current.hasKeyboard) {
+    if (platform.isComputer || platform.hasKeyboard) {
         Eyebrow("Keyboard")
         Group {
             listOf(
@@ -167,16 +176,17 @@ fun SettingsContent() {
 
     Eyebrow("About")
     Group {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            IconTile(Icons.Rounded.SystemUpdate)
             Column(Modifier.weight(1f)) {
-                Text("Wave ${app.wave.music.platform.WavePlatform.current.appVersion}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+                Text("Wave ${platform.appVersion}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
                 Text(
                     when (val u = update) {
-                        Updater.State.Idle -> "Tap to check for a new version"
+                        Updater.State.Idle -> "Tap Check to look for a new version"
                         Updater.State.Checking -> "Checking…"
                         Updater.State.UpToDate -> "You're up to date"
-                        Updater.State.Failed -> "Couldn't check for updates"
-                        is Updater.State.Available -> "Wave ${u.release.version} is available"
+                        Updater.State.Failed -> "Couldn't check right now"
+                        is Updater.State.Available -> "Wave ${u.release.version} is ready to download"
                         is Updater.State.Downloading -> "Downloading Wave ${u.release.version}…"
                         is Updater.State.Ready -> "Wave ${u.release.version} is ready to install"
                     },
@@ -207,7 +217,7 @@ fun SettingsContent() {
             )
         }
         Divider()
-        Toggle("Check for updates automatically", "Once a day, from Wave's GitHub releases", settings.checkUpdates) { on ->
+        Toggle(Icons.Rounded.Autorenew, "Update automatically", "Wave looks for a new version once a day", settings.checkUpdates) { on ->
             change { it.copy(checkUpdates = on) }
         }
     }
@@ -229,7 +239,7 @@ internal fun Group(content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
             .padding(horizontal = 12.dp),
         content = content,
     )
@@ -237,22 +247,34 @@ internal fun Group(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun Divider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+    // Starts under the text, not under the icon.
+    Box(Modifier.fillMaxWidth().padding(start = 62.dp).height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)))
+}
+
+/** The little rounded square an icon sits in at the start of a row. */
+@Composable
+private fun IconTile(icon: ImageVector) {
+    Box(
+        Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(14.dp)),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
 }
 
 @Composable
-private fun Toggle(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun Toggle(icon: ImageVector, title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onChange(!checked) }
-            .padding(horizontal = 8.dp, vertical = 14.dp),
+            .padding(horizontal = 8.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        IconTile(icon)
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(description, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(description, fontSize = 13.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onChange)
     }
@@ -260,12 +282,17 @@ private fun Toggle(title: String, description: String, checked: Boolean, onChang
 
 /** A connected segmented choice: the picked one fills in and rounds out. */
 @Composable
-private fun <T> Choice(title: String, description: String, options: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit) {
+private fun <T> Choice(icon: ImageVector, title: String, description: String, options: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit) {
     val c = MaterialTheme.colorScheme
-    Column(Modifier.padding(horizontal = 8.dp, vertical = 14.dp)) {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
-        Text(description, fontSize = 13.sp, color = c.onSurfaceVariant)
-        Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            IconTile(icon)
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+                Text(description, fontSize = 13.sp, lineHeight = 17.sp, color = c.onSurfaceVariant)
+            }
+        }
+        Row(Modifier.padding(top = 12.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             options.forEachIndexed { i, (value, label) ->
                 val on = value == selected
                 val outer by animateDpAsState(if (on) 22.dp else 8.dp, WaveMotion.bouncy(), label = "segment")
