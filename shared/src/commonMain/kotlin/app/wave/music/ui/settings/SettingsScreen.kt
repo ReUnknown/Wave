@@ -72,6 +72,21 @@ fun SettingsContent() {
         scope.launch { WaveSettings.update(block) }
     }
     Column {
+    // Computers: say plainly that this app has stopped getting updates, and where to go.
+    if (app.wave.music.ui.components.DesktopSunset.applies) {
+        Column(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth()
+                .background(c.primaryContainer, RoundedCornerShape(28.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(app.wave.music.ui.components.DesktopSunset.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = c.onPrimaryContainer)
+            Text(app.wave.music.ui.components.DesktopSunset.message, fontSize = 14.sp, lineHeight = 19.sp, color = c.onPrimaryContainer.copy(alpha = 0.85f))
+            app.wave.music.ui.components.GetWaveMiniButton()
+        }
+    }
     Eyebrow("Looks")
     Group {
         Toggle(Icons.Rounded.Palette, "Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on ->

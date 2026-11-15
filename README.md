@@ -4,6 +4,8 @@
 
 **Your YouTube Music. Nothing in the way.**
 
+> **Wave is Android only from here.** The Windows, macOS and Linux apps still work, but 1.2.1 was their last update. On a computer, use [WaveMini](https://github.com/ReUnknown/WaveMini): Wave's mini player as its own tiny Windows app.
+
 A simple, ad-free YouTube Music client for Android, Windows, macOS and Linux:
 phones, tablets, foldables, Googlebook and computers, built with Material 3 Expressive.
 

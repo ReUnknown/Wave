@@ -2,9 +2,8 @@
 # (The macOS .dmg and the Android APK are built on a Mac with desktop/package-macos.sh.)
 name: Desktop builds
 
+# The computer apps are no longer updated (Wave is Android only now), so this only runs by hand.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:

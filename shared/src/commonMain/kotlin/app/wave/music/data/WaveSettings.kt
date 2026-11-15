@@ -34,6 +34,8 @@ data class Settings(
     val uiScale: Float = 0.9f,
     /** Computers: the mini player is WaveMini, a whole Wave the size of a phone, on top of everything. */
     val waveMini: Boolean = false,
+    /** Computers: the "no longer updated" notice at the top of the window has been closed. */
+    val desktopNoticeClosed: Boolean = false,
 )
 
 
@@ -52,6 +54,7 @@ object WaveSettings {
     private val volume = androidx.datastore.preferences.core.floatPreferencesKey("app_volume")
     private val scale = androidx.datastore.preferences.core.floatPreferencesKey("ui_scale")
     private val mini = booleanPreferencesKey("wave_mini")
+    private val noticeClosed = booleanPreferencesKey("desktop_notice_closed")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -74,6 +77,7 @@ object WaveSettings {
             appVolume = p[volume] ?: 1f,
             uiScale = p[scale] ?: 0.9f,
             waveMini = p[mini] ?: false,
+            desktopNoticeClosed = p[noticeClosed] ?: false,
         )
         loaded = true
     }
@@ -95,6 +99,7 @@ object WaveSettings {
             it[volume] = next.appVolume
             it[scale] = next.uiScale
             it[mini] = next.waveMini
+            it[noticeClosed] = next.desktopNoticeClosed
         }
     }
 
