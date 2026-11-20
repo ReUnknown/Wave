@@ -370,9 +370,11 @@ fun LazyListScope.prismaHome(
     openItem: (YTItem) -> Unit,
     playSongs: (String, List<SongItem>, Int) -> Unit,
     topBar: @Composable () -> Unit,
+    /** Legacy puts 1.0's big banner on top instead, so it leaves these out. */
+    showPicks: Boolean = true,
 ) {
     item(key = "top") { topBar() }
-    val picks = picksFrom(feed, recent)
+    val picks = if (showPicks) picksFrom(feed, recent) else emptyList()
     if (picks.isNotEmpty()) {
         item(key = "picks-h") { PrismaSectionTitle("Top picks for you", first = true) }
         item(key = "picks") {

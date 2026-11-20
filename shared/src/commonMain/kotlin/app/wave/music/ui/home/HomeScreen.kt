@@ -611,6 +611,21 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
                         topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
+                  } else if (legacyHome) {
+                    // Legacy: 1.0's greeting header and big banner on top, then Prisma's sections
+                    // (in Legacy's fonts and squarer corners) underneath: old and new together.
+                    item { Hero(hero, jump = emptyList(), onJump = openItem, onSharedBackdrop = false) }
+                    prismaHome(
+                        feed = state.feed,
+                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
+                        playlists = myPlaylists,
+                        guest = session.guest,
+                        playItem = playItem,
+                        openItem = openItem,
+                        playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
+                        topBar = {},
+                        showPicks = false,
+                    )
                   } else {
                     item {
                         // Big screens: quick "jump back in" tiles sit beside the banner, filling the space.
