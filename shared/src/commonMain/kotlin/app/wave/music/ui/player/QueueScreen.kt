@@ -1,5 +1,13 @@
 package app.wave.music.ui.player
 
+import app.wave.music.playback.RepeatMode
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.Shuffle
 import app.wave.music.platform.topBarPadding
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.pager.PageSize
@@ -106,44 +114,6 @@ fun QueueScreen(
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
 
-    val order = state.playOrder
-    val currentPage = order.indexOf(state.index).coerceAtLeast(0)
-    val pager = rememberPagerState(initialPage = currentPage) { order.size }
-    val pageCount by androidx.compose.runtime.rememberUpdatedState(order.size)
-
-    // Follow the player when the song changes on its own.
-    LaunchedEffect(currentPage) {
-        if (pager.currentPage != currentPage && !pager.isScrollInProgress) pager.animateScrollToPage(currentPage)
-    }
-    // Swiping to a cover with your finger and letting it settle plays that song. Only real drags
-    // count: the coverflow sliding by itself to follow the player must never pick a song.
-    LaunchedEffect(pager) {
-        var dragged = false
-        var startPage = 0
-        launch {
-            pager.interactionSource.interactions.collect {
-                if (it is DragInteraction.Start) {
-                    dragged = true
-                    startPage = pager.settledPage
-                }
-            }
-        }
-        snapshotFlow { pager.isScrollInProgress }.collect { scrolling ->
-            // A click with a tiny wobble (easy with a mouse) isn't a swipe: only a drag that actually
-            // landed on a different cover picks a song.
-            if (!scrolling && dragged && pager.settledPage == startPage) dragged = false
-            if (!scrolling && dragged) {
-                dragged = false
-                val target = PlayerConnection.state.value.playOrder.getOrNull(pager.settledPage)
-                if (target != null && target != PlayerConnection.state.value.index) {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    PlayerConnection.skipTo(target)
-                    PlayerConnection.play()
-                }
-            }
-        }
-    }
-
     // Coming-up list: a local copy so drags are smooth; the player is only told when you let go.
     var dragging by remember { mutableStateOf(false) }
     var entries by remember { mutableStateOf(entriesFor(state.upcoming, state.queue)) }
@@ -198,142 +168,54 @@ fun QueueScreen(
         ) {
             item {
                 Column(if (embedded) Modifier else Modifier.topBarPadding()) {
-                    Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
+                    Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Up next", color = c.onBackground, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)
-                            Text(
-                                listOfNotNull(state.context?.title?.let { "From $it" }, if (state.shuffle) "Shuffle on" else null).joinToString(" · "),
-                                color = c.onSurfaceVariant,
-                                fontSize = 14.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Text("Up next", color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp))
+                            state.context?.title?.let {
+                                Text(it, color = c.onBackground.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         if (!embedded) Box(
                             Modifier
                                 .size(48.dp)
-                                .pressable(CircleShape, Color.Black.copy(alpha = 0.28f), pressedScale = 0.86f, onClick = onClose),
+                                .pressable(CircleShape, Color.Black.copy(alpha = 0.32f), pressedScale = 0.86f, onClick = onClose),
                             contentAlignment = Alignment.Center,
                         ) { Icon(Icons.Rounded.KeyboardArrowDown, "Close queue", tint = Color.White) }
                     }
 
-                    // Coverflow: played ← now playing → coming up
-                    // Fixed-size covers centered in whatever width there is, so the neighbors stay
-                    // tucked in close on landscape and tablets instead of drifting off the edges.
-                    BoxWithConstraints(Modifier.padding(top = 20.dp).fillMaxWidth()) {
-                    HorizontalPager(
-                        state = pager,
-                        pageSize = PageSize.Fixed(244.dp),
-                        contentPadding = PaddingValues(horizontal = ((maxWidth - 244.dp) / 2).coerceAtLeast(0.dp)),
-                        pageSpacing = (-40).dp,
-                        beyondViewportPageCount = 3,
-                        modifier = Modifier
+                    // What's playing now: a glass card with little bars that move while it plays.
+                    Row(
+                        Modifier
+                            .padding(start = 12.dp, end = 12.dp, top = 20.dp)
                             .fillMaxWidth()
-                            .height(250.dp)
-                            .pointerInput(pager) {
-                                // Computers: the mouse wheel (or a touchpad swipe) flips through the
-                                // covers one at a time to look around; click one to play it.
-                                var pending = 0f
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                                        if (event.type != PointerEventType.Scroll) continue
-                                        val d = event.changes.firstOrNull()?.scrollDelta ?: continue
-                                        event.changes.forEach { it.consume() }
-                                        pending += if (abs(d.x) > abs(d.y)) d.x else d.y
-                                        if (abs(pending) < 1f) continue
-                                        val step = if (pending > 0) 1 else -1
-                                        pending = 0f
-                                        val to = (pager.targetPage + step).coerceIn(0, (pageCount - 1).coerceAtLeast(0))
-                                        scope.launch { pager.animateScrollToPage(to) }
-                                    }
-                                }
-                            },
-                    ) { page ->
-                        // Read while drawing only, so scrolling the coverflow doesn't recompose it.
-                        fun offset() = pager.getOffsetDistanceInPages(page).coerceIn(-2f, 2f)
-                        val song = state.queue.getOrNull(order[page])
-                        // Clicks land on the flat slot, not the tilted cover: hit-testing through a
-                        // cover turned nearly edge-on maps a click onto a song several places away.
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .clickable(interactionSource = null, indication = null) {
-                                        // Only the covers you can really see take clicks.
-                                        if (abs(offset()) >= 1.5f) return@clickable
-                                        // Tapping a cover plays it, just like next / previous for the
-                                        // ones beside it; the coverflow then follows the player there.
-                                        val live = PlayerConnection.state.value
-                                        val here = live.playOrder.indexOf(live.index)
-                                        val target = live.playOrder.getOrNull(page)
-                                        if (target != null && target != live.index) {
-                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            when (page - here) {
-                                                1 -> PlayerConnection.nextSong()
-                                                -1 -> PlayerConnection.previousSong()
-                                                else -> PlayerConnection.skipTo(target)
-                                            }
-                                            PlayerConnection.play()
-                                        }
-                                    },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            AsyncImage(
-                                model = song?.artworkUrl?.atSize(ArtSize.CARD),
-                                contentDescription = song?.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(226.dp)
-                                    .graphicsLayer {
-                                        val offset = offset()
-                                        rotationY = offset * -42f
-                                        val s = 1f - abs(offset) * 0.2f
-                                        scaleX = s
-                                        scaleY = s
-                                        alpha = 1f - abs(offset) * 0.28f
-                                        cameraDistance = 14f * density
-                                    }
-                                    .shadow(22.dp, RoundedCornerShape(38.dp))
-                                    .clip(RoundedCornerShape(38.dp)),
-                            )
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color.White.copy(alpha = 0.09f))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        AsyncImage(current.artworkUrl?.atSize(ArtSize.CARD), null, Modifier.size(72.dp).shadow(10.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)), contentScale = ContentScale.Crop)
+                        Column(Modifier.weight(1f)) {
+                            Text("NOW PLAYING", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                            Text(current.title, color = c.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(current.artist, color = c.onBackground.copy(alpha = 0.65f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                    }
+                        PlayingBars(state.isPlaying, c.primary)
                     }
 
-                    val shownPage = pager.currentPage
-                    val shown = order.getOrNull(shownPage)?.let { state.queue.getOrNull(it) }
-                    if (shown != null) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            val rel = shownPage - currentPage
-                            Text(
-                                when {
-                                    rel == 0 -> "NOW PLAYING"
-                                    rel < 0 -> "PLAYED"
-                                    rel == 1 -> "UP NEXT"
-                                    else -> "$rel SONGS FROM NOW"
-                                },
-                                color = c.primary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp,
-                            )
-                            Text(shown.title, color = c.onBackground, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(shown.artist, color = c.onSurfaceVariant, fontSize = 15.sp, maxLines = 1)
-                        }
+                    // Shuffle and repeat, right where you'd want them while looking at the queue.
+                    Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QueueChip(Icons.Rounded.Shuffle, "Shuffle", state.shuffle) { PlayerConnection.toggleShuffle() }
+                        QueueChip(
+                            if (state.repeatMode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                            when (state.repeatMode) { RepeatMode.ONE -> "Repeat one"; RepeatMode.ALL -> "Repeat all"; else -> "Repeat" },
+                            state.repeatMode != RepeatMode.OFF,
+                        ) { PlayerConnection.cycleRepeat() }
                     }
-                    if (entries.isNotEmpty()) {
-                        Text(
-                            "Coming up",
-                            Modifier.padding(start = 20.dp, top = 16.dp, bottom = 6.dp),
-                            color = c.onBackground,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
+
+                    Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
+                        Text(if (entries.isEmpty()) "Nothing coming up" else "Coming up", color = c.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (entries.isNotEmpty()) Text("${entries.size} songs", color = c.onBackground.copy(alpha = 0.55f), fontSize = 13.sp)
                     }
                 }
             }
@@ -358,13 +240,13 @@ fun QueueScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        AsyncImage(entry.song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
+                        AsyncImage(entry.song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
                         Column(Modifier.weight(1f)) {
-                            Text(entry.song.title, color = c.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(entry.song.title, color = c.onBackground, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(entry.song.artist, color = c.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         IconButton(onClick = { PlayerConnection.removeAt(entry.index) }) {
-                            Icon(Icons.Rounded.Close, "Remove ${entry.song.title} from the queue", tint = c.onSurfaceVariant)
+                            Icon(Icons.Rounded.Close, "Remove ${entry.song.title} from the queue", tint = c.onBackground.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
                         }
                         if (!state.shuffle) {
                             IconButton(
@@ -389,5 +271,47 @@ fun QueueScreen(
             }
             item { Box(Modifier.navigationBarsPadding()) }
         }
+    }
+}
+
+
+/** Three little bars that bounce while the song plays and rest when it's paused. */
+@Composable
+private fun PlayingBars(playing: Boolean, color: Color) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "bars")
+    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(tween(900, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
+    val amount by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "amount")
+    Row(Modifier.size(28.dp).padding(horizontal = 3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+        repeat(3) { i ->
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        val h = 0.3f + amount * 0.7f * (0.5f + 0.5f * kotlin.math.sin(phase + i * 2.1f))
+                        scaleY = h.coerceIn(0.2f, 1f)
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                    }
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(color),
+            )
+        }
+    }
+}
+
+@Composable
+private fun QueueChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val fill by animateColorAsState(if (on) c.primary else Color.White.copy(alpha = 0.09f), tween(170), label = "chipFill")
+    val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground, tween(170), label = "chipInk")
+    Row(
+        Modifier
+            .height(40.dp)
+            .pressable(RoundedCornerShape(20.dp), fill, pressedScale = 0.94f, onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = ink, modifier = Modifier.size(20.dp))
+        Text("  $label", color = ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }

@@ -91,16 +91,54 @@ fun main(args: Array<String>) {
 }
 
 /** Development check: renders the whole app (as a guest) to a PNG. */
+private fun fakeBackend(): PlayerBackend {
+    val songs = runBlocking { YouTube.search("blinding lights", YouTube.SearchFilter.FILTER_SONG).getOrThrow().items.filterIsInstance<SongItem>().take(8) }
+    return object : PlayerBackend {
+        override val state = MutableStateFlow(run {
+            val q = songs.map { NowPlaying(it.id, it.title, it.artists.joinToString { a -> a.name }, it.thumbnail) }
+            PlayerUiState(current = q.first(), isPlaying = true, durationMs = 204_000, liked = false, queue = q, upcoming = q.indices.drop(1), index = 0)
+        })
+        override val position = 112_000L
+        override fun play(request: PlayRequest, startPositionMs: Long) {}
+        override fun playNext(request: PlayRequest) {}
+        override fun addToQueue(request: PlayRequest) {}
+        override fun play() {}
+        override fun togglePlay() {}
+        override fun next() {}
+        override fun previous() {}
+        override fun nextSong() {}
+        override fun previousSong() {}
+        override fun seekTo(ms: Long) {}
+        override fun skipTo(index: Int) {}
+        override fun removeAt(index: Int) {}
+        override fun move(from: Int, to: Int) {}
+        override fun setSpeed(speed: Float) {}
+        override fun toggleShuffle() {}
+        override fun cycleRepeat() {}
+        override fun reset() {}
+    }
+}
+
 object RenderApp {
     @JvmStatic
     fun main(args: Array<String>) {
         WavePlatform.current = DesktopPlatform
         app.wave.music.ui.components.BlurBudget.light = true
         kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load() }
-        PlayerConnection.backend = DesktopPlayer
-        val out = File(args.getOrNull(0) ?: "build/mini").apply { mkdirs() }
+        val mode = args.getOrNull(3) ?: "home"
         val w = args.getOrNull(1)?.toIntOrNull() ?: 1120
         val h = args.getOrNull(2)?.toIntOrNull() ?: 740
+        PlayerConnection.backend = if (mode == "home") DesktopPlayer else fakeBackend()
+        app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu")
+        app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
+        if (mode == "menu") {
+            val now = PlayerConnection.state.value.current!!
+            app.wave.music.ui.home.RenderStart.menu = app.wave.music.ui.menu.MenuTarget.Song(now.videoId, now.title, now.artist, now.artworkUrl, nowPlaying = true)
+            // The player's ⋮, top right.
+            app.wave.music.ui.menu.MenuAnchor.pressed = app.wave.music.ui.menu.MenuAnchor.Spot(androidx.compose.ui.geometry.Rect(w - 64f, 38f, w - 16f, 86f), androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f), androidx.compose.ui.graphics.Color.White)
+            app.wave.music.ui.menu.MenuAnchor.at = Long.MAX_VALUE / 2
+        }
+        val out = File(args.getOrNull(0) ?: "build/mini").apply { mkdirs() }
         val scene = ImageComposeScene(w, h, Density(1f)) {
             androidx.compose.runtime.CompositionLocalProvider(app.wave.music.platform.LocalTitleBarInset provides 30.dp) {
                 app.wave.music.ui.WaveApp(computer = true, preview = true)
@@ -108,7 +146,7 @@ object RenderApp {
         }
         var image = scene.render(0)
         for (i in 1..150) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
-        File(out, "app-$w.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         println("done")
         kotlin.system.exitProcess(0)
     }

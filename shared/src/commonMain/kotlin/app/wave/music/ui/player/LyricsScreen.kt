@@ -109,15 +109,26 @@ private sealed interface LyricsUi {
     data class Ready(val lyrics: Lyrics) : LyricsUi
 }
 
-private val LineStyle = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
+private val LineStyle = TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+
+/** Where the sung line sits: a little under a third of the way down, like Apple Music. */
+private const val ANCHOR = 0.3f
+
+/** One step of the cascade: the list jumped by [delta] px, and each line catches up in turn. */
+private class Cascade(val id: Int, val delta: Float)
 private val BackingStyle = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
 
-/** Scrolls so item [index] sits in the exact vertical center of the list. */
+/** How far item [index] is from its spot at [ANCHOR], or null if it isn't laid out. */
+private fun LazyListState.anchorDelta(index: Int): Float? {
+    val item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return null
+    val target = layoutInfo.viewportStartOffset + (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset) * ANCHOR
+    return item.offset - target
+}
+
+/** Brings item [index] to its spot, smoothly (taps) or at once. */
 private suspend fun LazyListState.centerOn(index: Int, animate: Boolean) {
     if (layoutInfo.visibleItemsInfo.none { it.index == index }) scrollToItem(index)
-    val item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
-    val center = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
-    val delta = (item.offset + item.size / 2 - center).toFloat()
+    val delta = anchorDelta(index) ?: return
     if (animate) animateScrollBy(delta, spring(dampingRatio = 0.9f, stiffness = 110f)) else scrollBy(delta)
 }
 
@@ -164,10 +175,19 @@ fun LyricsScreen(
             }
         }
     }
-    // Only real finger drags pause auto-follow; taps don't.
+    // Only real finger drags pause auto-follow; taps don't. While you look around, every line is sharp.
+    var browsing by remember { mutableStateOf(false) }
     LaunchedEffect(listState) {
-        listState.interactionSource.interactions.collect { if (it is DragInteraction.Start) userScrolledAt = System.currentTimeMillis() }
+        listState.interactionSource.interactions.collectLatest {
+            if (it is DragInteraction.Start) {
+                userScrolledAt = System.currentTimeMillis()
+                browsing = true
+                delay(3_500)
+                browsing = false
+            }
+        }
     }
+    var cascade by remember { mutableStateOf(Cascade(0, 0f)) }
 
     val lyrics = (ui as? LyricsUi.Ready)?.lyrics
     // Only recomposes when the line changes; the per-frame word fill happens at draw time.
@@ -228,8 +248,17 @@ fun LyricsScreen(
     val accent = MaterialTheme.colorScheme.primary
     val pulseNow: () -> Float = { if (settings.moveWithMusic) pulse.value else 0f }
 
+    // A new line: the list jumps there at once, and each line below springs up after it in turn,
+    // so the lyrics ripple into place instead of sliding as one block.
     LaunchedEffect(active, ui) {
-        if (active >= 0 && System.currentTimeMillis() - userScrolledAt > 3_500) listState.centerOn(active, animate = true)
+        if (active < 0 || System.currentTimeMillis() - userScrolledAt <= 3_500) return@LaunchedEffect
+        val delta = listState.anchorDelta(active)
+        if (delta == null || kotlin.math.abs(delta) > listState.layoutInfo.viewportSize.height) {
+            listState.centerOn(active, animate = false)
+            return@LaunchedEffect
+        }
+        listState.scrollBy(delta)
+        cascade = Cascade(cascade.id + 1, delta)
     }
 
     BoxWithConstraints(
@@ -272,7 +301,7 @@ fun LyricsScreen(
                 state = listState,
                 // Lines stay a readable width on big screens.
                 modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
-                contentPadding = PaddingValues(top = maxHeight / 2, bottom = maxHeight / 2),
+                contentPadding = PaddingValues(top = maxHeight * ANCHOR, bottom = maxHeight * (1f - ANCHOR)),
             ) {
                 itemsIndexed(current.lyrics.lines) { index, line ->
                     LyricLineItem(
@@ -285,6 +314,8 @@ fun LyricsScreen(
                         hook = index in hooks,
                         accent = accent,
                         drop = dropNow,
+                        cascade = cascade,
+                        browsing = browsing,
                         onTap = {
                             if (current.lyrics.synced) {
                                 PlayerConnection.seekTo(line.startMs)
@@ -386,6 +417,8 @@ private fun LyricLineItem(
     hook: Boolean = false,
     accent: Color = Color.White,
     drop: () -> Float = { 0f },
+    cascade: Cascade = Cascade(0, 0f),
+    browsing: Boolean = false,
 ) {
     val isActive = synced && distance == 0
     // A hook line swells a little when it comes around, on top of everything else.
@@ -393,26 +426,29 @@ private fun LyricLineItem(
     val alpha by animateFloatAsState(
         when {
             !synced || isActive -> 1f
-            distance < 0 -> 0.32f
-            else -> (0.48f - distance * 0.05f).coerceAtLeast(0.2f)
+            browsing -> 0.6f
+            distance < 0 -> 0.3f
+            else -> (0.45f - distance * 0.05f).coerceAtLeast(0.2f)
         },
-        tween(500),
+        tween(600),
         label = "alpha",
     )
-    val scale by animateFloatAsState(if (isActive || !synced) 1f else 0.93f, spring(dampingRatio = 0.75f, stiffness = 180f), label = "scale")
-    val blur by animateFloatAsState(if (!synced || abs(distance) <= 1) 0f else (abs(distance) * 1.2f).coerceAtMost(5f), tween(500), label = "blur")
+    // The sung line grows in with a soft spring; the rest sit a touch smaller.
+    val scale by animateFloatAsState(if (isActive || !synced) 1f else 0.95f, spring(dampingRatio = 0.62f, stiffness = 140f), label = "scale")
+    // Lines further from the sung one blur more, all sharp while you're scrolling around.
+    val blur by animateFloatAsState(if (!synced || browsing || distance == 0) 0f else (abs(distance) * 1.1f).coerceAtMost(6f), tween(600), label = "blur")
     val isBreak = synced && line.text.isBlank()
-    // When the song moves on a line, the lines below settle a beat after the scroll, the further
-    // down the later: the list feels like it's being pulled along rather than snapped.
+    // The cascade: when the list jumps to the next line, this line holds where it was for a moment,
+    // then springs into place. Lines further down wait longer, so they ripple up one after another.
     val trail = remember { Animatable(0f) }
-    var lastDistance by remember { mutableStateOf(distance) }
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    LaunchedEffect(distance) {
-        val stepped = synced && distance in 0..7 && lastDistance == distance + 1
-        lastDistance = distance
-        if (!stepped) return@LaunchedEffect
-        trail.snapTo(with(density) { (6 + distance * 5).coerceAtMost(30).dp.toPx() })
-        trail.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 300f / (1f + distance * 0.35f)))
+    // Lines that scroll into view later mustn't replay a step that already happened.
+    val bornAt = remember { cascade.id }
+    LaunchedEffect(cascade.id) {
+        if (cascade.id == bornAt || cascade.delta == 0f) return@LaunchedEffect
+        trail.snapTo(trail.value + cascade.delta)
+        val wait = if (distance < 0) 0L else ((distance + 1) * 55L).coerceAtMost(500L)
+        delay(wait)
+        trail.animateTo(0f, spring(dampingRatio = 0.84f, stiffness = 120f))
     }
 
     Column(

@@ -207,5 +207,5 @@ tasks.register<JavaExec>("renderApp") {
     javaLauncher.set(waveRuntime)
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("app.wave.desktop.RenderApp")
-    args(layout.buildDirectory.dir("mini").get().asFile.absolutePath, project.findProperty("w") ?: "1120", project.findProperty("h") ?: "740")
+    args(layout.buildDirectory.dir("mini").get().asFile.absolutePath, project.findProperty("w") ?: "1120", project.findProperty("h") ?: "740", project.findProperty("mode") ?: "home")
 }

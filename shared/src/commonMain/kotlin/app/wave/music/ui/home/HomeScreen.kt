@@ -200,7 +200,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         WaveSettings.load()
         if (WaveSettings.state.value.checkUpdates) Updater.check()
     }
-    var showPlayer by rememberSaveable { mutableStateOf(false) }
+    var showPlayer by rememberSaveable { mutableStateOf(RenderStart.player) }
     // Asked to open from home's banner; handled once the player's layout state exists below.
     var openRequested by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
@@ -274,7 +274,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             is app.wave.music.data.Link.Artist -> { showPlayer = false; push(Destination.Artist(opened.channelId)) }
         }
     }
-    var menuTarget by remember { mutableStateOf<MenuTarget?>(null) }
+    var menuTarget by remember { mutableStateOf<MenuTarget?>(RenderStart.menu) }
     // A menu opened on the playing song moves on with the music (its colors and name too).
     LaunchedEffect(player.current?.videoId) {
         val open = menuTarget as? MenuTarget.Song ?: return@LaunchedEffect
@@ -1484,3 +1484,7 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
         Text("Make your own mix", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
     }
 }
+
+
+/** For offscreen renders only: start with the player open. */
+object RenderStart { var player = false; var openTo: String? = null; var menu: MenuTarget? = null }

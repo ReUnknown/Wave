@@ -1,6 +1,13 @@
 package app.wave.music.ui.menu
 
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.core.animateDp
@@ -440,59 +447,7 @@ fun ItemMenuHost(
 @Composable
 private fun MenuContainer(desktop: Boolean, sheet: androidx.compose.material3.SheetState, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     if (desktop) {
-        // The menu grows out of the spot you touched (the ⋮ button), covering it as it opens,
-        // and opens toward whichever side has room.
-        val spot = PointerSpot.position
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val nudge = with(density) { 20.dp.toPx() }
-        val margin = with(density) { 12.dp.toPx() }
-        var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.graphics.TransformOrigin(1f, 0f)) }
-        val position = androidx.compose.runtime.remember(spot) {
-            object : androidx.compose.ui.window.PopupPositionProvider {
-                override fun calculatePosition(
-                    anchorBounds: androidx.compose.ui.unit.IntRect,
-                    windowSize: androidx.compose.ui.unit.IntSize,
-                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                    popupContentSize: androidx.compose.ui.unit.IntSize,
-                ): androidx.compose.ui.unit.IntOffset {
-                    val w = popupContentSize.width.toFloat()
-                    val h = popupContentSize.height.toFloat()
-                    val toLeft = spot.x > windowSize.width / 2f
-                    val x = (if (toLeft) spot.x + nudge - w else spot.x - nudge).coerceIn(margin, (windowSize.width - w - margin).coerceAtLeast(margin))
-                    val down = spot.y - nudge + h + margin < windowSize.height
-                    val y = (if (down) spot.y - nudge else spot.y + nudge - h).coerceIn(margin, (windowSize.height - h - margin).coerceAtLeast(margin))
-                    if (w > 0 && h > 0) origin = androidx.compose.ui.graphics.TransformOrigin(((spot.x - x) / w).coerceIn(0f, 1f), ((spot.y - y) / h).coerceIn(0f, 1f))
-                    return androidx.compose.ui.unit.IntOffset(x.toInt(), y.toInt())
-                }
-            }
-        }
-        androidx.compose.ui.window.Popup(
-            popupPositionProvider = position,
-            onDismissRequest = onDismiss,
-            properties = androidx.compose.ui.window.PopupProperties(focusable = true),
-        ) {
-            val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.MutableTransitionState(false) }.apply { targetState = true }
-            val t = androidx.compose.animation.core.rememberTransition(shown, label = "menu")
-            val scale by t.animateFloat({ androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 520f) }, label = "menuScale") { if (it) 1f else 0.12f }
-            val fade by t.animateFloat({ androidx.compose.animation.core.tween(110) }, label = "menuFade") { if (it) 1f else 0f }
-            val corner by t.animateDp({ androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f) }, label = "menuCorner") { if (it) 26.dp else 80.dp }
-            val shape = RoundedCornerShape(corner)
-            Column(
-                Modifier
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = fade
-                        transformOrigin = origin
-                    }
-                    .shadow(18.dp, shape)
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .widthIn(min = 250.dp, max = 310.dp)
-                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    .padding(vertical = 6.dp),
-            ) { content() }
-        }
+        MorphMenu(onDismiss, content)
     } else {
         ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
             Box {
@@ -509,6 +464,136 @@ private fun MenuContainer(desktop: Boolean, sheet: androidx.compose.material3.Sh
             }
         }
     }
+}
+
+/**
+ * The menu *is* the ⋮ you pressed: it starts as that exact circle (same spot, size, color and
+ * dots), then stretches out into the menu while the dots fade and the options come in. Tapping
+ * outside folds it back into the button. Long-press menus start from a small circle under your finger.
+ */
+@Composable
+private fun MorphMenu(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val spot = PointerSpot.position
+    // The ⋮ that was just pressed, if there was one; otherwise a finger-sized circle.
+    val from = androidx.compose.runtime.remember {
+        val a = MenuAnchor.pressed
+        if (a != null && System.currentTimeMillis() - MenuAnchor.at < 1500) a
+        else with(density) { MenuAnchor.Spot(androidx.compose.ui.geometry.Rect(spot, 22.dp.toPx()), Color.Black.copy(alpha = 0.32f), Color.Transparent) }
+    }
+    MenuAnchor.pressed = null
+    val margin = with(density) { 12.dp.toPx() }
+    var offset by androidx.compose.runtime.remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val position = androidx.compose.runtime.remember(from) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ): androidx.compose.ui.unit.IntOffset {
+                val r = from.rect
+                val w = popupContentSize.width.toFloat()
+                val h = popupContentSize.height.toFloat()
+                // Shares a corner with the button, opening toward the side with room.
+                val toLeft = r.center.x > windowSize.width / 2f
+                val x = (if (toLeft) r.right - w else r.left).coerceIn(margin, (windowSize.width - w - margin).coerceAtLeast(margin))
+                val down = r.top + h + margin < windowSize.height
+                val y = (if (down) r.top else r.bottom - h).coerceIn(margin, (windowSize.height - h - margin).coerceAtLeast(margin))
+                offset = androidx.compose.ui.geometry.Offset(x, y)
+                return androidx.compose.ui.unit.IntOffset(x.toInt(), y.toInt())
+            }
+        }
+    }
+    val progress = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { progress.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 360f)) }
+    val close: () -> Unit = {
+        scope.launch {
+            progress.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 700f))
+            onDismiss()
+        }
+    }
+    val surface = MaterialTheme.colorScheme.surfaceContainerHigh
+    androidx.compose.ui.window.Popup(
+        popupPositionProvider = position,
+        onDismissRequest = close,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+    ) {
+        val shape = androidx.compose.runtime.remember {
+            object : androidx.compose.ui.graphics.Shape {
+                override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
+                    val p = progress.value.coerceIn(0f, 1.04f)
+                    val start = from.rect.translate(-offset)
+                    fun l(a: Float, b: Float) = a + (b - a) * p
+                    val rect = androidx.compose.ui.geometry.Rect(
+                        l(start.left, 0f).coerceAtLeast(0f), l(start.top, 0f).coerceAtLeast(0f),
+                        l(start.right, size.width).coerceAtMost(size.width), l(start.bottom, size.height).coerceAtMost(size.height),
+                    )
+                    val corner = l(start.height / 2f, with(density) { 26.dp.toPx() }).coerceAtMost(rect.minDimension / 2f)
+                    return androidx.compose.ui.graphics.Outline.Rounded(androidx.compose.ui.geometry.RoundRect(rect, androidx.compose.ui.geometry.CornerRadius(corner)))
+                }
+            }
+        }
+        Box(
+            Modifier
+                .widthIn(min = 250.dp, max = 310.dp)
+                .graphicsLayer {
+                    this.shape = shape
+                    clip = true
+                    shadowElevation = 18.dp.toPx() * progress.value.coerceIn(0f, 1f)
+                }
+                .drawBehind {
+                    val p = progress.value.coerceIn(0f, 1f)
+                    drawRect(androidx.compose.ui.graphics.lerp(from.color, surface, (p * 1.6f).coerceAtMost(1f)))
+                },
+        ) {
+            Column(
+                Modifier
+                    .graphicsLayer {
+                        val p = progress.value
+                        alpha = ((p - 0.3f) / 0.6f).coerceIn(0f, 1f)
+                        translationY = (1f - p.coerceIn(0f, 1f)) * -10.dp.toPx()
+                    }
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(vertical = 6.dp),
+            ) { content() }
+            // The ⋮ itself, right where the button is, fading as it opens up.
+            val dots = from.rect.translate(-offset)
+            Icon(
+                androidx.compose.material.icons.Icons.Rounded.MoreVert, null, tint = from.ink,
+                modifier = Modifier
+                    .offset { androidx.compose.ui.unit.IntOffset((dots.center.x - 12.dp.toPx()).toInt(), (dots.center.y - 12.dp.toPx()).toInt()) }
+                    .size(24.dp)
+                    .graphicsLayer { alpha = (1f - progress.value / 0.3f).coerceIn(0f, 1f) },
+            )
+        }
+    }
+}
+
+/** The ⋮ buttons a menu grows out of. */
+object MenuAnchor {
+    class Spot(val rect: androidx.compose.ui.geometry.Rect, val color: Color, val ink: Color)
+    var pressed: Spot? = null
+    var at = 0L
+}
+
+/** Marks a ⋮ button so its menu grows out of it. [color] is the button's own fill, [ink] its dots. */
+fun Modifier.menuAnchor(color: Color, ink: Color): Modifier = composed {
+    var bounds by androidx.compose.runtime.remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    this
+        .onGloballyPositioned { bounds = it.boundsInRoot() }
+        .pointerInput(color, ink) {
+            awaitPointerEventScope {
+                while (true) {
+                    val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                    if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press) {
+                        MenuAnchor.pressed = MenuAnchor.Spot(bounds, color, ink)
+                        MenuAnchor.at = System.currentTimeMillis()
+                    }
+                }
+            }
+        }
 }
 
 /** Where the last click or tap landed, so a computer's dropdown opens right there. */

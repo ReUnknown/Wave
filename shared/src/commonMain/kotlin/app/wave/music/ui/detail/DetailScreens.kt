@@ -1,5 +1,6 @@
 package app.wave.music.ui.detail
 
+import app.wave.music.ui.menu.menuAnchor
 import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.outlined.Subscriptions
 import androidx.compose.ui.input.pointer.pointerInput
@@ -379,6 +380,7 @@ private fun <T> PageFrame(
                         .topBarPadding()
                         .padding(12.dp)
                         .size(48.dp)
+                        .menuAnchor(Color.Black.copy(alpha = 0.32f), Color.White)
                         .pressable(CircleShape, Color.Black.copy(alpha = 0.32f), pressedScale = 0.86f) { menu.open(MenuTarget.Collection(pageItem, onItsPage = true)) },
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.MoreVert, "More options", tint = Color.White) }

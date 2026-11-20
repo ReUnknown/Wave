@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import app.wave.music.ui.menu.menuAnchor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -484,7 +485,7 @@ private fun SongLine(song: SongItem, onClick: () -> Unit) {
             Text(song.title, color = c.onBackground, style = body(15.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(song.artists.joinToString { it.name }, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.size(36.dp).clip(CircleShape).clickable { menu.openFor(song) }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(36.dp).menuAnchor(c.background, c.onBackground.copy(alpha = 0.6f)).clip(CircleShape).clickable { menu.openFor(song) }, contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MoreVert, "More", tint = c.onBackground.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
         }
     }

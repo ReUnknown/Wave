@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import app.wave.music.ui.menu.menuAnchor
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
 import androidx.compose.material.icons.rounded.CloseFullscreen
@@ -158,8 +159,8 @@ fun NowPlayingScreen(
     // Roomy wide layouts show lyrics / up next in their side panel; elsewhere they open over the player.
     val conf = currentWindowDp()
     val roomy = !docked && conf.screenWidthDp >= 840 && conf.screenHeightDp >= 560 && conf.screenWidthDp > conf.screenHeightDp
-    var showQueue by remember { mutableStateOf(openTo == "queue" && !roomy) }
-    var showLyrics by remember { mutableStateOf(openTo == "lyrics" && !roomy) }
+    var showQueue by remember { mutableStateOf((openTo ?: app.wave.music.ui.home.RenderStart.openTo) == "queue" && !roomy) }
+    var showLyrics by remember { mutableStateOf((openTo ?: app.wave.music.ui.home.RenderStart.openTo) == "lyrics" && !roomy) }
 
     // Docked: a little extra room on the side facing the app, clear of the divider.
     val inner = Modifier.padding(start = if (docked && dockSide > 0) 16.dp else 0.dp, end = if (docked && dockSide < 0) 16.dp else 0.dp)
@@ -325,24 +326,19 @@ private fun Header(
             .fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        GlassCircle(Icons.Rounded.KeyboardArrowDown, "Collapse player", onClose)
-        state.context?.let {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                Text("PLAYING FROM", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
-                Text(it.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+        GlassCircle(Icons.Rounded.KeyboardArrowDown, "Collapse player", onClick = onClose)
+        Spacer(Modifier.weight(1f))
         val menu = LocalItemMenu.current
         // Computers: expand the docked player to the full window (lyrics and up next beside it), or dock it again.
         onToggleSize?.let { toggle ->
             GlassCircle(
                 if (docked) Icons.Rounded.OpenInFull else Icons.Rounded.CloseFullscreen,
                 if (docked) "Expand player" else "Shrink player",
-                toggle,
+                onClick = toggle,
             )
             Spacer(Modifier.width(8.dp))
         }
-        GlassCircle(Icons.Rounded.MoreVert, "More options") {
+        GlassCircle(Icons.Rounded.MoreVert, "More options", Modifier.menuAnchor(Color.Black.copy(alpha = 0.32f), Color.White)) {
             menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl, album = song.album, nowPlaying = true))
         }
     }
@@ -532,8 +528,8 @@ private fun Controls(
                 label = "title",
             ) { shown ->
                 Column {
-                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 30.sp, lineHeight = if (dense) 28.sp else 35.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 17.sp, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 16.sp, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             LikeButton(state.liked) {
@@ -548,9 +544,9 @@ private fun Controls(
             playing = state.isPlaying,
             energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },
             color = c.onBackground,
-            trackColor = c.onBackground.copy(alpha = 0.25f),
-            stroke = 5.dp,
-            amplitude = 4.dp,
+            trackColor = c.onBackground.copy(alpha = 0.2f),
+            stroke = 4.dp,
+            amplitude = 3.5.dp,
             wavelength = 24.dp,
             showThumb = true,
             onSeek = { PlayerConnection.seekTo((it * state.durationMs).toLong()) },
@@ -558,22 +554,24 @@ private fun Controls(
                 .fillMaxWidth()
                 .height(32.dp),
         )
-        Times(position, state.durationMs, c.onSurfaceVariant)
+        Times(position, state.durationMs, c.onBackground.copy(alpha = 0.6f))
 
-        // Connected group: previous · play/pause · next
+        // Previous and next as glass circles around a big play pill, like the play row on pages.
+        val rowHeight = if (dense) 64.dp else 80.dp
         Row(
             Modifier
                 .padding(top = if (dense) 8.dp else 14.dp)
                 .fillMaxWidth()
-                .height(if (dense) 68.dp else 92.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .height(rowHeight),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(46.dp, 14.dp, 14.dp, 46.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
+            SkipCircle(Icons.Rounded.SkipPrevious, "Previous song", rowHeight) {
                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                 PlayerConnection.previous()
             }
             // Playing: a firm squircle. Paused: it relaxes into a pill, and the icon morphs.
-            val playCorner by animateDpAsState(if (state.isPlaying) 30.dp else 46.dp, WaveMotion.bouncy(), label = "playShape")
+            val playCorner by animateDpAsState(if (state.isPlaying) 26.dp else rowHeight / 2, WaveMotion.bouncy(), label = "playShape")
             Box(
                 Modifier
                     .weight(1f)
@@ -585,9 +583,9 @@ private fun Controls(
                     .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
                 contentAlignment = Alignment.Center,
             ) {
-                PlayPauseIcon(state.isPlaying, c.onPrimary, size = if (dense) 36.dp else 46.dp)
+                PlayPauseIcon(state.isPlaying, c.onPrimary, size = if (dense) 34.dp else 42.dp)
             }
-            GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(14.dp, 46.dp, 46.dp, 14.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
+            SkipCircle(Icons.Rounded.SkipNext, "Next song", rowHeight) {
                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                 PlayerConnection.next()
             }
@@ -598,8 +596,8 @@ private fun Controls(
             Modifier
                 .padding(top = if (dense) 6.dp else 10.dp)
                 .fillMaxWidth()
-                .height(if (dense) 40.dp else 48.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .height(if (dense) 40.dp else 44.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             ModeButton(
                 Icons.Rounded.Shuffle,
@@ -634,11 +632,11 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             .padding(top = 16.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            .background(c.primaryContainer.copy(alpha = 0.92f))
+            .background(Color.Black.copy(alpha = 0.28f))
             .revealDrag(reveal)
             .navigationBarsPadding(),
     ) {
-    RevealHandle(reveal, c.onPrimaryContainer.copy(alpha = 0.35f), Modifier.padding(top = 4.dp))
+    RevealHandle(reveal, Color.White.copy(alpha = 0.3f), Modifier.padding(top = 4.dp))
     Row(
         Modifier
             .height(60.dp)
@@ -659,12 +657,14 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onPrimaryContainer)
+            if (next?.artworkUrl != null) {
+                AsyncImage(next.artworkUrl.atSize(ArtSize.THUMB), null, Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+            } else Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = Color.White)
             Column {
-                Text("Up next", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Up next", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Text(
                     next?.let { "${it.title} · ${it.artist}" } ?: "End of queue",
-                    color = c.onPrimaryContainer.copy(alpha = 0.75f),
+                    color = Color.White.copy(alpha = 0.65f),
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -673,7 +673,7 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
         }
         }
         }
-        Box(Modifier.width(1.dp).height(32.dp).background(c.onPrimaryContainer.copy(alpha = 0.2f)))
+        Box(Modifier.width(1.dp).height(32.dp).background(Color.White.copy(alpha = 0.16f)))
         Box(Modifier.width(128.dp)) {
         MorphVisibility(!showLyrics) {
         Row(
@@ -685,14 +685,14 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.Lyrics, null, tint = c.onPrimaryContainer)
-            Text("  Lyrics", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Icon(Icons.Rounded.Lyrics, null, tint = Color.White)
+            Text("  Lyrics", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
         }
         }
     }
     RevealBox(reveal) {
-        PlaybackExtras(state.speed, c.onPrimaryContainer, c.primary, c.onPrimary, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp))
+        PlaybackExtras(state.speed, Color.White, c.primary, c.onPrimary, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp))
     }
     }
 }
@@ -721,12 +721,12 @@ private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
             pop.animateTo(1f, WaveMotion.bouncy())
         }
     }
-    val container by animateColorAsState(if (liked) c.primary else c.primaryContainer, tween(200), label = "likeBg")
-    val content by animateColorAsState(if (liked) c.onPrimary else c.onPrimaryContainer, tween(200), label = "likeFg")
-    val corner by animateDpAsState(if (liked) 26.dp else 18.dp, WaveMotion.bouncy(), label = "likeShape")
+    val container by animateColorAsState(if (liked) c.primary else Color.White.copy(alpha = 0.12f), tween(200), label = "likeBg")
+    val content by animateColorAsState(if (liked) c.onPrimary else Color.White, tween(200), label = "likeFg")
+    val corner by animateDpAsState(if (liked) 16.dp else 24.dp, WaveMotion.bouncy(), label = "likeShape")
     Box(
         Modifier
-            .size(52.dp)
+            .size(48.dp)
             .pressable(RoundedCornerShape(corner), container, pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -744,11 +744,22 @@ private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun GlassCircle(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun SkipCircle(icon: ImageVector, label: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Box(
         Modifier
+            .size(size)
+            .pressable(CircleShape, Color.White.copy(alpha = 0.12f), pressedScale = 0.86f, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(34.dp)) }
+}
+
+@Composable
+private fun GlassCircle(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
             .size(48.dp)
-            .pressable(CircleShape, Color.Black.copy(alpha = 0.3f), pressedScale = 0.86f, onClick = onClick),
+            .pressable(CircleShape, Color.Black.copy(alpha = 0.32f), pressedScale = 0.86f, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = Color.White) }
 }
@@ -757,10 +768,10 @@ private fun GlassCircle(icon: ImageVector, label: String, onClick: () -> Unit) {
 private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     // Turning a mode on fills it in and firms up its corners; off, it relaxes back to an outline.
-    val corner by animateDpAsState(if (on) 18.dp else 24.dp, WaveMotion.bouncy(), label = "modeShape")
-    val fill by animateColorAsState(if (on) c.primary else Color.Transparent, tween(170), label = "modeFill")
-    val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground, tween(170), label = "modeInk")
-    val outline by animateColorAsState(if (on) Color.Transparent else c.onBackground.copy(alpha = 0.2f), tween(170), label = "modeLine")
+    val corner by animateDpAsState(if (on) 16.dp else 22.dp, WaveMotion.bouncy(), label = "modeShape")
+    val fill by animateColorAsState(if (on) c.primary else Color.White.copy(alpha = 0.1f), tween(170), label = "modeFill")
+    val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground.copy(alpha = 0.85f), tween(170), label = "modeInk")
+    val outline = Color.Transparent
     val shape = RoundedCornerShape(corner)
     val haptics = LocalHapticFeedback.current
     Row(
@@ -776,7 +787,7 @@ private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: 
     ) {
         Icon(icon, null, tint = ink)
         AnimatedContent(label, transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(90)) using SizeTransform(clip = false) }, label = "modeLabel") {
-            Text("  $it", color = ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("  $it", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
         }
     }
 }
