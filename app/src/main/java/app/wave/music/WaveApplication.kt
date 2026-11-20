@@ -1,5 +1,6 @@
 package app.wave.music
 
+import app.wave.music.playback.WaveService
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -53,14 +54,14 @@ private class AndroidPlatform(private val app: Application) : Platform {
     }
 
     override fun storageUsage(): Pair<Long, Long> {
-        val songs = runCatching { app.wave.music.playback.WaveService.cache(app).cacheSpace }.getOrDefault(0L)
+        val songs = runCatching { WaveService.cache(app).cacheSpace }.getOrDefault(0L)
         val covers = runCatching { coil3.SingletonImageLoader.get(app).diskCache?.size ?: 0L }.getOrDefault(0L)
         return songs to covers
     }
 
     override fun clearSongCache() {
         runCatching {
-            val cache = app.wave.music.playback.WaveService.cache(app)
+            val cache = WaveService.cache(app)
             cache.keys.toList().forEach { cache.removeResource(it) }
         }
     }
