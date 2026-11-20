@@ -1,5 +1,7 @@
 package app.wave.music.ui.detail
 
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import app.wave.music.ui.menu.menuAnchor
 import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.outlined.Subscriptions
@@ -617,27 +619,86 @@ private fun CollectionButtons(info: HeaderInfo, onAdd: () -> Unit) {
 @Composable
 private fun ArtistHero(info: HeaderInfo, open: (YTItem) -> Unit) {
     val c = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+    // How far the page has scrolled past the photo, for the 3D tilt.
+    var restTop by remember { mutableStateOf<Float?>(null) }
+    var top by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned {
+                val y = it.positionInRoot().y
+                if (restTop == null) restTop = y
+                top = y
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         BoxWithConstraints(Modifier.fillMaxWidth().height(500.dp)) {
-            AsyncImage(info.art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.82f to c.background.copy(alpha = 0.75f), 1f to c.background)))
-            // The name tag: as big as fits on one line, heavy, tightly set.
+            val heroPx = constraints.maxHeight.toFloat()
+            fun scrolled() = ((restTop ?: top) - top).coerceAtLeast(0f)
+            // Scrolling down, the photo tips back into the screen, drifts slower than the page,
+            // shrinks a little and rounds off, like a poster falling away from you.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val s = scrolled()
+                        val p = (s / heroPx).coerceIn(0f, 1f)
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                        cameraDistance = 9f * density
+                        rotationX = p * 32f
+                        translationY = s * 0.5f
+                        val k = 1f - p * 0.14f
+                        scaleX = k
+                        scaleY = k
+                        alpha = 1f - p * 0.7f
+                        shape = RoundedCornerShape((p * 48).dp)
+                        clip = p > 0f
+                    },
+            ) {
+                AsyncImage(info.art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.82f to c.background.copy(alpha = 0.75f), 1f to c.background)))
+            }
+            // The name tag: as big as fits on one line, heavy and tightly set. Long names that won't
+            // fit even small go onto two lines instead of getting cut off.
             val name = info.title.uppercase()
-            val fit = (maxWidth.value - 32f) / (name.length.coerceAtLeast(3) * 0.62f)
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val avail = constraints.maxWidth - with(density) { 32.dp.roundToPx() }
+            fun styleAt(size: Float) = androidx.compose.ui.text.TextStyle(
+                fontFamily = app.wave.music.platform.prismaDisplayFont,
+                fontSize = size.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = (-0.04f * size).sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                lineHeight = (size * 0.95f).sp,
+                shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.45f), blurRadius = 24f),
+            )
+            val (size, lines) = remember(name, avail) {
+                fun wide(t: String, size: Float) = measurer.measure(t, styleAt(size), softWrap = false, maxLines = 1).size.width
+                var sz = 84f
+                while (sz > 36f && wide(name, sz) > avail) sz -= 2f
+                if (wide(name, sz) <= avail) sz to 1
+                else {
+                    val longest = name.split(" ").maxByOrNull { it.length } ?: name
+                    var two = 56f
+                    while (two > 20f && wide(longest, two) > avail) two -= 2f
+                    two to 2
+                }
+            }
             Text(
                 name,
-                Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 6.dp),
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .graphicsLayer {
+                        val s = scrolled()
+                        translationY = s * 0.25f
+                        alpha = 1f - (s / heroPx * 1.4f).coerceIn(0f, 1f)
+                    },
                 color = Color.White,
-                style = androidx.compose.ui.text.TextStyle(
-                    fontFamily = app.wave.music.platform.prismaDisplayFont,
-                    fontSize = fit.coerceIn(30f, 84f).sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-0.04f * fit.coerceIn(30f, 84f)).sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.45f), blurRadius = 24f),
-                ),
-                maxLines = 1,
-                softWrap = false,
+                style = styleAt(size),
+                maxLines = lines,
+                softWrap = lines > 1,
             )
         }
         info.subtitle?.let { Text(it, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp)) }

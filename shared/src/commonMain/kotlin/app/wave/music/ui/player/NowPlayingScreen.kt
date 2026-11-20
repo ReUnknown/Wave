@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.foundation.layout.heightIn
 import app.wave.music.ui.menu.menuAnchor
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
@@ -120,6 +121,9 @@ import coil3.compose.AsyncImage
 
 /** How much of the screen the song's art covers (Prisma shows more of it). */
 private const val ART = 0.7f
+
+/** A soft dark halo behind white words, so they read even on white art. */
+internal val ReadableShadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 18f)
 
 private fun formatTime(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
@@ -282,9 +286,11 @@ fun NowPlayingScreen(
                         Brush.verticalGradient(
                             0f to Color.Black.copy(alpha = 0.4f),
                             0.1f to Color.Transparent,
-                            0.5f to Color.Transparent,
-                            0.72f to c.background.copy(alpha = 0.5f),
-                            1f to c.background.copy(alpha = 0.8f),
+                            0.44f to Color.Transparent,
+                            // A soft shade where the title sits, so white words read on bright art too.
+                            0.6f to c.background.copy(alpha = 0.32f),
+                            0.74f to c.background.copy(alpha = 0.6f),
+                            1f to c.background.copy(alpha = 0.85f),
                         ),
                     ),
             )
@@ -528,8 +534,8 @@ private fun Controls(
                 label = "title",
             ) { shown ->
                 Column {
-                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 16.sp, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, shadow = ReadableShadow), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 16.sp, fontWeight = FontWeight.Medium, shadow = ReadableShadow), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             LikeButton(state.liked) {
@@ -639,8 +645,8 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
     RevealHandle(reveal, Color.White.copy(alpha = 0.3f), Modifier.padding(top = 4.dp))
     Row(
         Modifier
-            .height(60.dp)
-            .padding(horizontal = 12.dp),
+            .heightIn(min = 68.dp)
+            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // What actually plays next, shuffle included.
@@ -653,7 +659,7 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
                 .sharedContainer("queue", this, RoundedCornerShape(20.dp))
                 .fillMaxWidth()
                 .pressable(RoundedCornerShape(20.dp), pressedScale = 0.96f, onClick = onQueue)
-                .padding(10.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

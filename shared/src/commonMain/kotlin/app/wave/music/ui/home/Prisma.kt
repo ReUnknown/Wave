@@ -165,6 +165,8 @@ fun PrismaTabBar(
     now: app.wave.music.playback.NowPlaying? = null,
     playing: Boolean = false,
     onOpenPlayer: () -> Unit = {},
+    /** A song you just picked is getting ready: its play button spins. */
+    loading: Boolean = false,
 ) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(32.dp)
@@ -191,7 +193,7 @@ fun PrismaTabBar(
                 .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape),
         ) {
             if (now != null) {
-                DockSong(now, playing, onOpenPlayer)
+                DockSong(now, playing, onOpenPlayer, loading)
                 Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(c.onSurface.copy(alpha = 0.08f)))
             }
             Row(
@@ -231,7 +233,8 @@ fun PrismaTabBar(
 
 /** The mini player inside the dock: cover, song, and a play button in the song's color. */
 @Composable
-private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit) {
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit, loading: Boolean = false) {
     val c = MaterialTheme.colorScheme
     val song = app.wave.music.ui.components.rememberArtColorScheme(now.artworkUrl)
     Row(
@@ -255,7 +258,12 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
         Box(
             Modifier.size(46.dp).pressable(RoundedCornerShape(16.dp), song.primary, pressedScale = 0.9f) { app.wave.music.playback.PlayerConnection.togglePlay() },
             contentAlignment = Alignment.Center,
-        ) { app.wave.music.ui.components.PlayPauseIcon(playing, song.onPrimary) }
+        ) {
+            androidx.compose.animation.Crossfade(loading, label = "dockLoading") { busy ->
+                if (busy) androidx.compose.material3.LoadingIndicator(Modifier.size(34.dp), color = song.onPrimary)
+                else app.wave.music.ui.components.PlayPauseIcon(playing, song.onPrimary)
+            }
+        }
         Box(
             Modifier.size(40.dp).clip(CircleShape).clickable { app.wave.music.playback.PlayerConnection.next() },
             contentAlignment = Alignment.Center,
@@ -425,9 +433,9 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f))))
         Row(Modifier.align(Alignment.BottomStart).padding(14.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
-                Text(captionFor(item), color = Color.White.copy(alpha = 0.82f), style = body(12.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(item.title, color = Color.White, style = display(19.sp, FontWeight.Bold, (-0.2).sp).copy(lineHeight = 22.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                subtitle(item)?.let { Text(it, color = Color.White.copy(alpha = 0.75f), style = body(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Text(captionFor(item), color = Color.White.copy(alpha = 0.82f), style = body(12.sp, FontWeight.Medium).copy(shadow = app.wave.music.ui.player.ReadableShadow), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(item.title, color = Color.White, style = display(19.sp, FontWeight.Bold, (-0.2).sp).copy(lineHeight = 22.sp, shadow = app.wave.music.ui.player.ReadableShadow), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                subtitle(item)?.let { Text(it, color = Color.White.copy(alpha = 0.75f), style = body(12.sp).copy(shadow = app.wave.music.ui.player.ReadableShadow), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
             val tone = app.wave.music.ui.components.rememberArtColorScheme(item.thumbnail?.atSize(226), app.wave.music.ui.theme.darkBaseScheme())
             Box(

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -121,7 +122,7 @@ fun QueueScreen(
         if (!dragging) entries = entriesFor(state.upcoming, state.queue)
     }
     val listState = rememberLazyListState()
-    val headerItems = 1
+    val headerItems = 2
     val reorder = rememberReorderableLazyListState(listState) { from, to ->
         val a = from.index - headerItems
         val b = to.index - headerItems
@@ -183,40 +184,28 @@ fun QueueScreen(
                         ) { Icon(Icons.Rounded.KeyboardArrowDown, "Close queue", tint = Color.White) }
                     }
 
-                    // What's playing now: a glass card with little bars that move while it plays.
-                    Row(
-                        Modifier
-                            .padding(start = 12.dp, end = 12.dp, top = 20.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(Color.White.copy(alpha = 0.09f))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        AsyncImage(current.artworkUrl?.atSize(ArtSize.CARD), null, Modifier.size(72.dp).shadow(10.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)), contentScale = ContentScale.Crop)
-                        Column(Modifier.weight(1f)) {
-                            Text("NOW PLAYING", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                            Text(current.title, color = c.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(current.artist, color = c.onBackground.copy(alpha = 0.65f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        PlayingBars(state.isPlaying, c.primary)
-                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
 
-                    // Shuffle and repeat, right where you'd want them while looking at the queue.
-                    Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        QueueChip(Icons.Rounded.Shuffle, "Shuffle", state.shuffle) { PlayerConnection.toggleShuffle() }
-                        QueueChip(
-                            if (state.repeatMode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                            when (state.repeatMode) { RepeatMode.ONE -> "Repeat one"; RepeatMode.ALL -> "Repeat all"; else -> "Repeat" },
-                            state.repeatMode != RepeatMode.OFF,
-                        ) { PlayerConnection.cycleRepeat() }
+            // What's playing, first in the list: lit up, with the Wave lines moving.
+            item(key = "now") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.horizontalGradient(listOf(c.primary.copy(alpha = 0.28f), c.primary.copy(alpha = 0.1f))))
+                        .padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    AsyncImage(current.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+                    Column(Modifier.weight(1f)) {
+                        Text(current.title, color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(current.artist, color = c.onBackground.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-
-                    Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
-                        Text(if (entries.isEmpty()) "Nothing coming up" else "Coming up", color = c.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        if (entries.isNotEmpty()) Text("${entries.size} songs", color = c.onBackground.copy(alpha = 0.55f), fontSize = 13.sp)
-                    }
+                    WaveLines(state.isPlaying, c.primary)
                 }
             }
 
@@ -275,43 +264,25 @@ fun QueueScreen(
 }
 
 
-/** Three little bars that bounce while the song plays and rest when it's paused. */
+/** The Wave mark's three lines, rippling while the song plays and settling flat when paused. */
 @Composable
-private fun PlayingBars(playing: Boolean, color: Color) {
-    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "bars")
-    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(tween(900, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
-    val amount by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "amount")
-    Row(Modifier.size(28.dp).padding(horizontal = 3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
-        repeat(3) { i ->
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .graphicsLayer {
-                        val h = 0.3f + amount * 0.7f * (0.5f + 0.5f * kotlin.math.sin(phase + i * 2.1f))
-                        scaleY = h.coerceIn(0.2f, 1f)
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                    }
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(color),
-            )
+private fun WaveLines(playing: Boolean, color: Color) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
+    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(tween(1100, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
+    val amount by animateFloatAsState(if (playing) 1f else 0.25f, tween(400), label = "amount")
+    androidx.compose.foundation.Canvas(Modifier.size(width = 28.dp, height = 22.dp)) {
+        val stroke = 2.6.dp.toPx()
+        val amp = 2.6.dp.toPx() * amount
+        repeat(3) { row ->
+            val y0 = size.height * (0.2f + row * 0.3f)
+            val path = androidx.compose.ui.graphics.Path()
+            val steps = 24
+            for (i in 0..steps) {
+                val x = size.width * i / steps
+                val y = y0 + amp * kotlin.math.sin(phase + row * 0.9f + x / size.width * 2f * Math.PI.toFloat())
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
         }
-    }
-}
-
-@Composable
-private fun QueueChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
-    val c = MaterialTheme.colorScheme
-    val fill by animateColorAsState(if (on) c.primary else Color.White.copy(alpha = 0.09f), tween(170), label = "chipFill")
-    val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground, tween(170), label = "chipInk")
-    Row(
-        Modifier
-            .height(40.dp)
-            .pressable(RoundedCornerShape(20.dp), fill, pressedScale = 0.94f, onClick = onClick)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = ink, modifier = Modifier.size(20.dp))
-        Text("  $label", color = ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }

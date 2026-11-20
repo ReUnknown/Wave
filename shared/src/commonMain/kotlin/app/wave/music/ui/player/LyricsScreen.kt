@@ -109,7 +109,7 @@ private sealed interface LyricsUi {
     data class Ready(val lyrics: Lyrics) : LyricsUi
 }
 
-private val LineStyle = TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+private val LineStyle = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
 
 /** Where the sung line sits: a little under a third of the way down, like Apple Music. */
 private const val ANCHOR = 0.3f
@@ -196,57 +196,7 @@ fun LyricsScreen(
     }
     val positionNow: () -> Long = { position }
 
-    // Move with the music: the sung line swells slightly on each beat and glows with loudness.
-    val settings by WaveSettings.state.collectAsState()
-    // Beats and loudness are read while drawing, not here, so they never re-run this screen.
-    val pulse = remember { Animatable(0f) }
-    LaunchedEffect(settings.moveWithMusic) {
-        if (!settings.moveWithMusic) return@LaunchedEffect
-        BeatBus.beat.collectLatest { beat ->
-            if (beat != 0L) {
-                pulse.snapTo(1f)
-                pulse.animateTo(0f, tween(320))
-            }
-        }
-    }
-    val levelNow: () -> Float = { if (settings.moveWithMusic) BeatBus.level.value else 0f }
-
-    // The drop: when the music suddenly gets much louder after a quieter stretch, the screen
-    // flashes the song's color and the art swells for a moment. At most every 20 seconds.
-    val dropFlash = remember { Animatable(0f) }
-    LaunchedEffect(settings.moveWithMusic) {
-        if (!settings.moveWithMusic) return@LaunchedEffect
-        var slow = 0.5f
-        var lastDrop = 0L
-        BeatBus.level.collect { lv ->
-            slow = slow * 0.985f + lv * 0.015f
-            val now = System.nanoTime() / 1_000_000
-            if (lv > 0.85f && slow < 0.42f && now - lastDrop > 20_000) {
-                lastDrop = now
-                launch {
-                    dropFlash.snapTo(1f)
-                    dropFlash.animateTo(0f, tween(1400, easing = FastOutSlowInEasing))
-                }
-            }
-        }
-    }
-    val dropNow: () -> Float = { dropFlash.value }
-
-    // The hook: lines that sing the song's title, or that come back three or more times (the
-    // chorus), get their own animation when they're sung.
-    val hooks = remember(lyrics, song.title) {
-        if (lyrics == null) return@remember emptySet<Int>()
-        fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N} ]"), "").replace(Regex("\\s+"), " ").trim()
-        val core = norm(song.title.replace(Regex("\\s*[(\\[].*?[)\\]]"), "").substringBefore(" - "))
-        val texts = lyrics.lines.map { norm(it.text) }
-        val counts = texts.groupingBy { it }.eachCount()
-        texts.indices.filter { i ->
-            val t = texts[i]
-            t.isNotBlank() && ((core.length >= 3 && t.contains(core)) || (t.length >= 8 && (counts[t] ?: 0) >= 3))
-        }.toSet()
-    }
     val accent = MaterialTheme.colorScheme.primary
-    val pulseNow: () -> Float = { if (settings.moveWithMusic) pulse.value else 0f }
 
     // A new line: the list jumps there at once, and each line below springs up after it in turn,
     // so the lyrics ripple into place instead of sliding as one block.
@@ -276,21 +226,13 @@ fun LyricsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        val swell = 1.4f + dropFlash.value * 0.1f
-                        scaleX = swell
-                        scaleY = swell
+                        scaleX = 1.4f
+                        scaleY = 1.4f
                     },
             )
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)))
         }
 
-        // The drop's flash of color.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = dropFlash.value }
-                .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.45f), Color.Transparent))),
-        )
         when (val current = ui) {
             LyricsUi.Loading -> LoadingIndicator(Modifier.size(72.dp).align(Alignment.Center))
             LyricsUi.Missing -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -309,11 +251,8 @@ fun LyricsScreen(
                         synced = current.lyrics.synced,
                         distance = if (current.lyrics.synced && active >= 0) index - active else 0,
                         position = positionNow,
-                        level = levelNow,
-                        pulse = pulseNow,
-                        hook = index in hooks,
-                        accent = accent,
-                        drop = dropNow,
+                        level = { 0f },
+                        pulse = { 0f },
                         cascade = cascade,
                         browsing = browsing,
                         onTap = {

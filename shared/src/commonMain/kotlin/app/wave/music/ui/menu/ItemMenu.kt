@@ -1,6 +1,10 @@
 package app.wave.music.ui.menu
 
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
@@ -483,42 +487,28 @@ private fun MorphMenu(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     }
     MenuAnchor.pressed = null
     val margin = with(density) { 12.dp.toPx() }
-    var offset by androidx.compose.runtime.remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    val position = androidx.compose.runtime.remember(from) {
-        object : androidx.compose.ui.window.PopupPositionProvider {
-            override fun calculatePosition(
-                anchorBounds: androidx.compose.ui.unit.IntRect,
-                windowSize: androidx.compose.ui.unit.IntSize,
-                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                popupContentSize: androidx.compose.ui.unit.IntSize,
-            ): androidx.compose.ui.unit.IntOffset {
-                val r = from.rect
-                val w = popupContentSize.width.toFloat()
-                val h = popupContentSize.height.toFloat()
-                // Shares a corner with the button, opening toward the side with room.
-                val toLeft = r.center.x > windowSize.width / 2f
-                val x = (if (toLeft) r.right - w else r.left).coerceIn(margin, (windowSize.width - w - margin).coerceAtLeast(margin))
-                val down = r.top + h + margin < windowSize.height
-                val y = (if (down) r.top else r.bottom - h).coerceIn(margin, (windowSize.height - h - margin).coerceAtLeast(margin))
-                offset = androidx.compose.ui.geometry.Offset(x, y)
-                return androidx.compose.ui.unit.IntOffset(x.toInt(), y.toInt())
-            }
-        }
-    }
     val progress = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { progress.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 360f)) }
+    var closing by androidx.compose.runtime.remember { mutableStateOf(false) }
     val close: () -> Unit = {
-        scope.launch {
-            progress.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 700f))
-            onDismiss()
+        if (!closing) {
+            closing = true
+            scope.launch {
+                progress.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 700f))
+                onDismiss()
+            }
         }
     }
-    val surface = MaterialTheme.colorScheme.surfaceContainerHigh
-    androidx.compose.ui.window.Popup(
-        popupPositionProvider = position,
-        onDismissRequest = close,
-        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+    app.wave.music.ui.components.predictiveBack(onBack = close)
+    val c = MaterialTheme.colorScheme
+    val haze = LocalAppHaze.current
+    // Drawn in the app's own window (not a popup), so it can blur what's behind it.
+    var offset by androidx.compose.runtime.remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { detectTapGestures { close() } },
     ) {
         val shape = androidx.compose.runtime.remember {
             object : androidx.compose.ui.graphics.Shape {
@@ -530,46 +520,81 @@ private fun MorphMenu(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                         l(start.left, 0f).coerceAtLeast(0f), l(start.top, 0f).coerceAtLeast(0f),
                         l(start.right, size.width).coerceAtMost(size.width), l(start.bottom, size.height).coerceAtMost(size.height),
                     )
-                    val corner = l(start.height / 2f, with(density) { 26.dp.toPx() }).coerceAtMost(rect.minDimension / 2f)
+                    val corner = l(start.height / 2f, with(density) { 24.dp.toPx() }).coerceAtMost(rect.minDimension / 2f)
                     return androidx.compose.ui.graphics.Outline.Rounded(androidx.compose.ui.geometry.RoundRect(rect, androidx.compose.ui.geometry.CornerRadius(corner)))
                 }
             }
         }
-        Box(
-            Modifier
-                .widthIn(min = 250.dp, max = 310.dp)
-                .graphicsLayer {
-                    this.shape = shape
-                    clip = true
-                    shadowElevation = 18.dp.toPx() * progress.value.coerceIn(0f, 1f)
+        androidx.compose.ui.layout.Layout(
+            content = {
+                Box(
+                    Modifier
+                        .pointerInput(Unit) { detectTapGestures { } }
+                        .graphicsLayer {
+                            this.shape = shape
+                            clip = true
+                            shadowElevation = 16.dp.toPx() * progress.value.coerceIn(0f, 1f)
+                        }
+                        .then(
+                            if (haze != null) Modifier.hazeEffect(haze) {
+                                blurRadius = 28.dp
+                                backgroundColor = c.background
+                                tints = listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainerHigh.copy(alpha = 0.62f)))
+                                noiseFactor = 0f
+                            } else Modifier,
+                        )
+                        .drawBehind {
+                            // Starts as the button's own color, then gives way to the frosted glass.
+                            val p = (progress.value * 1.6f).coerceIn(0f, 1f)
+                            val glass = if (haze != null) Color.Transparent else c.surfaceContainerHigh
+                            drawRect(androidx.compose.ui.graphics.lerp(from.color, glass, p))
+                            drawRect(Color.White.copy(alpha = 0.04f))
+                        },
+                ) {
+                    Column(
+                        Modifier
+                            .widthIn(min = 200.dp, max = 264.dp)
+                            .width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                            .graphicsLayer {
+                                val p = progress.value
+                                alpha = ((p - 0.3f) / 0.6f).coerceIn(0f, 1f)
+                                translationY = (1f - p.coerceIn(0f, 1f)) * -10.dp.toPx()
+                            }
+                            .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                            .padding(vertical = 6.dp),
+                    ) { content() }
+                    // The ⋮ itself, right where the button is, fading as it opens up.
+                    Icon(
+                        androidx.compose.material.icons.Icons.Rounded.MoreVert, null, tint = from.ink,
+                        modifier = Modifier
+                            .offset {
+                                val dots = from.rect.translate(-offset)
+                                androidx.compose.ui.unit.IntOffset((dots.center.x - 12.dp.toPx()).toInt(), (dots.center.y - 12.dp.toPx()).toInt())
+                            }
+                            .size(24.dp)
+                            .graphicsLayer { alpha = (1f - progress.value / 0.3f).coerceIn(0f, 1f) },
+                    )
                 }
-                .drawBehind {
-                    val p = progress.value.coerceIn(0f, 1f)
-                    drawRect(androidx.compose.ui.graphics.lerp(from.color, surface, (p * 1.6f).coerceAtMost(1f)))
-                },
-        ) {
-            Column(
-                Modifier
-                    .graphicsLayer {
-                        val p = progress.value
-                        alpha = ((p - 0.3f) / 0.6f).coerceIn(0f, 1f)
-                        translationY = (1f - p.coerceIn(0f, 1f)) * -10.dp.toPx()
-                    }
-                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    .padding(vertical = 6.dp),
-            ) { content() }
-            // The ⋮ itself, right where the button is, fading as it opens up.
-            val dots = from.rect.translate(-offset)
-            Icon(
-                androidx.compose.material.icons.Icons.Rounded.MoreVert, null, tint = from.ink,
-                modifier = Modifier
-                    .offset { androidx.compose.ui.unit.IntOffset((dots.center.x - 12.dp.toPx()).toInt(), (dots.center.y - 12.dp.toPx()).toInt()) }
-                    .size(24.dp)
-                    .graphicsLayer { alpha = (1f - progress.value / 0.3f).coerceIn(0f, 1f) },
-            )
+            },
+        ) { measurables, constraints ->
+            val maxH = (constraints.maxHeight - 2 * margin).toInt().coerceAtLeast(0)
+            val placeable = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0, maxHeight = maxH))
+            val w = placeable.width.toFloat()
+            val h = placeable.height.toFloat()
+            val r = from.rect
+            // Shares a corner with the button, opening toward the side with room.
+            val toLeft = r.center.x > constraints.maxWidth / 2f
+            val x = (if (toLeft) r.right - w else r.left).coerceIn(margin, (constraints.maxWidth - w - margin).coerceAtLeast(margin))
+            val down = r.top + h + margin < constraints.maxHeight
+            val y = (if (down) r.top else r.bottom - h).coerceIn(margin, (constraints.maxHeight - h - margin).coerceAtLeast(margin))
+            offset = androidx.compose.ui.geometry.Offset(x, y)
+            layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(x.toInt(), y.toInt()) }
         }
     }
 }
+
+/** The whole app, for menus to blur what's behind them. */
+val LocalAppHaze = staticCompositionLocalOf<dev.chrisbanes.haze.HazeState?> { null }
 
 /** The ⋮ buttons a menu grows out of. */
 object MenuAnchor {
@@ -608,7 +633,7 @@ private val LocalQuickRow = androidx.compose.runtime.compositionLocalOf<RowScope
 private fun QuickRow(content: @Composable () -> Unit) {
     if (LocalDesktop.current) {
         content()
-        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 3.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalQuickRow provides this) { content() }
@@ -619,14 +644,14 @@ private fun QuickRow(content: @Composable () -> Unit) {
 @Composable
 private fun SheetHeader(art: String?, title: String, subtitle: String, round: Boolean) {
     if (LocalDesktop.current) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AsyncImage(art?.atSize(200), null, Modifier.size(44.dp).clip(if (round) CircleShape else RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AsyncImage(art?.atSize(200), null, Modifier.size(40.dp).clip(if (round) CircleShape else RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
             Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 3.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         return
     }
     Row(
@@ -654,10 +679,11 @@ private fun QuickAction(icon: ImageVector, label: String, on: Boolean = false, o
     val row = LocalQuickRow.current
     if (row == null) {
         androidx.compose.material3.DropdownMenuItem(
-            text = { Text(label, fontSize = 16.sp, fontWeight = FontWeight.Medium) },
-            leadingIcon = { Icon(icon, null, tint = if (on) c.primary else c.onSurface) },
+            text = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1) },
+            leadingIcon = { Icon(icon, null, tint = if (on) c.primary else c.onSurface, modifier = Modifier.size(22.dp)) },
             onClick = onClick,
-            modifier = Modifier.height(52.dp),
+            modifier = Modifier.height(44.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
         )
         return
     }
@@ -713,12 +739,13 @@ private fun Option(
     val tint = if (danger) c.error else c.onSurface
     if (LocalDesktop.current) {
         androidx.compose.material3.DropdownMenuItem(
-            text = { Text(label, fontSize = 16.sp, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            leadingIcon = { Icon(icon, null, tint = if (danger) c.error else c.onSurfaceVariant) },
+            text = { Text(label, fontSize = 15.sp, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(icon, null, tint = if (danger) c.error else c.onSurfaceVariant, modifier = Modifier.size(22.dp)) },
             trailingIcon = if (loading) ({ CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) }) else null,
             enabled = enabled,
             onClick = onClick,
-            modifier = Modifier.height(52.dp),
+            modifier = Modifier.height(44.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
         )
         return
     }

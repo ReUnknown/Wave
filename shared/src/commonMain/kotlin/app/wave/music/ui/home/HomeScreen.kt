@@ -204,6 +204,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Asked to open from home's banner; handled once the player's layout state exists below.
     var openRequested by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
+    // The whole app, so menus can blur whatever is behind them.
+    val appHaze = dev.chrisbanes.haze.rememberHazeState()
+    // What you just picked, shown in the dock right away (with a loading play button) until it plays.
+    var pendingSong by remember { mutableStateOf<app.wave.music.playback.NowPlaying?>(null) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     // Prisma: Home (0), Library (1) or Search (2), from the bottom bar.
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -224,16 +228,18 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             }
     }
 
-    fun start(build: suspend () -> Result<PlayRequest>, startPositionMs: Long = 0) {
+    fun start(build: suspend () -> Result<PlayRequest>, startPositionMs: Long = 0, pending: app.wave.music.playback.NowPlaying? = null) {
         scope.launch {
             preparing = true
+            pendingSong = pending
             build()
                 .onSuccess { PlayerConnection.play(it, startPositionMs) }
                 .onFailure { app.wave.music.ui.components.Notices.show("Couldn't play that right now") }
             preparing = false
+            pendingSong = null
         }
     }
-    val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }) }
+    val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item)) }
     val stack = remember { mutableStateListOf<Destination>() }
     // Which way pages move: deeper slides in from the right, back slides in from the left.
     var forward by remember { mutableStateOf(true) }
@@ -428,7 +434,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     MaterialTheme(colorScheme = appScheme) {
     // Remember where each click lands, so a computer's dropdown menus open right under the pointer.
     SharedTransitionLayout(
-        Modifier.pointerInput(Unit) {
+        Modifier.hazeSource(appHaze).pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
@@ -444,7 +450,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null) PrismaDockSongHeight + 20.dp else 20.dp) + PrismaBarHeight,
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null || pendingSong != null) PrismaDockSongHeight + 20.dp else 20.dp) + PrismaBarHeight,
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -809,10 +815,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 12.dp)
-                    .padding(bottom = if (barVisible) PrismaBarHeight - 8.dp + (if (player.current != null) PrismaDockSongHeight else 0.dp) else 0.dp),
+                    .padding(bottom = if (barVisible) PrismaBarHeight - 8.dp + (if (player.current != null || pendingSong != null) PrismaDockSongHeight else 0.dp) else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (preparing) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
+                // Phones show the picked song in the dock instead, with a loading play button.
+                if (preparing && shell) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
                 UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
@@ -845,8 +852,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     },
                     modifier = Modifier.align(Alignment.BottomCenter),
                     haze = barHaze,
-                    now = player.current,
+                    now = pendingSong ?: player.current,
                     playing = player.isPlaying,
+                    loading = preparing,
                     onOpenPlayer = { openPlayer(null) },
                 )
             }
@@ -963,6 +971,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
     }
 
+    CompositionLocalProvider(app.wave.music.ui.menu.LocalAppHaze provides appHaze) {
     ItemMenuHost(
         target = menuTarget,
         onDismiss = { menuTarget = null },
@@ -980,6 +989,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         createRequested = createPlaylist,
         onCreateHandled = { createPlaylist = false },
     )
+    }
 
     if (settingsDialog) app.wave.music.ui.settings.SettingsDialog(onDismiss = { settingsDialog = false })
 
@@ -1488,3 +1498,12 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
 
 /** For offscreen renders only: start with the player open. */
 object RenderStart { var player = false; var openTo: String? = null; var menu: MenuTarget? = null }
+
+
+/** What the dock shows for something you just picked, before it starts playing. */
+private fun pendingFor(item: YTItem): app.wave.music.playback.NowPlaying = when (item) {
+    is com.metrolist.innertube.models.SongItem -> app.wave.music.playback.NowPlaying(item.id, item.title, item.artists.joinToString { it.name }, item.thumbnail)
+    is com.metrolist.innertube.models.AlbumItem -> app.wave.music.playback.NowPlaying(item.id, item.title, item.artists?.joinToString { it.name } ?: "Album", item.thumbnail)
+    is com.metrolist.innertube.models.PlaylistItem -> app.wave.music.playback.NowPlaying(item.id, item.title, item.author?.name ?: "Playlist", item.thumbnail)
+    else -> app.wave.music.playback.NowPlaying(item.id, item.title, "", item.thumbnail)
+}
