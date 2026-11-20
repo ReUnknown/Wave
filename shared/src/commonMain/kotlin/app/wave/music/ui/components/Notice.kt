@@ -1,5 +1,8 @@
 package app.wave.music.ui.components
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -67,7 +70,7 @@ object Notices {
 
 /** Shows [Notices] where it's placed (bottom center, above the player). */
 @Composable
-fun NoticeHost(modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun NoticeHost(modifier: Modifier = Modifier, enabled: Boolean = true, glass: dev.chrisbanes.haze.HazeState? = null) {
     val notice by Notices.current.collectAsState()
     // Kept while it slides away, so the pill doesn't empty out mid-exit.
     var last by remember { mutableStateOf<Notices.Notice?>(null) }
@@ -92,7 +95,17 @@ fun NoticeHost(modifier: Modifier = Modifier, enabled: Boolean = true) {
                 .widthIn(max = 420.dp)
                 .height(44.dp)
                 .shadow(14.dp, CircleShape)
-                .pressable(CircleShape, c.primaryContainer, pressedScale = 0.95f) { Notices.dismiss(shown.id) }
+                .clip(CircleShape)
+                // A frosted pill when there's something behind it to frost.
+                .then(
+                    if (glass != null) Modifier.hazeEffect(glass) {
+                        blurRadius = 24.dp
+                        backgroundColor = c.background
+                        tints = listOf(dev.chrisbanes.haze.HazeTint(c.primaryContainer.copy(alpha = 0.55f)))
+                        noiseFactor = 0f
+                    } else Modifier,
+                )
+                .pressable(CircleShape, if (glass != null) Color.Transparent else c.primaryContainer, pressedScale = 0.95f) { Notices.dismiss(shown.id) }
                 .border(1.dp, c.onPrimaryContainer.copy(alpha = 0.12f), CircleShape)
                 .padding(start = 14.dp, end = 18.dp),
             verticalAlignment = Alignment.CenterVertically,

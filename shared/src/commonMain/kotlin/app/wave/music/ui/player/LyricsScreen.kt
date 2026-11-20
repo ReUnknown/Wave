@@ -114,8 +114,44 @@ private val LineStyle = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeig
 /** Where the sung line sits: a little under a third of the way down, like Apple Music. */
 private const val ANCHOR = 0.3f
 
-/** One step of the cascade: the list jumped by [delta] px, and each line catches up in turn. */
-private class Cascade(val id: Int, val delta: Float)
+/**
+ * The cascade, worked out from the clock rather than kept per line: each time the list jumps to
+ * the next line, every line is pushed back by the jump and then springs home, the lines further
+ * down a beat later. Lines that scroll into view mid-step pick up exactly where their neighbours
+ * are, so nothing overlaps or jumps.
+ */
+private class Cascade {
+    private class Step(val delta: Float, val startNanos: Long)
+    private val steps = ArrayList<Step>()
+    /** Bumped every frame while a step is moving, so the lines redraw (only redraw). */
+    var clock by mutableLongStateOf(0L)
+
+    fun push(delta: Float, now: Long) {
+        steps.removeAll { (now - it.startNanos) > 2_000_000_000L }
+        steps += Step(delta, now)
+        clock = now
+    }
+
+    val moving get() = steps.isNotEmpty()
+
+    fun tick(now: Long) {
+        clock = now
+        steps.removeAll { (now - it.startNanos) > 2_000_000_000L }
+    }
+
+    /** How far a line [distance] lines below the sung one still is from home. */
+    fun offset(distance: Int): Float {
+        val now = clock
+        val wait = if (distance < 0) 0f else ((distance + 1) * 0.05f).coerceAtMost(0.45f)
+        var total = 0f
+        for (step in steps) {
+            val t = (now - step.startNanos) / 1e9f - wait
+            val left = if (t <= 0f) 1f else (1f + 9f * t) * kotlin.math.exp(-9f * t)
+            total += step.delta * left
+        }
+        return total
+    }
+}
 private val BackingStyle = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
 
 /** How far item [index] is from its spot at [ANCHOR], or null if it isn't laid out. */
@@ -187,7 +223,12 @@ fun LyricsScreen(
             }
         }
     }
-    var cascade by remember { mutableStateOf(Cascade(0, 0f)) }
+    val cascade = remember { Cascade() }
+    LaunchedEffect(cascade) {
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { now -> if (cascade.moving) cascade.tick(now) }
+        }
+    }
 
     val lyrics = (ui as? LyricsUi.Ready)?.lyrics
     // Only recomposes when the line changes; the per-frame word fill happens at draw time.
@@ -208,7 +249,7 @@ fun LyricsScreen(
             return@LaunchedEffect
         }
         listState.scrollBy(delta)
-        cascade = Cascade(cascade.id + 1, delta)
+        cascade.push(delta, androidx.compose.runtime.withFrameNanos { it })
     }
 
     BoxWithConstraints(
@@ -356,7 +397,7 @@ private fun LyricLineItem(
     hook: Boolean = false,
     accent: Color = Color.White,
     drop: () -> Float = { 0f },
-    cascade: Cascade = Cascade(0, 0f),
+    cascade: Cascade? = null,
     browsing: Boolean = false,
 ) {
     val isActive = synced && distance == 0
@@ -377,19 +418,6 @@ private fun LyricLineItem(
     // Lines further from the sung one blur more, all sharp while you're scrolling around.
     val blur by animateFloatAsState(if (!synced || browsing || distance == 0) 0f else (abs(distance) * 1.1f).coerceAtMost(6f), tween(600), label = "blur")
     val isBreak = synced && line.text.isBlank()
-    // The cascade: when the list jumps to the next line, this line holds where it was for a moment,
-    // then springs into place. Lines further down wait longer, so they ripple up one after another.
-    val trail = remember { Animatable(0f) }
-    // Lines that scroll into view later mustn't replay a step that already happened.
-    val bornAt = remember { cascade.id }
-    LaunchedEffect(cascade.id) {
-        if (cascade.id == bornAt || cascade.delta == 0f) return@LaunchedEffect
-        trail.snapTo(trail.value + cascade.delta)
-        val wait = if (distance < 0) 0L else ((distance + 1) * 55L).coerceAtMost(500L)
-        delay(wait)
-        trail.animateTo(0f, spring(dampingRatio = 0.84f, stiffness = 120f))
-    }
-
     Column(
         Modifier
             .fillMaxWidth()
@@ -401,7 +429,7 @@ private fun LyricLineItem(
                 scaleY = scale * beatBump * hookBoost
                 transformOrigin = TransformOrigin(0f, 0.5f)
             }
-            .graphicsLayer { translationY = trail.value }
+            .graphicsLayer { translationY = cascade?.offset(distance) ?: 0f }
             .alpha(alpha)
             .blur(blur.dp),
     ) {
@@ -415,7 +443,7 @@ private fun LyricLineItem(
                 distance < 0 -> { -> Long.MAX_VALUE }
                 else -> { -> Long.MIN_VALUE }
             }
-            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced, hook = isActive && hook, accent = accent, rise = isActive) }
+            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced, hook = false, accent = accent, rise = false) }
         }
         if (line.background.isNotEmpty()) {
             FlowRow(Modifier.padding(top = 4.dp)) {
@@ -450,7 +478,8 @@ private fun LyricWordText(
         return
     }
     val duration = (word.endMs - word.startMs).coerceAtLeast(1)
-    val emphasized = duration >= 900 && word.text.length <= 14
+    // No held-word glow or lift: just the wipe.
+    val emphasized = false
     fun fillAt(p: Long) = ((p - word.startMs).toFloat() / duration).coerceIn(0f, 1f)
     fun liftAt(p: Long) = if (emphasized && p in word.startMs..word.endMs) sin(PI * fillAt(p)).toFloat() else 0f
     // 0 until the word starts, easing up to 1 as it's sung, then staying there.

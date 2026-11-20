@@ -345,6 +345,7 @@ fun LazyListScope.prismaHome(
         }
     }
 
+    val playlists = playlists.withoutLiked()
     if (!guest && playlists.isNotEmpty()) {
         item(key = "mine-h") { PrismaSectionTitle("Your playlists") }
         item(key = "mine") {
@@ -557,7 +558,7 @@ fun PrismaLibrary(
         item {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { NewPlaylistCard(onNewPlaylist) }
-                items(playlists, key = { "lp" + it.id }) { list -> SquareCard(list, onClick = openItem) }
+                items(playlists.withoutLiked(), key = { "lp" + it.id }) { list -> SquareCard(list, onClick = openItem) }
             }
         }
         if (recent.isNotEmpty()) {
@@ -617,3 +618,7 @@ private fun LibraryRow(item: YTItem, onClick: () -> Unit) {
         }
     }
 }
+
+
+/** Liked songs has its own tile, so it isn't listed again with your playlists. */
+private fun List<PlaylistItem>.withoutLiked() = filterNot { it.id == "LM" || it.id == "VLLM" || it.title.equals("Liked music", true) || it.title.equals("Liked songs", true) }

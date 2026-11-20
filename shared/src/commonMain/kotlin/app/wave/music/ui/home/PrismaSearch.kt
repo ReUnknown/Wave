@@ -1,5 +1,11 @@
 package app.wave.music.ui.home
 
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -240,9 +246,10 @@ fun PrismaSearch(
     val showingResults = submitted != null && query == submitted
     val statusTop = topInset()
 
+    val glass = dev.chrisbanes.haze.rememberHazeState()
     Box(Modifier.backGesture(back).fillMaxSize().blocksTouchesBelow().background(c.background)) {
         LazyColumn(
-            Modifier.fillMaxSize().nestedScroll(hideKeyboardOnScroll).imePadding(),
+            Modifier.fillMaxSize().hazeSource(glass).nestedScroll(hideKeyboardOnScroll).imePadding(),
             contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = bottomPadding),
         ) {
             when {
@@ -323,7 +330,14 @@ fun PrismaSearch(
             Modifier
                 .fillMaxWidth()
                 .height(statusTop + 84.dp)
-                .background(androidx.compose.ui.graphics.Brush.verticalGradient(0.7f to c.background, 1f to c.background.copy(alpha = 0f))),
+                // Frosted glass behind the field, fading out at its lower edge.
+                .hazeEffect(glass) {
+                    blurRadius = 24.dp
+                    backgroundColor = c.background
+                    tints = listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.55f)))
+                    noiseFactor = 0f
+                    progressive = dev.chrisbanes.haze.HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0f, preferPerformance = true)
+                },
         )
         Row(
             Modifier.fillMaxWidth().padding(top = statusTop + 8.dp, start = 12.dp, end = 12.dp),
@@ -444,20 +458,33 @@ private fun TopResult(item: YTItem, onOpen: () -> Unit, onPlay: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val tone = app.wave.music.ui.components.rememberArtColorScheme(item.thumbnail?.atSize(226))
     val round = item is ArtistItem
+    // The top result sits on its own art: blurred and shaded into a card, so it isn't plain.
+    Box(
+        Modifier
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(32.dp)),
+    ) {
+    app.wave.music.ui.components.BlurredImage(
+        item.thumbnail?.atSize(app.wave.music.ui.components.ArtSize.BLUR),
+        Modifier.matchParentSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f },
+        radius = 48.dp,
+    )
+    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.15f), 1f to Color.Black.copy(alpha = 0.5f))))
     Column(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(top = 8.dp, bottom = 12.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(top = 20.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AsyncImage(
             item.thumbnail?.atSize(544),
             null,
-            Modifier.size(176.dp).clip(if (round) CircleShape else RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh),
+            Modifier.size(168.dp).shadow(20.dp, if (round) CircleShape else RoundedCornerShape(24.dp)).clip(if (round) CircleShape else RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh),
             contentScale = ContentScale.Crop,
         )
-        Text(item.title, Modifier.padding(top = 12.dp, start = 24.dp, end = 24.dp), color = c.onBackground, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(item.title, Modifier.padding(top = 14.dp, start = 24.dp, end = 24.dp), color = Color.White, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
         val kind = when (item) { is SongItem -> "Song"; is AlbumItem -> "Album"; is ArtistItem -> "Artist"; is PlaylistItem -> "Playlist"; else -> null }
         val line = listOfNotNull(kind, (if (item is SongItem) subtitle(item) else null)).joinToString(" · ")
-        if (line.isNotBlank()) Text(line, color = c.onBackground.copy(alpha = 0.65f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp))
+        if (line.isNotBlank()) Text(line, color = Color.White.copy(alpha = 0.75f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp))
         Row(
             Modifier
                 .padding(top = 14.dp)
@@ -472,6 +499,7 @@ private fun TopResult(item: YTItem, onOpen: () -> Unit, onPlay: () -> Unit) {
             Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = tone.onPrimary)
             Text(if (item is ArtistItem) "Shuffle" else "Play", color = tone.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 16.sp, fontWeight = FontWeight.Bold))
         }
+    }
     }
 }
 

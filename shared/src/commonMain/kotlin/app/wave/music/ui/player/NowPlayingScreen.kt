@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.layout.heightIn
 import app.wave.music.ui.menu.menuAnchor
 import app.wave.music.platform.topBarPadding
@@ -237,14 +239,16 @@ fun NowPlayingScreen(
             // Art fills the top and blurs progressively; a mirrored, fully blurred copy continues it
             // under the controls, so there's no edge where the picture ends.
             val topBlur = rememberBackdrop()
+            val trayGlass = dev.chrisbanes.haze.rememberHazeState()
             val statusTop = topInset()
             // A new song's art fades in over the old one instead of popping.
             AnimatedContent(
-                targetState = song.artworkUrl,
+                targetState = song.artworkUrl?.atSize(ArtSize.FULL),
                 transitionSpec = { fadeIn(tween(320, easing = WaveMotion.Emphasized)) togetherWith fadeOut(tween(1, delayMillis = 320)) },
                 modifier = Modifier
                     .fillMaxSize()
-                    .backdropSource(topBlur),
+                    .backdropSource(topBlur)
+                    .hazeSource(trayGlass),
                 label = "art",
             ) { art ->
             // The art, and a mirrored copy of it continuing under the controls, blurred together
@@ -303,7 +307,7 @@ fun NowPlayingScreen(
                     .fillMaxWidth(),
             ) {
                 Controls(state, song, position, inner.padding(horizontal = 20.dp))
-                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner)
+                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner, glass = trayGlass)
             }
         }
         }
@@ -630,7 +634,7 @@ private fun Controls(
  * Swipe the tray up (or tap its handle) and it rises to show Wave's volume and playback speed.
  */
 @Composable
-private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, onQueue: () -> Unit, onLyrics: () -> Unit, modifier: Modifier = Modifier) {
+private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, onQueue: () -> Unit, onLyrics: () -> Unit, modifier: Modifier = Modifier, glass: dev.chrisbanes.haze.HazeState? = null) {
     val c = MaterialTheme.colorScheme
     val reveal = rememberReveal()
     Column(
@@ -638,7 +642,15 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             .padding(top = 16.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            .background(Color.Black.copy(alpha = 0.28f))
+            // Frosted glass over the art behind it.
+            .then(
+                if (glass != null) Modifier.hazeEffect(glass) {
+                    blurRadius = 28.dp
+                    backgroundColor = c.background
+                    tints = listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.3f)))
+                    noiseFactor = 0f
+                } else Modifier.background(Color.Black.copy(alpha = 0.28f)),
+            )
             .revealDrag(reveal)
             .navigationBarsPadding(),
     ) {

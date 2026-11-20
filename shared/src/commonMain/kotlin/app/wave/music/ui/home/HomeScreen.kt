@@ -240,7 +240,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
     }
     val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item)) }
-    val stack = remember { mutableStateListOf<Destination>() }
+    val stack = remember { mutableStateListOf<Destination>().apply { RenderStart.page?.let { add(it) } } }
     // Which way pages move: deeper slides in from the right, back slides in from the left.
     var forward by remember { mutableStateOf(true) }
     fun push(dest: Destination) {
@@ -425,7 +425,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         surfaceContainer = Color(0xFF121212),
         surfaceContainerHigh = Color(0xFF1B1B1B),
         surfaceContainerHighest = Color(0xFF242424),
-    ) else artScheme
+    ) else if (!shell && player.current != null && settings.matchSongColors && artScheme.background.luminance() < 0.5f) {
+        // Phones: a calmer, mostly neutral dark instead of a strong tint (a green page for a green
+        // cover); the cover's own colors come through as a soft glow behind home instead.
+        val calm = Color(0xFF0E0F12)
+        artScheme.copy(
+            background = androidx.compose.ui.graphics.lerp(artScheme.background, calm, 0.6f),
+            surface = androidx.compose.ui.graphics.lerp(artScheme.surface, calm, 0.6f),
+        )
+    } else artScheme
     val pageCovers = rememberCovered(stack.isNotEmpty())
     val playerCovers = rememberCovered(showPlayer && player.current != null && !docked)
     val searchCovers = rememberCovered(showSearch)
@@ -541,6 +549,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
             Box(Modifier.fillMaxSize().then(if (!shell) Modifier.hazeSource(barHaze) else Modifier)) {
             Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
+            // Phones: the playing cover, blurred to nothing but color, glowing down from the top.
+            if (!shell) androidx.compose.animation.Crossfade(player.current?.artworkUrl, animationSpec = tween(600), label = "glow") { art ->
+                if (art != null && settings.matchSongColors) app.wave.music.ui.components.BlurredImage(
+                    art.atSize(app.wave.music.ui.components.ArtSize.BLUR),
+                    Modifier.fillMaxWidth().height(520.dp).graphicsLayer { alpha = 0.55f; scaleX = 1.6f; scaleY = 1.3f },
+                    radius = 100.dp,
+                    fadeBottom = 0.75f,
+                )
+            }
             if (!shell && tab == 1) {
                 PrismaLibrary(
                     session = session,
@@ -931,6 +948,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // or the open player's tray.
         app.wave.music.ui.components.NoticeHost(
             enabled = menuTarget == null || desktop,
+            glass = if (!shell && !showPlayer) barHaze else null,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -1497,7 +1515,7 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
 
 
 /** For offscreen renders only: start with the player open. */
-object RenderStart { var player = false; var openTo: String? = null; var menu: MenuTarget? = null }
+object RenderStart { var player = false; var openTo: String? = null; var menu: MenuTarget? = null; var page: Destination? = null }
 
 
 /** What the dock shows for something you just picked, before it starts playing. */

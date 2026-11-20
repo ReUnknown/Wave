@@ -1,5 +1,8 @@
 package app.wave.music.ui.detail
 
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import app.wave.music.ui.menu.menuAnchor
@@ -278,6 +281,10 @@ private fun <T> PageFrame(
         val c = MaterialTheme.colorScheme
         app.wave.music.ui.components.ReportPageLook(c, art)
         val backdrop = rememberBackdrop()
+        // Phones: a frosted strip across the top once you've scrolled past the photo.
+        val pageGlass = dev.chrisbanes.haze.rememberHazeState()
+        val phoneList = androidx.compose.foundation.lazy.rememberLazyListState()
+        val scrolledPast by remember { androidx.compose.runtime.derivedStateOf { phoneList.firstVisibleItemIndex > 0 || phoneList.firstVisibleItemScrollOffset > 900 } }
         val statusTop = topInset()
         Box(
             Modifier
@@ -288,7 +295,8 @@ private fun <T> PageFrame(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .backdropSource(backdrop),
+                    .backdropSource(backdrop)
+                    .hazeSource(pageGlass),
             ) {
                 AnimatedContent(
                     targetState = load,
@@ -345,7 +353,7 @@ private fun <T> PageFrame(
                             }
                         } else {
                             val menu = LocalItemMenu.current
-                            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 140.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current)) {
+                            LazyColumn(Modifier.fillMaxSize(), state = phoneList, contentPadding = PaddingValues(bottom = 140.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current)) {
                                 item {
                                     if (info.artist) ArtistHero(info, actions.open)
                                     else CollectionHero(info) { info.item?.let { menu.open(MenuTarget.Collection(it, onItsPage = true)) } }
@@ -359,6 +367,22 @@ private fun <T> PageFrame(
                 }
             }
             if (app.wave.music.ui.components.LocalShell.current) ProgressiveBackdropBlur(backdrop, Modifier.fillMaxWidth().height(statusTop + 96.dp))
+            else {
+                val glassAlpha by androidx.compose.animation.core.animateFloatAsState(if (scrolledPast) 1f else 0f, tween(240), label = "pageGlass")
+                if (glassAlpha > 0f) Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(statusTop + 76.dp)
+                        .graphicsLayer { alpha = glassAlpha }
+                        .hazeEffect(pageGlass) {
+                            blurRadius = 24.dp
+                            backgroundColor = c.background
+                            tints = listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.5f)))
+                            noiseFactor = 0f
+                            progressive = dev.chrisbanes.haze.HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0f, preferPerformance = true)
+                        },
+                )
+            }
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -549,10 +573,8 @@ private fun CollectionHero(info: HeaderInfo, onAdd: () -> Unit) {
     androidx.compose.animation.AnimatedContent(square, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }, label = "cover") { isSquare ->
         if (!isSquare) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.fillMaxWidth().height(500.dp).then(flip)) {
-                    AsyncImage(info.art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.25f), 0.18f to Color.Transparent, 0.55f to Color.Transparent, 0.85f to c.background.copy(alpha = 0.8f), 1f to c.background)))
-                    CollectionText(info, Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp), details = false)
+                PinnedHero(info.art, Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.25f), 0.18f to Color.Transparent, 0.55f to Color.Transparent, 0.85f to c.background.copy(alpha = 0.8f), 1f to c.background), Modifier.fillMaxWidth().height(500.dp).then(flip)) { scrolled, heroPx ->
+                    CollectionText(info, Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp).graphicsLayer { alpha = 1f - (scrolled() / heroPx * 1.4f).coerceIn(0f, 1f) }, details = false)
                 }
                 CollectionButtons(info, onAdd)
             }
@@ -613,51 +635,66 @@ private fun CollectionButtons(info: HeaderInfo, onAdd: () -> Unit) {
 }
 
 /**
+ * A photo header that stays put behind the page as you scroll: the fade and everything under it
+ * slide up over the photo, which dims and eases back a little, so it feels like it's sitting
+ * behind the page rather than scrolling with it.
+ */
+@Composable
+private fun PinnedHero(
+    art: String?,
+    fade: Brush,
+    modifier: Modifier,
+    overlay: @Composable androidx.compose.foundation.layout.BoxWithConstraintsScope.(scrolled: () -> Float, heroPx: Float) -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    var restTop by remember { mutableStateOf<Float?>(null) }
+    var top by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    BoxWithConstraints(
+        modifier.onGloballyPositioned {
+            val y = it.positionInRoot().y
+            if (restTop == null) restTop = y
+            top = y
+        },
+    ) {
+        val heroPx = constraints.maxHeight.toFloat()
+        val scrolled = { ((restTop ?: top) - top).coerceAtLeast(0f) }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val s = scrolled()
+                    val p = (s / heroPx).coerceIn(0f, 1f)
+                    translationY = s
+                    val k = 1f + p * 0.08f
+                    scaleX = k
+                    scaleY = k
+                    alpha = 1f - p * 0.55f
+                },
+        ) {
+            AsyncImage(art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+        }
+        // The fade moves with the page, and the page's color carries on below it, covering the photo.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawRect(fade)
+                    drawRect(c.background, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 1f), size = androidx.compose.ui.geometry.Size(size.width, 4000f))
+                },
+        )
+        overlay(scrolled, heroPx)
+    }
+}
+
+/**
  * Prisma (phones): an artist's photo across the top with their name set big over its bottom
  * edge, then the buttons with Shuffle big in the middle, and their newest release.
  */
 @Composable
 private fun ArtistHero(info: HeaderInfo, open: (YTItem) -> Unit) {
     val c = MaterialTheme.colorScheme
-    // How far the page has scrolled past the photo, for the 3D tilt.
-    var restTop by remember { mutableStateOf<Float?>(null) }
-    var top by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .onGloballyPositioned {
-                val y = it.positionInRoot().y
-                if (restTop == null) restTop = y
-                top = y
-            },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        BoxWithConstraints(Modifier.fillMaxWidth().height(500.dp)) {
-            val heroPx = constraints.maxHeight.toFloat()
-            fun scrolled() = ((restTop ?: top) - top).coerceAtLeast(0f)
-            // Scrolling down, the photo tips back into the screen, drifts slower than the page,
-            // shrinks a little and rounds off, like a poster falling away from you.
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        val s = scrolled()
-                        val p = (s / heroPx).coerceIn(0f, 1f)
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                        cameraDistance = 9f * density
-                        rotationX = p * 32f
-                        translationY = s * 0.5f
-                        val k = 1f - p * 0.14f
-                        scaleX = k
-                        scaleY = k
-                        alpha = 1f - p * 0.7f
-                        shape = RoundedCornerShape((p * 48).dp)
-                        clip = p > 0f
-                    },
-            ) {
-                AsyncImage(info.art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.82f to c.background.copy(alpha = 0.75f), 1f to c.background)))
-            }
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        PinnedHero(info.art, Brush.verticalGradient(0.35f to Color.Transparent, 0.82f to c.background.copy(alpha = 0.75f), 1f to c.background), Modifier.fillMaxWidth().height(500.dp)) { scrolled, heroPx ->
             // The name tag: as big as fits on one line, heavy and tightly set. Long names that won't
             // fit even small go onto two lines instead of getting cut off.
             val name = info.title.uppercase()
@@ -692,7 +729,6 @@ private fun ArtistHero(info: HeaderInfo, open: (YTItem) -> Unit) {
                     .padding(horizontal = 16.dp, vertical = 6.dp)
                     .graphicsLayer {
                         val s = scrolled()
-                        translationY = s * 0.25f
                         alpha = 1f - (s / heroPx * 1.4f).coerceIn(0f, 1f)
                     },
                 color = Color.White,

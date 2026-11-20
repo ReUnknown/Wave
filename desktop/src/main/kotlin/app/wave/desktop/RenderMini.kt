@@ -131,6 +131,8 @@ object RenderApp {
         PlayerConnection.backend = if (mode == "home") DesktopPlayer else fakeBackend()
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
+        if (mode == "artist") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Artist("UClYV6hHlupm_S_ObS1W-DYw")
+        if (mode == "album") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Album("MPREb_rzLvLCYSi3J")
         if (mode == "menu") {
             val now = PlayerConnection.state.value.current!!
             app.wave.music.ui.home.RenderStart.menu = app.wave.music.ui.menu.MenuTarget.Song(now.videoId, now.title, now.artist, now.artworkUrl, nowPlaying = true)
