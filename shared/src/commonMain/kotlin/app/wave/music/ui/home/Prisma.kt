@@ -116,14 +116,60 @@ private fun body(size: TextUnit, weight: FontWeight = FontWeight.Normal) =
 
 /** Wave's mark on the left and your picture on the right, the same size. Scrolls away with the page. */
 @Composable
-fun PrismaTopBar(session: Session, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
+fun PrismaTopBar(
+    session: Session,
+    onAvatar: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Top search mode: a search bar here instead of the Wave mark (it also opens your library). */
+    search: (() -> Unit)? = null,
+    inLibrary: Boolean = false,
+    onLibrary: () -> Unit = {},
+) {
     val c = MaterialTheme.colorScheme
     Row(
         modifier.fillMaxWidth().height(PrismaTopHeight).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { WaveMark(c.onBackground, size = 40.dp) }
-        Spacer(Modifier.weight(1f))
+        if (search != null) {
+            // The search bar: search everything (your library too), and a button that flips
+            // between home and your library.
+            Row(
+                Modifier
+                    .weight(1f)
+                    .height(52.dp)
+                    .clip(CircleShape)
+                    .background(c.onBackground.copy(alpha = 0.09f))
+                    .border(1.dp, c.onBackground.copy(alpha = 0.1f), CircleShape)
+                    .clickable(onClick = search)
+                    .padding(start = 16.dp, end = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Search, null, tint = c.onBackground.copy(alpha = 0.8f))
+                Text(
+                    if (inLibrary) "Search your library" else "Search music & your library",
+                    Modifier.weight(1f).padding(start = 10.dp),
+                    color = c.onBackground.copy(alpha = 0.6f),
+                    style = body(15.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val fill by animateColorAsState(if (inLibrary) c.primary else c.onBackground.copy(alpha = 0.1f), tween(180), label = "libFill")
+                val ink by animateColorAsState(if (inLibrary) c.onPrimary else c.onBackground, tween(180), label = "libInk")
+                Row(
+                    Modifier.height(42.dp).pressable(CircleShape, fill, pressedScale = 0.92f, onClick = onLibrary).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.animation.Crossfade(inLibrary, label = "libIcon") { lib ->
+                        Icon(if (lib) Icons.Rounded.Home else Icons.Rounded.LibraryMusic, if (lib) "Home" else "Library", tint = ink, modifier = Modifier.size(22.dp))
+                    }
+                    Text(if (inLibrary) " Home" else " Library", color = ink, style = body(14.sp, FontWeight.SemiBold))
+                }
+            }
+        } else {
+            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { WaveMark(c.onBackground, size = 40.dp) }
+            Spacer(Modifier.weight(1f))
+        }
         Box(
             Modifier
                 .size(44.dp)
@@ -167,32 +213,39 @@ fun PrismaTabBar(
     onOpenPlayer: () -> Unit = {},
     /** A song you just picked is getting ready: its play button spins. */
     loading: Boolean = false,
+    /** The tabs (off with the top search, leaving just the mini player). */
+    showTabs: Boolean = true,
+    /** The mini player floats on its own above the tabs instead of joining them. */
+    split: Boolean = false,
 ) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(32.dp)
-    Box(
+    // Frosted glass (Modern) or a solid bar (Legacy).
+    val glass = Modifier
+        .clip(shape)
+        .then(
+            if (haze != null) {
+                Modifier.hazeEffect(state = haze) {
+                    blurRadius = 30.dp
+                    backgroundColor = c.background
+                    tints = listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f)))
+                    noiseFactor = 0f
+                }
+            } else Modifier.background(c.surfaceContainer.copy(alpha = 0.97f)),
+        )
+        .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape)
+    Column(
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .then(
-                    if (haze != null) {
-                        Modifier.hazeEffect(state = haze) {
-                            blurRadius = 30.dp
-                            backgroundColor = c.background
-                            tints = listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f)))
-                            noiseFactor = 0f
-                        }
-                    } else Modifier.background(c.surfaceContainer.copy(alpha = 0.97f)),
-                )
-                .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape),
-        ) {
-            if (now != null) {
+        if (split && now != null) {
+            Box(Modifier.fillMaxWidth().then(glass)) { DockSong(now, playing, onOpenPlayer, loading) }
+        }
+        if (showTabs) Column(Modifier.fillMaxWidth().then(glass)) {
+            if (!split && now != null) {
                 DockSong(now, playing, onOpenPlayer, loading)
                 Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(c.onSurface.copy(alpha = 0.08f)))
             }
@@ -622,3 +675,23 @@ private fun LibraryRow(item: YTItem, onClick: () -> Unit) {
 
 /** Liked songs has its own tile, so it isn't listed again with your playlists. */
 private fun List<PlaylistItem>.withoutLiked() = filterNot { it.id == "LM" || it.id == "VLLM" || it.title.equals("Liked music", true) || it.title.equals("Liked songs", true) }
+
+
+/**
+ * The app's background with song colors on (Modern): the playing cover blurred until only its
+ * colors are left, dimmed so everything on it reads. It stays still while pages scroll over it.
+ */
+@Composable
+fun AppBackdrop(art: String?) {
+    val c = MaterialTheme.colorScheme
+    androidx.compose.animation.Crossfade(art, animationSpec = tween(700), label = "backdrop") { a ->
+        if (a != null) Box(Modifier.fillMaxSize()) {
+            app.wave.music.ui.components.BlurredImage(
+                a.atSize(app.wave.music.ui.components.ArtSize.BLUR),
+                Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f },
+                radius = 120.dp,
+            )
+            Box(Modifier.fillMaxSize().background(c.background.copy(alpha = 0.66f)))
+        }
+    }
+}

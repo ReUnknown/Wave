@@ -1,5 +1,6 @@
 package app.wave.music.data
 
+import androidx.datastore.preferences.core.edit
 import app.wave.music.playback.PlayerConnection
 import app.wave.music.playback.ResumeStore
 import app.wave.music.ui.detail.clearPageCache
@@ -19,4 +20,12 @@ suspend fun signOutAndForget() {
     LibraryRepository.clear()
     clearPageCache()
     SessionRepository.signOut()
+}
+
+
+/** Erase info: signs out, forgets everything Wave kept on this device, and resets every setting. */
+suspend fun eraseEverything() {
+    signOutAndForget()
+    runCatching { Stores.prefs("search").edit { it.clear() } }
+    WaveSettings.reset()
 }

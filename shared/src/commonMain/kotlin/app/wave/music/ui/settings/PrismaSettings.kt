@@ -1,5 +1,13 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.PictureInPicture
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -80,6 +88,7 @@ import kotlinx.coroutines.launch
 
 /** The sections, in the order they're listed. */
 enum class SettingsSection(val id: String, val title: String, val summary: String, val icon: ImageVector) {
+    Customize("customize", "Customize", "Modern or Legacy, bar or search, mini player", Icons.Rounded.Dashboard),
     Looks("looks", "Appearance", "Song colors, AMOLED black, motion", Icons.Rounded.Palette),
     Sound("sound", "Sound", "Quality, even volume, crossfade", Icons.Rounded.Tune),
     Playback("playback", "Playback", "Autoplay, skip silence, battery", Icons.Rounded.PlayCircle),
@@ -188,6 +197,27 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit) {
     }
     SettingsPageFrame(section.title, onBack) {
         when (section) {
+            SettingsSection.Customize -> {
+                item {
+                    Choice(
+                        Icons.Rounded.AutoAwesome, "Look", "Modern is Prisma; Legacy is a modern take on Wave 1.0",
+                        listOf(false to "Modern", true to "Legacy"), settings.legacyUi,
+                    ) { v -> change { it.copy(legacyUi = v) } }
+                }
+                item {
+                    Choice(
+                        Icons.Rounded.Explore, "Getting around", "The bar at the bottom, or a search bar at the top that also opens your library",
+                        listOf(false to "Bottom bar", true to "Top search"), settings.topSearch,
+                    ) { v -> change { it.copy(topSearch = v) } }
+                }
+                item {
+                    Toggle(
+                        Icons.Rounded.PictureInPicture, "Mini player on its own",
+                        if (settings.topSearch) "Always on its own with the top search" else "Floats above the bar instead of joining it",
+                        settings.separateMiniPlayer || settings.topSearch,
+                    ) { on -> change { it.copy(separateMiniPlayer = on) } }
+                }
+            }
             SettingsSection.Looks -> {
                 item { Toggle(Icons.Rounded.Palette, "Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on -> change { it.copy(matchSongColors = on) } } }
                 item { Toggle(Icons.Rounded.DarkMode, "AMOLED black", "Pure black backgrounds in dark mode", settings.amoled) { on -> change { it.copy(amoled = on) } } }
@@ -263,6 +293,35 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit) {
                     item { LinearProgressIndicator(progress = { u.progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) }
                 }
                 item { Toggle(Icons.Rounded.Autorenew, "Update automatically", "Wave looks for a new version once a day", settings.checkUpdates) { on -> change { it.copy(checkUpdates = on) } } }
+                item {
+                    var asking by remember { mutableStateOf(false) }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { asking = true }.padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(c.errorContainer), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.DeleteForever, null, tint = c.onErrorContainer)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Erase info", color = c.error, style = display(17.sp, FontWeight.SemiBold))
+                            Text("Signs you out and resets Wave as if it were just installed", color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp))
+                        }
+                    }
+                    if (asking) androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { asking = false },
+                        icon = { Icon(Icons.Rounded.DeleteForever, null) },
+                        title = { Text("Erase everything?") },
+                        text = { Text("You'll be signed out, and your settings, searches, history and downloaded lists are cleared from this phone. Your YouTube Music account isn't touched.") },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                asking = false
+                                scope.launch { app.wave.music.data.eraseEverything() }
+                            }) { Text("Erase", color = c.error) }
+                        },
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { asking = false }) { Text("Cancel") } },
+                    )
+                }
             }
         }
     }

@@ -38,6 +38,14 @@ data class Settings(
     val desktopNoticeClosed: Boolean = false,
     /** Pure black behind everything in dark mode (saves battery on OLED screens). */
     val amoled: Boolean = false,
+    /** Prisma: the modern look, or Legacy (a modern take on Wave 1.0's look). */
+    val legacyUi: Boolean = false,
+    /** Prisma: get around with the search bar at the top instead of the bar at the bottom. */
+    val topSearch: Boolean = false,
+    /** Prisma: the mini player floats on its own instead of joining the bar at the bottom. */
+    val separateMiniPlayer: Boolean = false,
+    /** Prisma: the first-run setup has been finished. */
+    val setupDone: Boolean = false,
 )
 
 
@@ -58,10 +66,16 @@ object WaveSettings {
     private val mini = booleanPreferencesKey("wave_mini")
     private val noticeClosed = booleanPreferencesKey("desktop_notice_closed")
     private val amoledKey = booleanPreferencesKey("amoled")
+    private val legacyKey = booleanPreferencesKey("legacy_ui")
+    private val topSearchKey = booleanPreferencesKey("top_search")
+    private val separateKey = booleanPreferencesKey("separate_mini_player")
+    private val setupKey = booleanPreferencesKey("setup_done")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
     private var loaded = false
+    /** True once the saved settings have been read (so first-run setup doesn't flash). */
+    val ready = MutableStateFlow(false)
 
     suspend fun load() {
         if (loaded) return
@@ -82,8 +96,14 @@ object WaveSettings {
             waveMini = p[mini] ?: false,
             desktopNoticeClosed = p[noticeClosed] ?: false,
             amoled = p[amoledKey] ?: false,
+            legacyUi = p[legacyKey] ?: false,
+            topSearch = p[topSearchKey] ?: false,
+            separateMiniPlayer = p[separateKey] ?: false,
+            // Anyone already using Wave has effectively set it up.
+            setupDone = p[setupKey] ?: (p[matchColors] != null),
         )
         loaded = true
+        ready.value = true
     }
 
     suspend fun update(change: (Settings) -> Settings) {
@@ -105,7 +125,17 @@ object WaveSettings {
             it[mini] = next.waveMini
             it[noticeClosed] = next.desktopNoticeClosed
             it[amoledKey] = next.amoled
+            it[legacyKey] = next.legacyUi
+            it[topSearchKey] = next.topSearch
+            it[separateKey] = next.separateMiniPlayer
+            it[setupKey] = next.setupDone
         }
+    }
+
+    /** Back to how Wave came: every setting reset (setup runs again next time). */
+    suspend fun reset() {
+        _state.value = Settings()
+        Stores.prefs("settings").edit { it.clear() }
     }
 
     /** Changes a setting for this session only (a slider mid-drag); [update] saves it. */

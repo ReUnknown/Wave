@@ -129,6 +129,11 @@ object RenderApp {
         val w = args.getOrNull(1)?.toIntOrNull() ?: 1120
         val h = args.getOrNull(2)?.toIntOrNull() ?: 740
         PlayerConnection.backend = if (mode == "home") DesktopPlayer else fakeBackend()
+        when (mode) {
+            "topsearch" -> app.wave.music.data.WaveSettings.preview { it.copy(topSearch = true) }
+            "split" -> app.wave.music.data.WaveSettings.preview { it.copy(separateMiniPlayer = true) }
+            "legacy" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
+        }
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
         if (mode == "artist") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Artist("UClYV6hHlupm_S_ObS1W-DYw")
@@ -143,7 +148,9 @@ object RenderApp {
         val out = File(args.getOrNull(0) ?: "build/mini").apply { mkdirs() }
         val scene = ImageComposeScene(w, h, Density(1f)) {
             androidx.compose.runtime.CompositionLocalProvider(app.wave.music.platform.LocalTitleBarInset provides 30.dp) {
-                app.wave.music.ui.WaveApp(computer = true, preview = true)
+                if (mode.startsWith("setup")) app.wave.music.ui.theme.WaveTheme {
+                    app.wave.music.ui.welcome.SetupScreen(null, {}, {}, initialStep = mode.removePrefix("setup").toIntOrNull() ?: 0)
+                } else app.wave.music.ui.WaveApp(computer = true, preview = true)
             }
         }
         var image = scene.render(0)

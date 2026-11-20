@@ -645,9 +645,14 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             // Frosted glass over the art behind it.
             .then(
                 if (glass != null) Modifier.hazeEffect(glass) {
-                    blurRadius = 28.dp
+                    // Heavy blur (so the mirrored art under it never reads as a picture), darkened,
+                    // with a touch of the song's color.
+                    blurRadius = 48.dp
                     backgroundColor = c.background
-                    tints = listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.3f)))
+                    tints = listOf(
+                        dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.52f)),
+                        dev.chrisbanes.haze.HazeTint(c.primary.copy(alpha = 0.14f)),
+                    )
                     noiseFactor = 0f
                 } else Modifier.background(Color.Black.copy(alpha = 0.28f)),
             )

@@ -372,6 +372,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val tabletShell = !desktop && wideWindow && conf.smallestScreenWidthDp >= 600
     val desktopShell = desktop && wideWindow
     val shell = desktopShell || tabletShell
+    // Prisma's home, library, search and backgrounds: phones and tablets. Tablets keep their own
+    // player bar along the bottom and the player docking beside the app.
+    val prisma = !desktopShell
     // Computers keep your library in a sidebar when there's room for it.
     val sidebar = desktopShell && conf.screenWidthDp >= 1000
     // The player can sit beside the app: drag the player bar up to the left or right half (tablets,
@@ -425,7 +428,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         surfaceContainer = Color(0xFF121212),
         surfaceContainerHigh = Color(0xFF1B1B1B),
         surfaceContainerHighest = Color(0xFF242424),
-    ) else if (!shell && player.current != null && settings.matchSongColors && artScheme.background.luminance() < 0.5f) {
+    ) else if (prisma && !settings.legacyUi && player.current != null && settings.matchSongColors && artScheme.background.luminance() < 0.5f) {
         // Phones: a calmer, mostly neutral dark instead of a strong tint (a green page for a green
         // cover); the cover's own colors come through as a soft glow behind home instead.
         val calm = Color(0xFF0E0F12)
@@ -458,7 +461,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null || pendingSong != null) PrismaDockSongHeight + 20.dp else 20.dp) + PrismaBarHeight,
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null || pendingSong != null) PrismaDockSongHeight + 28.dp else 20.dp) + (if (settings.topSearch) 0.dp else PrismaBarHeight),
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -547,18 +550,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully
             // covers it, and is drawn again the moment a back swipe could reveal it.
             val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
-            Box(Modifier.fillMaxSize().then(if (!shell) Modifier.hazeSource(barHaze) else Modifier)) {
+            Box(Modifier.fillMaxSize().then(if (prisma) Modifier.hazeSource(barHaze) else Modifier)) {
             Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
-            // Phones: the playing cover, blurred to nothing but color, glowing down from the top.
-            if (!shell) androidx.compose.animation.Crossfade(player.current?.artworkUrl, animationSpec = tween(600), label = "glow") { art ->
-                if (art != null && settings.matchSongColors) app.wave.music.ui.components.BlurredImage(
-                    art.atSize(app.wave.music.ui.components.ArtSize.BLUR),
-                    Modifier.fillMaxWidth().height(520.dp).graphicsLayer { alpha = 0.55f; scaleX = 1.6f; scaleY = 1.3f },
-                    radius = 100.dp,
-                    fadeBottom = 0.75f,
-                )
-            }
-            if (!shell && tab == 1) {
+            // Modern with song colors: the whole background is the playing cover, blurred to nothing but color.
+            if (prisma && !settings.legacyUi && settings.matchSongColors) AppBackdrop(player.current?.artworkUrl)
+            if (prisma && tab == 1) {
                 PrismaLibrary(
                     session = session,
                     playlists = myPlaylists,
@@ -570,7 +566,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     playItem = playItem,
                     onSignIn = onSignOut,
                     onNewPlaylist = { createPlaylist = true },
-                    topBar = { PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
+                    topBar = { PrismaTopBar(
+                        session = session,
+                        onAvatar = { push(Destination.Settings) },
+                        search = if (settings.topSearch || shell) ({ showSearch = true }) else null,
+                        inLibrary = tab == 1,
+                        onLibrary = { tab = if (tab == 1) 0 else 1 },
+                    ) },
                 )
             } else
             // Loading, failure and the feed fade into each other instead of snapping.
@@ -596,9 +598,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .backdropSource(backdrop),
-                    contentPadding = if (shell) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + 4.dp, bottom = 150.dp + PrismaBarHeight),
+                    contentPadding = if (!prisma) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + 4.dp, bottom = if (shell) 140.dp else 150.dp + PrismaBarHeight),
                 ) {
-                  if (!shell) {
+                  if (prisma) {
                     prismaHome(
                         feed = state.feed,
                         recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
@@ -607,7 +609,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
-                        topBar = { PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
+                        topBar = { PrismaTopBar(
+                        session = session,
+                        onAvatar = { push(Destination.Settings) },
+                        search = if (settings.topSearch || shell) ({ showSearch = true }) else null,
+                        inLibrary = tab == 1,
+                        onLibrary = { tab = if (tab == 1) 0 else 1 },
+                    ) },
                     )
                   } else {
                     item {
@@ -672,7 +680,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 currentWindowDp().screenHeightDp < 600 -> 150.dp
                 else -> 230.dp
             }
-            if (!shell) {
+            if (prisma) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -686,7 +694,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .height(statusTop + headerBand),
             )
             // Tint on top of the blur so white text always has contrast.
-            if (shell) Box(
+            if (!prisma) Box(
                 Modifier
                     .fillMaxWidth()
                     .height(statusTop + headerBand)
@@ -704,7 +712,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         },
                     ),
             )
-            if (!shell) {
+            if (prisma) {
                 // Prisma: the top bar is the first row of the page and scrolls away with it.
             } else
             Column(
@@ -780,7 +788,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 // Same for search when a page opened from it covers it.
                 modifier = Modifier.drawWithContent { if (!(pageCovers && !peeking.value)) drawContent() },
             ) {
-                if (!shell) PrismaSearch(
+                if (prisma) PrismaSearch(
                     session = session,
                     onClose = { showSearch = false },
                     onAvatar = { showSearch = false; push(Destination.Settings) },
@@ -826,21 +834,33 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             }
 
             }
-            val barVisible = !shell && !showPlayer && WindowInsets.ime.getBottom(LocalDensity.current) == 0
+            val keyboardUp = WindowInsets.ime.getBottom(LocalDensity.current) != 0
+            // Customize: the bar at the bottom (or search at the top), the mini player joined to the bar
+            // or on its own, and Legacy's floating song-colored mini player.
+            val tabsShown = !shell && !showPlayer && !keyboardUp && !settings.topSearch
+            val dockSong = pendingSong ?: player.current
+            val legacyMini = settings.legacyUi
+            val songOnItsOwn = !legacyMini && (settings.separateMiniPlayer || settings.topSearch)
+            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && songOnItsOwn && dockSong != null)
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 12.dp)
-                    .padding(bottom = if (barVisible) PrismaBarHeight - 8.dp + (if (player.current != null || pendingSong != null) PrismaDockSongHeight else 0.dp) else 0.dp),
+                    .padding(bottom = when {
+                        legacyMini && tabsShown -> PrismaBarHeight - 8.dp
+                        legacyMini -> 0.dp
+                        barVisible -> (if (tabsShown) PrismaBarHeight - 8.dp else 0.dp) + (if (dockSong != null) PrismaDockSongHeight + (if (songOnItsOwn) 8.dp else 0.dp) else 0.dp)
+                        else -> 0.dp
+                    }),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // Phones show the picked song in the dock instead, with a loading play button.
-                if (preparing && shell) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
+                if (preparing && (shell || legacyMini)) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
                 UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
-                    visible = !shell && !showPlayer && !barVisible && player.current != null && WindowInsets.ime.getBottom(LocalDensity.current) == 0,
+                    visible = !showPlayer && player.current != null && !keyboardUp && (if (shell) false else legacyMini),
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
@@ -868,11 +888,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     },
                     modifier = Modifier.align(Alignment.BottomCenter),
-                    haze = barHaze,
-                    now = pendingSong ?: player.current,
+                    haze = if (settings.legacyUi) null else barHaze,
+                    now = if (legacyMini) null else dockSong,
                     playing = player.isPlaying,
                     loading = preparing,
                     onOpenPlayer = { openPlayer(null) },
+                    showTabs = tabsShown,
+                    split = songOnItsOwn,
                 )
             }
         }

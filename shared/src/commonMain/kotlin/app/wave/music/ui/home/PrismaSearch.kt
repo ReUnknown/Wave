@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.ui.layout.layout
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.ui.draw.shadow
@@ -248,6 +249,9 @@ fun PrismaSearch(
 
     val glass = dev.chrisbanes.haze.rememberHazeState()
     Box(Modifier.backGesture(back).fillMaxSize().blocksTouchesBelow().background(c.background)) {
+        val look by app.wave.music.data.WaveSettings.state.collectAsState()
+        val playingNow by app.wave.music.playback.PlayerConnection.state.collectAsState()
+        if (!look.legacyUi && look.matchSongColors) AppBackdrop(playingNow.current?.artworkUrl)
         LazyColumn(
             Modifier.fillMaxSize().hazeSource(glass).nestedScroll(hideKeyboardOnScroll).imePadding(),
             contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = bottomPadding),
@@ -458,21 +462,40 @@ private fun TopResult(item: YTItem, onOpen: () -> Unit, onPlay: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val tone = app.wave.music.ui.components.rememberArtColorScheme(item.thumbnail?.atSize(226))
     val round = item is ArtistItem
-    // The top result sits on its own art: blurred and shaded into a card, so it isn't plain.
+    // Artists and albums: their art spreads across the whole top of search, only lightly blurred, and
+    // fades into the page. Songs and playlists sit on a blurred card of their art.
+    val wide = item is ArtistItem || item is AlbumItem
+    val reach = with(androidx.compose.ui.platform.LocalDensity.current) { (app.wave.music.platform.topInset() + 76.dp).roundToPx() }
     Box(
-        Modifier
+        if (wide) Modifier
+            .fillMaxWidth()
+            // Reach up under the search field to the very top of the screen.
+            .layout { m, k ->
+                val p = m.measure(k.copy(maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+                layout(p.width, (p.height - reach).coerceAtLeast(0)) { p.place(0, -reach) }
+            }
+        else Modifier
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(32.dp)),
     ) {
-    app.wave.music.ui.components.BlurredImage(
-        item.thumbnail?.atSize(app.wave.music.ui.components.ArtSize.BLUR),
-        Modifier.matchParentSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f },
-        radius = 48.dp,
-    )
-    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.15f), 1f to Color.Black.copy(alpha = 0.5f))))
+    if (wide) {
+        app.wave.music.ui.components.BlurredImage(
+            item.thumbnail?.atSize(app.wave.music.ui.components.ArtSize.CARD),
+            Modifier.matchParentSize().graphicsLayer { scaleX = 1.15f; scaleY = 1.15f },
+            radius = 14.dp,
+        )
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.45f), 0.3f to Color.Black.copy(alpha = 0.15f), 0.75f to c.background.copy(alpha = 0.55f), 1f to c.background)))
+    } else {
+        app.wave.music.ui.components.BlurredImage(
+            item.thumbnail?.atSize(app.wave.music.ui.components.ArtSize.BLUR),
+            Modifier.matchParentSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f },
+            radius = 48.dp,
+        )
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.15f), 1f to Color.Black.copy(alpha = 0.5f))))
+    }
     Column(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(top = 20.dp, bottom = 20.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(top = if (wide) with(androidx.compose.ui.platform.LocalDensity.current) { reach.toDp() } + 16.dp else 20.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AsyncImage(

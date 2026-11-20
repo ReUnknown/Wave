@@ -355,8 +355,12 @@ private fun <T> PageFrame(
                             val menu = LocalItemMenu.current
                             LazyColumn(Modifier.fillMaxSize(), state = phoneList, contentPadding = PaddingValues(bottom = 140.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current)) {
                                 item {
-                                    if (info.artist) ArtistHero(info, actions.open)
-                                    else CollectionHero(info) { info.item?.let { menu.open(MenuTarget.Collection(it, onItsPage = true)) } }
+                                    androidx.compose.runtime.CompositionLocalProvider(
+                                        LocalHeroScroll provides { if (phoneList.firstVisibleItemIndex == 0) phoneList.firstVisibleItemScrollOffset.toFloat() else 100_000f },
+                                    ) {
+                                        if (info.artist) ArtistHero(info, actions.open)
+                                        else CollectionHero(info) { info.item?.let { menu.open(MenuTarget.Collection(it, onItsPage = true)) } }
+                                    }
                                 }
                                 content(load.value)
                             }
@@ -634,6 +638,9 @@ private fun CollectionButtons(info: HeaderInfo, onAdd: () -> Unit) {
     }
 }
 
+/** How far the page has scrolled, for [PinnedHero]. */
+private val LocalHeroScroll = androidx.compose.runtime.compositionLocalOf<(() -> Float)?> { null }
+
 /**
  * A photo header that stays put behind the page as you scroll: the fade and everything under it
  * slide up over the photo, which dims and eases back a little, so it feels like it's sitting
@@ -647,17 +654,11 @@ private fun PinnedHero(
     overlay: @Composable androidx.compose.foundation.layout.BoxWithConstraintsScope.(scrolled: () -> Float, heroPx: Float) -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
-    var restTop by remember { mutableStateOf<Float?>(null) }
-    var top by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    BoxWithConstraints(
-        modifier.onGloballyPositioned {
-            val y = it.positionInRoot().y
-            if (restTop == null) restTop = y
-            top = y
-        },
-    ) {
+    // Read straight from the list every frame, so it works however many times you scroll.
+    val listScroll = LocalHeroScroll.current
+    BoxWithConstraints(modifier) {
         val heroPx = constraints.maxHeight.toFloat()
-        val scrolled = { ((restTop ?: top) - top).coerceAtLeast(0f) }
+        val scrolled = { listScroll?.invoke()?.coerceAtLeast(0f) ?: 0f }
         Box(
             Modifier
                 .fillMaxSize()

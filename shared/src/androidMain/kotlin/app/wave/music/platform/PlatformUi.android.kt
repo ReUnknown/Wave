@@ -24,5 +24,8 @@ private fun deviceFamily(name: String) = androidx.compose.ui.text.font.FontFamil
     ).map { w -> androidx.compose.ui.text.font.Font(androidx.compose.ui.text.font.DeviceFontFamilyName(name), w) },
 )
 
-actual val prismaDisplayFont: androidx.compose.ui.text.font.FontFamily = deviceFamily("google-sans")
-actual val prismaTextFont: androidx.compose.ui.text.font.FontFamily = deviceFamily("google-sans-text")
+private val googleSans = deviceFamily("google-sans")
+private val googleSansText = deviceFamily("google-sans-text")
+// Legacy uses the phone's own font, like Wave 1.0.
+actual val prismaDisplayFont: androidx.compose.ui.text.font.FontFamily get() = if (PrismaLook.legacy) androidx.compose.ui.text.font.FontFamily.Default else googleSans
+actual val prismaTextFont: androidx.compose.ui.text.font.FontFamily get() = if (PrismaLook.legacy) androidx.compose.ui.text.font.FontFamily.Default else googleSansText

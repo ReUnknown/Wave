@@ -77,8 +77,19 @@ fun WaveApp(
                 if (preview) SessionRepository.startPreview()
             }
 
+            val settingsReady by WaveSettings.ready.collectAsState()
+            val legacyLook by remember { WaveSettings.state.map { it.legacyUi }.distinctUntilChanged() }.collectAsState(false)
+            androidx.compose.runtime.SideEffect { app.wave.music.platform.PrismaLook.legacy = legacyLook }
+            val setupDone by remember { WaveSettings.state.map { it.setupDone }.distinctUntilChanged() }.collectAsState(true)
             if (signingIn) {
                 LoginScreen(onDone = { signingIn = false }, onCancel = { signingIn = false })
+            } else if (restored && settingsReady && !setupDone && !preview) {
+                // First run (or after Erase info): set Wave up, signing in along the way.
+                app.wave.music.ui.welcome.SetupScreen(
+                    session = session,
+                    onSignIn = { signingIn = true },
+                    onGuest = { scope.launch { SessionRepository.startGuest() } },
+                )
             } else if (restored) {
                 val current = session
                 if (current == null) {
