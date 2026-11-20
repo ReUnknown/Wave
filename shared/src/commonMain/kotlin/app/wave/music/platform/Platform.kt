@@ -42,6 +42,13 @@ interface Platform {
     /** Hands a downloaded update to the system installer. */
     fun installUpdate(file: File)
 
+    /** Bytes used by saved songs and by saved covers. */
+    fun storageUsage(): Pair<Long, Long> = 0L to 0L
+    fun clearSongCache() {}
+    fun clearCoverCache() {}
+    /** The phone's battery saver is on. */
+    val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     /** A mini player that stays on top of other windows (Windows). */
     val hasMiniPlayer: Boolean get() = false
     fun openMiniPlayer() {}

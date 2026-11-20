@@ -95,8 +95,7 @@ fun AccountSheet(
             // Wave Prisma: every setting (Customize, Legacy and Modern) lives on its own pages.
             Tile(Icons.Rounded.Settings, "All settings & Customize", Modifier.fillMaxWidth()) { onOpen(Destination.Settings) }
 
-            // Swipe up: everything else lives right below.
-            app.wave.music.ui.settings.SettingsContent()
+            // Prisma: settings are on their own pages (the button above), in Legacy too.
 
             Box(
                 Modifier

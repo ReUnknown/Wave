@@ -133,12 +133,15 @@ object RenderApp {
             "topsearch" -> app.wave.music.data.WaveSettings.preview { it.copy(topSearch = true) }
             "split" -> app.wave.music.data.WaveSettings.preview { it.copy(separateMiniPlayer = true) }
             "legacy" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
+            "search" -> app.wave.music.data.WaveSettings.preview { it.copy(startTab = 2) }
             "light" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1) }
             "lighttop" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1, topSearch = true, denseHome = true) }
             "legacybar" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = false) }
         }
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
+        if (mode == "settings") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Settings
+        if (mode.startsWith("page-")) app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.SettingsPage(mode.removePrefix("page-"))
         if (mode == "artist") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Artist("UClYV6hHlupm_S_ObS1W-DYw")
         if (mode == "album") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Album("MPREb_rzLvLCYSi3J")
         if (mode == "menu") {

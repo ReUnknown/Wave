@@ -52,6 +52,42 @@ private class AndroidPlatform(private val app: Application) : Platform {
         WaveWidget.update(app, null)
     }
 
+    override fun storageUsage(): Pair<Long, Long> {
+        val songs = runCatching { app.wave.music.playback.WaveService.cache(app).cacheSpace }.getOrDefault(0L)
+        val covers = runCatching { coil3.SingletonImageLoader.get(app).diskCache?.size ?: 0L }.getOrDefault(0L)
+        return songs to covers
+    }
+
+    override fun clearSongCache() {
+        runCatching {
+            val cache = app.wave.music.playback.WaveService.cache(app)
+            cache.keys.toList().forEach { cache.removeResource(it) }
+        }
+    }
+
+    override fun clearCoverCache() {
+        runCatching {
+            val loader = coil3.SingletonImageLoader.get(app)
+            loader.diskCache?.clear()
+            loader.memoryCache?.clear()
+        }
+    }
+
+    // Battery saver, kept up to date as the phone turns it on and off.
+    private val saver = kotlinx.coroutines.flow.MutableStateFlow(false).also { flow ->
+        val power = app.getSystemService(android.os.PowerManager::class.java)
+        flow.value = power?.isPowerSaveMode == true
+        app.registerReceiver(
+            object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: android.content.Context, intent: Intent) {
+                    flow.value = power?.isPowerSaveMode == true
+                }
+            },
+            android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+        )
+    }
+    override val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = saver
+
     override fun installUpdate(file: File) {
         val uri = FileProvider.getUriForFile(app, "${app.packageName}.updates", file)
         app.startActivity(

@@ -462,8 +462,9 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
     val art = item.thumbnail?.atSize(1080)
     Box(
         Modifier
-            .width(if (app.wave.music.platform.PrismaLook.dense) 176.dp else 224.dp)
-            .height(if (app.wave.music.platform.PrismaLook.dense) 232.dp else 296.dp)
+            // Tablets: bigger picks, since there's room.
+            .width((if (app.wave.music.platform.PrismaLook.dense) 176.dp else 224.dp) * (if (app.wave.music.ui.components.LocalShell.current) 1.25f else 1f))
+            .height((if (app.wave.music.platform.PrismaLook.dense) 232.dp else 296.dp) * (if (app.wave.music.ui.components.LocalShell.current) 1.25f else 1f))
             .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(onClick = { onClick(item) }, onLongClick = { menu.openFor(item) }),
@@ -685,7 +686,7 @@ fun AppBackdrop(art: String?) {
     val c = MaterialTheme.colorScheme
     // Customize › Background: the whole cover (0), a glow down from the top (1), or nothing (2).
     val style = app.wave.music.data.WaveSettings.state.collectAsState().value.backdropStyle
-    if (style == 2) return
+    if (style == 2 || app.wave.music.platform.PrismaLook.saving) return
     androidx.compose.animation.Crossfade(art, animationSpec = tween(700), label = "backdrop") { a ->
         if (a != null && style == 1) app.wave.music.ui.components.BlurredImage(
             a.atSize(app.wave.music.ui.components.ArtSize.BLUR),

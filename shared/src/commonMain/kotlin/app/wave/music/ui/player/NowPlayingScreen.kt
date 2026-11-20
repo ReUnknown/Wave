@@ -555,8 +555,9 @@ private fun Controls(
         Spacer(Modifier.height(if (dense) 8.dp else 16.dp))
         WavyProgress(
             progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
-            playing = state.isPlaying,
-            energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },
+            // Calm motion / battery saver: the line holds still.
+            playing = state.isPlaying && !app.wave.music.platform.PrismaLook.calm,
+            energy = { if (WaveSettings.state.value.moveWithMusic && !app.wave.music.platform.PrismaLook.calm) BeatBus.level.value else -1f },
             color = c.onBackground,
             trackColor = c.onBackground.copy(alpha = 0.2f),
             stroke = 4.dp,

@@ -29,3 +29,9 @@ suspend fun eraseEverything() {
     runCatching { Stores.prefs("search").edit { it.clear() } }
     WaveSettings.reset()
 }
+
+/** Settings › Storage: forget recent searches (both kinds). */
+suspend fun clearSearchHistory() {
+    SearchRepository.clearRecent()
+    runCatching { Stores.prefs("search").edit { it.clear() } }
+}

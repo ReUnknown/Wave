@@ -23,6 +23,10 @@ object PrismaLook {
     /** Corners: 0 rounded, 1 squircle, 2 sharp. */
     var corners by androidx.compose.runtime.mutableIntStateOf(0)
     var dense by androidx.compose.runtime.mutableStateOf(false)
+    /** Battery saver look is on: no cover background, still waves. */
+    var saving by androidx.compose.runtime.mutableStateOf(false)
+    /** Fewer moving things (Calm motion, or battery saver). */
+    var calm by androidx.compose.runtime.mutableStateOf(false)
 
     /** A corner radius in the chosen style (and squarer in Legacy). */
     fun corner(base: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp = base * when {

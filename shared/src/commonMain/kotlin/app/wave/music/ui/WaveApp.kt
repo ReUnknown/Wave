@@ -48,9 +48,13 @@ fun WaveApp(
           // Text and icons default to the theme's color (black on a dark window otherwise).
           // Customize: the look's switches (read while drawing), text size and haptics, for everything.
           val look by WaveSettings.state.collectAsState()
+          val phoneSaving by app.wave.music.platform.WavePlatform.current.powerSave.collectAsState()
+          val saving = phoneSaving && look.saverLook
           app.wave.music.platform.PrismaLook.apply {
               legacy = look.legacyUi
-              blur = look.blurLevel
+              this.saving = saving
+              calm = look.calmMotion || saving
+              blur = if (saving) 0 else look.blurLevel
               corners = look.cornerStyle
               dense = look.denseHome
           }
@@ -104,7 +108,7 @@ fun WaveApp(
                     onSignIn = { signingIn = true },
                     onGuest = { scope.launch { SessionRepository.startGuest() } },
                 )
-            } else if (restored) {
+            } else if (restored && settingsReady) {
                 val current = session
                 if (current == null) {
                     WelcomeScreen(onSignIn = { signingIn = true }, onGuest = { scope.launch { SessionRepository.startGuest() } })

@@ -14,7 +14,7 @@ data class Settings(
     val matchSongColors: Boolean = true,
     /** Shapes, waves and lyrics react to the beat. */
     val moveWithMusic: Boolean = true,
-    val audioQuality: AudioQuality = AudioQuality.HIGH,
+    val audioQuality: AudioQuality = AudioQuality.AUTO,
     val skipSilence: Boolean = false,
     /** When the queue runs out, keep going with songs like the last one. */
     val autoplay: Boolean = true,
@@ -64,6 +64,18 @@ data class Settings(
     val seekButtons: Boolean = false,
     /** The dock's mini player has previous and next beside play. */
     val dockSkip: Boolean = true,
+    /** Where Wave opens: 0 Home, 1 Library, 2 Search. */
+    val startTab: Int = 0,
+    /** Most space saved songs may take, in MB (applies the next time Wave starts). */
+    val songCacheMb: Int = 512,
+    /** Most space saved covers may take, in MB (next start). */
+    val coverCacheMb: Int = 200,
+    /** With the phone's battery saver on: no blur, plain background, still waves. */
+    val saverLook: Boolean = true,
+    /** With the phone's battery saver on: lighter audio. */
+    val saverQuality: Boolean = false,
+    /** Fewer moving things all the time (still progress line, no crossfades). */
+    val calmMotion: Boolean = false,
 )
 
 
@@ -88,6 +100,12 @@ object WaveSettings {
     private val topSearchKey = booleanPreferencesKey("top_search")
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
+    private val startTabKey = androidx.datastore.preferences.core.intPreferencesKey("start_tab")
+    private val songCacheKey = androidx.datastore.preferences.core.intPreferencesKey("song_cache_mb")
+    private val coverCacheKey = androidx.datastore.preferences.core.intPreferencesKey("cover_cache_mb")
+    private val saverLookKey = androidx.datastore.preferences.core.booleanPreferencesKey("saver_look")
+    private val saverQualityKey = androidx.datastore.preferences.core.booleanPreferencesKey("saver_quality")
+    private val calmKey = androidx.datastore.preferences.core.booleanPreferencesKey("calm_motion")
     private val themeKey = androidx.datastore.preferences.core.intPreferencesKey("theme")
     private val backdropKey = androidx.datastore.preferences.core.intPreferencesKey("backdrop_style")
     private val blurKey = androidx.datastore.preferences.core.intPreferencesKey("blur_level")
@@ -110,7 +128,7 @@ object WaveSettings {
         _state.value = Settings(
             matchSongColors = p[matchColors] ?: true,
             moveWithMusic = p[move] ?: true,
-            audioQuality = p[quality]?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: AudioQuality.HIGH,
+            audioQuality = p[quality]?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: AudioQuality.AUTO,
             skipSilence = p[silence] ?: false,
             autoplay = p[auto] ?: true,
             evenVolume = p[even] ?: true,
@@ -128,6 +146,12 @@ object WaveSettings {
             separateMiniPlayer = p[separateKey] ?: false,
             // Anyone already using Wave has effectively set it up.
             setupDone = p[setupKey] ?: (p[matchColors] != null),
+            startTab = p[startTabKey] ?: 0,
+            songCacheMb = p[songCacheKey] ?: 512,
+            coverCacheMb = p[coverCacheKey] ?: 200,
+            saverLook = p[saverLookKey] ?: true,
+            saverQuality = p[saverQualityKey] ?: false,
+            calmMotion = p[calmKey] ?: false,
             theme = p[themeKey] ?: 0,
             backdropStyle = p[backdropKey] ?: 0,
             blurLevel = p[blurKey] ?: 2,
@@ -165,6 +189,12 @@ object WaveSettings {
             it[topSearchKey] = next.topSearch
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
+            it[startTabKey] = next.startTab
+            it[songCacheKey] = next.songCacheMb
+            it[coverCacheKey] = next.coverCacheMb
+            it[saverLookKey] = next.saverLook
+            it[saverQualityKey] = next.saverQuality
+            it[calmKey] = next.calmMotion
             it[themeKey] = next.theme
             it[backdropKey] = next.backdropStyle
             it[blurKey] = next.blurLevel

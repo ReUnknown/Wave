@@ -234,7 +234,11 @@ fun DetailScreen(
             onSection = { actions.navigate(Destination.SettingsPage(it.id)) },
             onSignOut = actions.signOut,
         )
-        is Destination.SettingsPage -> app.wave.music.ui.settings.PrismaSettingsPage(app.wave.music.ui.settings.SettingsSection.of(destination.id), onBack = actions.back)
+        is Destination.SettingsPage -> app.wave.music.ui.settings.PrismaSettingsPage(
+            app.wave.music.ui.settings.SettingsSection.of(destination.id),
+            onBack = actions.back,
+            open = { actions.navigate(Destination.SettingsPage(it.id)) },
+        )
     }
     }
 }
@@ -316,7 +320,9 @@ private fun <T> PageFrame(
                     is Load.Ready -> {
                         val info = header(load.value)
                         val config = currentWindowDp()
-                        if (app.wave.music.ui.components.LocalShell.current) {
+                        // Tablets get the side-by-side layout below (the cover and buttons beside the
+                        // songs), which suits a touch screen better than the computer's table.
+                        if (app.wave.music.ui.components.LocalShell.current && app.wave.music.ui.components.LocalDesktop.current) {
                             // Computers and tablets (design board 2): the art glows behind a header with
                             // the cover beside the title, then the songs as a table.
                             BlurredImage(
@@ -334,7 +340,7 @@ private fun <T> PageFrame(
                                 if (table) item { TableHeader() }
                                 content(load.value)
                             }
-                        } else if (config.screenWidthDp >= 600 && config.screenWidthDp > config.screenHeightDp) {
+                        } else if (config.screenWidthDp >= 600 && (config.screenWidthDp > config.screenHeightDp || app.wave.music.ui.components.LocalShell.current)) {
                             // Side by side on wide screens, over the art blurred across the window.
                             BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
                             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.55f), 1f to c.background.copy(alpha = 0.88f))))

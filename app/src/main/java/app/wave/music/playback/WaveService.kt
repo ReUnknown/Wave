@@ -481,7 +481,10 @@ class WaveService : MediaSessionService() {
             val connectivity = getSystemService(ConnectivityManager::class.java)
             val data = StreamResolver.playerResponseForPlayback(
                 videoId = videoId,
-                audioQuality = WaveSettings.state.value.audioQuality,
+                // Settings › Battery: lighter audio while the phone's battery saver is on, if asked.
+                audioQuality = WaveSettings.state.value.let { st ->
+                    if (st.saverQuality && app.wave.music.platform.WavePlatform.current.powerSave.value) app.wave.music.playback.AudioQuality.LOW else st.audioQuality
+                },
                 connectivityManager = connectivity,
             ).getOrThrow()
             data.format.loudnessDb?.let { db ->
@@ -557,7 +560,8 @@ class WaveService : MediaSessionService() {
         fun cache(context: Context): SimpleCache = simpleCache ?: synchronized(this) {
             simpleCache ?: SimpleCache(
                 File(context.cacheDir, "audio-v2"),
-                LeastRecentlyUsedCacheEvictor(512L * 1024 * 1024),
+                // Settings › Storage: how much room saved songs may take.
+                LeastRecentlyUsedCacheEvictor(kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load(); app.wave.music.data.WaveSettings.state.value.songCacheMb }.toLong() * 1024 * 1024),
                 StandaloneDatabaseProvider(context),
             ).also { simpleCache = it }
         }

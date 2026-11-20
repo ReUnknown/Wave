@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,7 +101,7 @@ fun SetupScreen(session: Session?, onSignIn: () -> Unit, onGuest: () -> Unit, in
             .background(c.background)
             .background(Brush.verticalGradient(0f to c.primary.copy(alpha = 0.16f), 0.5f to Color.Transparent)),
     ) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.align(Alignment.TopCenter).widthIn(max = 560.dp).fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Back, and how far along you are.
             Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
@@ -147,7 +148,6 @@ fun SetupScreen(session: Session?, onSignIn: () -> Unit, onGuest: () -> Unit, in
                             Heading("Make it yours", "A couple of looks you can change later.")
                             SwitchRow("Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on -> change { it.copy(matchSongColors = on) } }
                             SwitchRow("AMOLED black", "Pure black backgrounds in dark mode", settings.amoled) { on -> change { it.copy(amoled = on) } }
-                            SwitchRow("Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on -> change { it.copy(moveWithMusic = on) } }
                         }
                     }
                     Spacer(Modifier.height(24.dp))

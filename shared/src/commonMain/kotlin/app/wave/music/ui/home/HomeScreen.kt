@@ -209,9 +209,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val appHaze = dev.chrisbanes.haze.rememberHazeState()
     // What you just picked, shown in the dock right away (with a loading play button) until it plays.
     var pendingSong by remember { mutableStateOf<app.wave.music.playback.NowPlaying?>(null) }
-    var showSearch by rememberSaveable { mutableStateOf(false) }
+    // Customize › Open Wave on: Home, Library or Search.
+    var showSearch by rememberSaveable { mutableStateOf(WaveSettings.state.value.startTab == 2) }
     // Prisma: Home (0), Library (1) or Search (2), from the bottom bar.
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(WaveSettings.state.value.startTab) }
     LaunchedEffect(showSearch) { if (showSearch) tab = 2 else if (tab == 2) tab = 0 }
     // Ctrl+F or "/" on a keyboard opens search.
     LaunchedEffect(Unit) { app.wave.music.ui.components.Shortcuts.openSearch.collect { showSearch = true } }

@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.luminance
 import app.wave.music.ui.components.glass
@@ -254,9 +255,12 @@ fun PrismaSearch(
     Box(Modifier.backGesture(back).fillMaxSize().blocksTouchesBelow().background(c.background)) {
         val look by app.wave.music.data.WaveSettings.state.collectAsState()
         val playingNow by app.wave.music.playback.PlayerConnection.state.collectAsState()
+        // The cover background is part of what the field's glass blurs, so the glass matches the
+        // page under it exactly (no line where they meet).
+        Box(Modifier.fillMaxSize().hazeSource(glass)) {
         if (!look.legacyUi && look.matchSongColors) AppBackdrop(playingNow.current?.artworkUrl)
         LazyColumn(
-            Modifier.fillMaxSize().hazeSource(glass).nestedScroll(hideKeyboardOnScroll).imePadding(),
+            Modifier.align(Alignment.TopCenter).widthIn(max = 760.dp).fillMaxSize().nestedScroll(hideKeyboardOnScroll).imePadding(),
             contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = bottomPadding),
         ) {
             when {
@@ -330,6 +334,8 @@ fun PrismaSearch(
                     Found.Idle -> Unit
                 }
             }
+        }
+
         }
 
         // The field and your picture, over a short fade into the page.
