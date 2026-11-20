@@ -572,7 +572,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     playItem = playItem,
                     onSignIn = onSignOut,
                     onNewPlaylist = { createPlaylist = true },
-                    topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
+                    topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { askSignOut = true }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                 )
             } else
             // Loading, failure and the feed fade into each other instead of snapping.
@@ -609,12 +609,12 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
-                        topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
+                        topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { askSignOut = true }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
                   } else if (legacyHome) {
                     // Legacy: 1.0's greeting header and big banner on top, then Prisma's sections
                     // (in Legacy's fonts and squarer corners) underneath: old and new together.
-                    item { Hero(hero, jump = emptyList(), onJump = openItem, onSharedBackdrop = false) }
+                    item { Hero(hero, jump = emptyList(), onJump = openItem, onSharedBackdrop = false, modernButtons = true) }
                     prismaHome(
                         feed = state.feed,
                         recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
@@ -732,6 +732,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .padding(horizontal = 16.dp),
             ) {
                 Spacer(Modifier.height(8.dp))
+                // Legacy (phones): the modern search bar, opening your library too.
+                if (legacyHome) PrismaTopBar(
+                    session = session,
+                    onAvatar = { askSignOut = true },
+                    search = { showSearch = true },
+                    inLibrary = tab == 1,
+                    onLibrary = { tab = if (tab == 1) 0 else 1 },
+                    edge = 0.dp,
+                ) else
                 // The search bar opens into the search page: it morphs into the search field.
                 Box(Modifier.fillMaxWidth().height(56.dp)) {
                 MorphVisibility(!showSearch) {
@@ -1248,7 +1257,7 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 }
 
 @Composable
-private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (YTItem) -> Unit = {}, onSharedBackdrop: Boolean = false) {
+private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (YTItem) -> Unit = {}, onSharedBackdrop: Boolean = false, modernButtons: Boolean = false) {
     val c = MaterialTheme.colorScheme
     // Tall on phones; on short landscape screens it leaves room to see what's below.
     val config = currentWindowDp()
@@ -1316,7 +1325,7 @@ private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (
                     }
                 }
             } else {
-                HeroText(hero, Modifier.align(Alignment.BottomStart).widthIn(max = 600.dp).padding(horizontal = 20.dp))
+                HeroText(hero, Modifier.align(Alignment.BottomStart).widthIn(max = 600.dp).padding(horizontal = 20.dp), modernButtons)
             }
         }
     }
@@ -1324,7 +1333,7 @@ private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (
 
 /** The hero's words and buttons: label, title, detail, progress, play and shuffle. */
 @Composable
-private fun HeroText(hero: HeroContent, modifier: Modifier) {
+private fun HeroText(hero: HeroContent, modifier: Modifier, modernButtons: Boolean = false) {
     val c = MaterialTheme.colorScheme
     Column(modifier) {
         Text(hero.label, style = MaterialTheme.typography.labelSmall, color = c.primary)
@@ -1357,6 +1366,24 @@ private fun HeroText(hero: HeroContent, modifier: Modifier) {
             }
         }
         Spacer(Modifier.height(16.dp))
+        if (modernButtons) {
+            // Legacy home: the modern play row (a round shuffle beside a big play pill).
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    Modifier.height(52.dp).width(196.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = hero.onPrimary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(hero.primary.second, null, tint = c.onPrimary)
+                        Text("  ${hero.primary.first}", color = c.onPrimary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 17.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    }
+                }
+                Box(
+                    Modifier.size(52.dp).pressable(CircleShape, c.onBackground.copy(alpha = 0.12f), pressedScale = 0.9f, onClick = hero.onSecondary),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(hero.secondary.second, hero.secondary.first, tint = c.onBackground) }
+            }
+        } else
         // Connected button group
         Row(
             Modifier

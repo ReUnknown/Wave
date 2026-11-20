@@ -126,10 +126,12 @@ fun PrismaTopBar(
     search: (() -> Unit)? = null,
     inLibrary: Boolean = false,
     onLibrary: () -> Unit = {},
+    /** Space at the sides (0 when the parent already pads). */
+    edge: Dp = 16.dp,
 ) {
     val c = MaterialTheme.colorScheme
     Row(
-        modifier.fillMaxWidth().height(PrismaTopHeight).padding(horizontal = 16.dp),
+        modifier.fillMaxWidth().height(PrismaTopHeight).padding(horizontal = edge),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
