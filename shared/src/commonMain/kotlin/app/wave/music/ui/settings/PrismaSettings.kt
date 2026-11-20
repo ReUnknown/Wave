@@ -195,13 +195,10 @@ fun PrismaSettingsHome(onBack: () -> Unit, onSection: (SettingsSection) -> Unit,
                 ) { Text(if (s == null || s.guest) "Sign in" else "Sign out", color = c.primary, style = body(14.sp, FontWeight.SemiBold)) }
             }
         }
-        SettingsSection.groups.forEach { (group, sections) ->
-            item(key = "g-$group") { GroupLabel(group) }
-            item(key = "c-$group") {
-                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(c.surfaceContainer)) {
-                    sections.forEach { section -> NavRow(section.icon, section.title, section.summary) { onSection(section) } }
-                }
-            }
+        item { Box(Modifier.height(12.dp)) }
+        // The same plain list as before, just in the new order.
+        SettingsSection.groups.flatMap { it.second }.forEach { section ->
+            item(key = section.id) { NavRow(section.icon, section.title, section.summary) { onSection(section) } }
         }
     }
 }
@@ -299,14 +296,14 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 item {
                     val saving by WavePlatform.current.powerSave.collectAsState()
                     Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(if (saving) c.tertiaryContainer else c.surfaceContainer).padding(16.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        Icon(Icons.Rounded.BatterySaver, null, tint = if (saving) c.onTertiaryContainer else c.onSurfaceVariant)
+                        Tile(Icons.Rounded.BatterySaver)
                         Text(
                             if (saving) "Battery saver is on. Wave is going easy on your battery." else "Battery saver is off. These kick in when you turn it on.",
-                            color = if (saving) c.onTertiaryContainer else c.onSurface, style = body(14.sp),
+                            color = c.onBackground.copy(alpha = 0.75f), style = body(14.sp),
                         )
                     }
                 }
@@ -434,8 +431,8 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
             }
         }
         item {
-            Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(c.surfaceContainer)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Tile(Icons.Rounded.SystemUpdate)
                     Column(Modifier.weight(1f)) {
                         Text("Updates", color = c.onBackground, style = display(17.sp, FontWeight.SemiBold))
@@ -473,7 +470,7 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
         }
         item { Box(Modifier.height(12.dp)) }
         item {
-            Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(c.surfaceContainer)) {
+            Column(Modifier.fillMaxWidth()) {
                 NavRow(Icons.Rounded.NewReleases, "What's new", "Every version, newest first") { open(SettingsSection.WhatsNew) }
                 NavRow(Icons.Rounded.Favorite, "Attribution", "What Wave is built on and inspired by") { open(SettingsSection.Credits) }
                 NavRow(Icons.Rounded.BugReport, "Report a bug", "Opens a new issue on GitHub", external = true) { WavePlatform.current.openUrl("$GITHUB/issues/new") }
@@ -590,16 +587,16 @@ private fun GroupLabel(text: String) {
 private fun NavRow(icon: ImageVector, title: String, summary: String, external: Boolean = false, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Tile(icon)
         Column(Modifier.weight(1f)) {
-            Text(title, color = c.onSurface, style = display(17.sp, FontWeight.SemiBold))
-            if (summary.isNotEmpty()) Text(summary, color = c.onSurface.copy(alpha = 0.6f), style = body(13.sp))
+            Text(title, color = c.onBackground, style = display(17.sp, FontWeight.SemiBold))
+            if (summary.isNotEmpty()) Text(summary, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp))
         }
-        Icon(if (external) Icons.AutoMirrored.Rounded.OpenInNew else Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onSurface.copy(alpha = 0.5f))
+        Icon(if (external) Icons.AutoMirrored.Rounded.OpenInNew else Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onBackground.copy(alpha = 0.5f))
     }
 }
 
