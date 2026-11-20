@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import dev.chrisbanes.haze.hazeSource
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
 import app.wave.music.ui.components.WheelRow
@@ -443,7 +444,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null) 116.dp else 0.dp) + PrismaBarHeight,
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null) PrismaDockSongHeight + 20.dp else 20.dp) + PrismaBarHeight,
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -453,7 +454,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // What darkens (dark mode) or lightens (light mode) a busy picture under text.
         val scrim = if (c.background.luminance() < 0.5f) Color.Black else Color.White
         val backdrop = rememberBackdrop()
-        val barBackdrop = rememberBackdrop()
+        val barHaze = dev.chrisbanes.haze.rememberHazeState()
         val listState = rememberLazyListState()
         val greetingAlpha by remember {
             derivedStateOf {
@@ -532,7 +533,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully
             // covers it, and is drawn again the moment a back swipe could reveal it.
             val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
-            Box(Modifier.fillMaxSize().then(if (!shell) Modifier.backdropSource(barBackdrop) else Modifier)) {
+            Box(Modifier.fillMaxSize().then(if (!shell) Modifier.hazeSource(barHaze) else Modifier)) {
             Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
             if (!shell && tab == 1) {
                 PrismaLibrary(
@@ -806,14 +807,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 12.dp)
-                    .padding(bottom = if (barVisible) PrismaBarHeight - 8.dp else 0.dp),
+                    .padding(bottom = if (barVisible) PrismaBarHeight - 8.dp + (if (player.current != null) PrismaDockSongHeight else 0.dp) else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (preparing) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
                 UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
-                    visible = !shell && !showPlayer && player.current != null && WindowInsets.ime.getBottom(LocalDensity.current) == 0,
+                    visible = !shell && !showPlayer && !barVisible && player.current != null && WindowInsets.ime.getBottom(LocalDensity.current) == 0,
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
@@ -841,7 +842,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     },
                     modifier = Modifier.align(Alignment.BottomCenter),
-                    backdrop = barBackdrop,
+                    haze = barHaze,
+                    now = player.current,
+                    playing = player.isPlaying,
+                    onOpenPlayer = { openPlayer(null) },
                 )
             }
         }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
@@ -300,9 +301,16 @@ fun PrismaSearch(
                     Found.Failed -> item { Hint("Search didn't go through. Check your connection.") }
                     is Found.Ready -> {
                         if (f.groups.isEmpty()) item { Hint("Nothing found for \"$submitted\"") }
-                        f.groups.forEach { group ->
+                        val top = f.groups.firstOrNull()?.items?.firstOrNull()
+                        if (top != null) item(key = "top") { TopResult(top, onOpen = { pick(top) }, onPlay = {
+                            scope.launch { PrismaRecents.add(Recent.Picked(top)) }
+                            onPlay(top, false)
+                        }) }
+                        f.groups.forEachIndexed { gi, group ->
+                            val rest = if (gi == 0) group.items.drop(1) else group.items
+                            if (rest.isEmpty()) return@forEachIndexed
                             item { GroupTitle(group.title) }
-                            items(group.items, key = { "r-" + group.title + it.id }) { FoundRow(it, onClick = { pick(it) }) }
+                            items(rest, key = { "r-" + group.title + it.id }) { FoundRow(it, onClick = { pick(it) }) }
                         }
                     }
                     Found.Idle -> Unit
@@ -427,6 +435,43 @@ private fun FoundRow(item: YTItem, onClick: () -> Unit, trailing: (@Composable (
             if (line.isNotBlank()) Text(line, color = c.onBackground.copy(alpha = 0.6f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         trailing?.invoke()
+    }
+}
+
+/** The best match, in the middle: its cover (round for artists), name, what it is, and a play button in its colors. */
+@Composable
+private fun TopResult(item: YTItem, onOpen: () -> Unit, onPlay: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val tone = app.wave.music.ui.components.rememberArtColorScheme(item.thumbnail?.atSize(226))
+    val round = item is ArtistItem
+    Column(
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(top = 8.dp, bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AsyncImage(
+            item.thumbnail?.atSize(544),
+            null,
+            Modifier.size(176.dp).clip(if (round) CircleShape else RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh),
+            contentScale = ContentScale.Crop,
+        )
+        Text(item.title, Modifier.padding(top = 12.dp, start = 24.dp, end = 24.dp), color = c.onBackground, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        val kind = when (item) { is SongItem -> "Song"; is AlbumItem -> "Album"; is ArtistItem -> "Artist"; is PlaylistItem -> "Playlist"; else -> null }
+        val line = listOfNotNull(kind, (if (item is SongItem) subtitle(item) else null)).joinToString(" · ")
+        if (line.isNotBlank()) Text(line, color = c.onBackground.copy(alpha = 0.65f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp))
+        Row(
+            Modifier
+                .padding(top = 14.dp)
+                .height(48.dp)
+                .clip(CircleShape)
+                .background(tone.primary)
+                .clickable(onClick = onPlay)
+                .padding(horizontal = 28.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = tone.onPrimary)
+            Text(if (item is ArtistItem) "Shuffle" else "Play", color = tone.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+        }
     }
 }
 

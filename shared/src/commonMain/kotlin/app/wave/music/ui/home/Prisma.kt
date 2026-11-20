@@ -42,6 +42,8 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SkipNext
+import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -144,43 +146,54 @@ fun PrismaTopBar(session: Session, onAvatar: () -> Unit, modifier: Modifier = Mo
  * Three tabs on a floating, rounded bar. The open tab grows into a filled shape with its name
  * (like WaveMini's tabs); the others stay as icons.
  */
+/** How much the mini player adds to the dock when something is playing. */
+val PrismaDockSongHeight: Dp = 66.dp
+
+/**
+ * The bottom of the app: one floating, rounded dock. When something plays, the mini player sits
+ * in its top half and the tabs in its bottom half, one piece over a blur of the page behind
+ * it. The open tab grows into a filled shape with its name; the others stay as icons.
+ */
 @Composable
-fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier, backdrop: app.wave.music.ui.components.Backdrop? = null) {
+fun PrismaTabBar(
+    tab: Int,
+    onTab: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    haze: dev.chrisbanes.haze.HazeState? = null,
+    now: app.wave.music.playback.NowPlaying? = null,
+    playing: Boolean = false,
+    onOpenPlayer: () -> Unit = {},
+) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(32.dp)
-    var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     Box(
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Box(
+        Column(
             Modifier
                 .fillMaxWidth()
-                .height(PrismaBarHeight - 16.dp)
-                .onGloballyPositioned { origin = it.positionInRoot() }
-                .clip(shape),
-        ) {
-            // A blur of whatever's behind the bar, then a light tint so the icons read.
-            if (backdrop != null) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            val r = 28.dp.toPx()
-                            renderEffect = androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp)
+                .clip(shape)
+                .then(
+                    if (haze != null) {
+                        Modifier.hazeEffect(state = haze) {
+                            blurRadius = 30.dp
+                            backgroundColor = c.background
+                            tints = listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f)))
+                            noiseFactor = 0f
                         }
-                        .drawBehind {
-                            backdrop.version
-                            translate(-origin.x, -origin.y) { drawLayer(backdrop.layer) }
-                        },
+                    } else Modifier.background(c.surfaceContainer.copy(alpha = 0.97f)),
                 )
+                .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape),
+        ) {
+            if (now != null) {
+                DockSong(now, playing, onOpenPlayer)
+                Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(c.onSurface.copy(alpha = 0.08f)))
             }
-            Box(Modifier.fillMaxSize().background(c.surfaceContainer.copy(alpha = if (backdrop != null) 0.58f else 0.97f)))
-            Box(Modifier.fillMaxSize().border(1.dp, c.onSurface.copy(alpha = 0.1f), shape))
             Row(
-                Modifier.fillMaxSize().padding(7.dp),
+                Modifier.fillMaxWidth().height(PrismaBarHeight - 16.dp).padding(7.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -211,6 +224,36 @@ fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier, 
                 }
             }
         }
+    }
+}
+
+/** The mini player inside the dock: cover, song, and a play button in the song's color. */
+@Composable
+private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val song = app.wave.music.ui.components.rememberArtColorScheme(now.artworkUrl)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(PrismaDockSongHeight)
+            .clickable(onClick = onOpen)
+            .padding(start = 10.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+        Column(Modifier.weight(1f)) {
+            Text(now.title, color = c.onSurface, style = body(15.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(now.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(
+            Modifier.size(46.dp).pressable(RoundedCornerShape(16.dp), song.primary, pressedScale = 0.9f) { app.wave.music.playback.PlayerConnection.togglePlay() },
+            contentAlignment = Alignment.Center,
+        ) { app.wave.music.ui.components.PlayPauseIcon(playing, song.onPrimary) }
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable { app.wave.music.playback.PlayerConnection.next() },
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.SkipNext, "Next song", tint = c.onSurface) }
     }
 }
 
@@ -380,13 +423,14 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
                 Text(item.title, color = Color.White, style = display(19.sp, FontWeight.Bold, (-0.2).sp).copy(lineHeight = 22.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 subtitle(item)?.let { Text(it, color = Color.White.copy(alpha = 0.75f), style = body(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
+            val tone = app.wave.music.ui.components.rememberArtColorScheme(item.thumbnail?.atSize(226), app.wave.music.ui.theme.darkBaseScheme())
             Box(
                 Modifier
                     .padding(start = 8.dp)
                     .size(42.dp)
-                    .pressable(RoundedCornerShape(16.dp), Color.White, pressedScale = 0.9f, onClick = onPlay),
+                    .pressable(RoundedCornerShape(16.dp), tone.primary, pressedScale = 0.9f, onClick = onPlay),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Color(0xFF1B1B1F)) }
+            ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = tone.onPrimary) }
         }
     }
 }
