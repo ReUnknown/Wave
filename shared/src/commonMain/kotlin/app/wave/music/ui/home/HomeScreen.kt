@@ -204,6 +204,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     var openRequested by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
+    // Prisma: Home (0), Library (1) or Search (2), from the bottom bar.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(showSearch) { if (showSearch) tab = 2 else if (tab == 2) tab = 0 }
     // Ctrl+F or "/" on a keyboard opens search.
     LaunchedEffect(Unit) { app.wave.music.ui.components.Shortcuts.openSearch.collect { showSearch = true } }
     val player by PlayerConnection.state.collectAsState()
@@ -430,7 +433,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (!shell && player.current != null && !showPlayer) 116.dp else 0.dp,
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null) 116.dp else 0.dp) + PrismaBarHeight,
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -519,6 +522,19 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // covers it, and is drawn again the moment a back swipe could reveal it.
             val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
             Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
+            if (!shell && tab == 1) {
+                PrismaLibrary(
+                    session = session,
+                    playlists = myPlaylists,
+                    recent = (playedHere + ((ui as? HomeUi.Ready)?.feed?.recent ?: emptyList())).distinctBy { it.id },
+                    topPadding = statusTop + 128.dp,
+                    bottomPadding = 150.dp + PrismaBarHeight,
+                    onOpen = { push(it) },
+                    openItem = openItem,
+                    playItem = playItem,
+                    onSignIn = onSignOut,
+                )
+            } else
             // Loading, failure and the feed fade into each other instead of snapping.
             AnimatedContent(
                 targetState = ui,
@@ -542,8 +558,20 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .backdropSource(backdrop),
-                    contentPadding = PaddingValues(bottom = 140.dp),
+                    contentPadding = if (shell) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + 128.dp, bottom = 150.dp + PrismaBarHeight),
                 ) {
+                  if (!shell) {
+                    prismaHome(
+                        feed = state.feed,
+                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
+                        playlists = myPlaylists,
+                        guest = session.guest,
+                        onSignIn = onSignOut,
+                        playItem = playItem,
+                        openItem = openItem,
+                        playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
+                    )
+                  } else {
                     item {
                         // Big screens: quick "jump back in" tiles sit beside the banner, filling the space.
                         val jump = if (shell) myPlaylists.take(6).ifEmpty { state.feed.recent.take(6) } else emptyList()
@@ -588,6 +616,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             )
                         }
                     }
+                  }
                 }
             }
             }
@@ -601,6 +630,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // Computers: just behind the search bar (the art banner sits right under it and stays sharp).
             val headerBand = when {
                 desktopShell -> 96.dp
+                !shell -> 150.dp
                 currentWindowDp().screenHeightDp < 600 -> 150.dp
                 else -> 230.dp
             }
@@ -629,6 +659,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         },
                     ),
             )
+            if (!shell) {
+                PrismaHeader(
+                    session = session,
+                    title = if (tab == 1) "Library" else null,
+                    onAvatar = { askSignOut = true },
+                    modifier = Modifier.topBarPadding(),
+                )
+            } else
             Column(
                 Modifier
                     .topBarPadding()
@@ -738,11 +776,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
 
+            val barVisible = !shell && !showPlayer && WindowInsets.ime.getBottom(LocalDensity.current) == 0
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                    .padding(bottom = if (barVisible) PrismaBarHeight - 8.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (preparing) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
@@ -760,6 +800,22 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         modifier = Modifier.widthIn(max = 640.dp).sharedContainer("player", this, RoundedCornerShape(32.dp)),
                     )
                 }
+            }
+            if (barVisible) {
+                PrismaTabBar(
+                    tab = tab,
+                    onTab = { t ->
+                        if (t == 2) {
+                            showSearch = true
+                        } else {
+                            showSearch = false
+                            if (t == tab && stack.isEmpty()) scope.launch { listState.animateScrollToItem(0) }
+                            while (stack.isNotEmpty()) pop()
+                            tab = t
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
         }
         }
@@ -837,7 +893,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = when {
+                .padding(bottom = (if (!shell && !showPlayer) PrismaBarHeight else 0.dp) + when {
                     showPlayer -> 96.dp
                     player.current == null -> 20.dp
                     shell -> 116.dp

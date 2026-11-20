@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Wave</string>
+    <string name="app_name">Wave Prisma</string>
     <string name="widget_description">What\'s playing, with play, previous and next</string>
     <string name="widget_open">Open Wave</string>
     <string name="widget_previous">Previous song</string>
