@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -239,13 +240,17 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
             .clickable(onClick = onOpen)
             .padding(start = 10.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
             Text(now.title, color = c.onSurface, style = body(15.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(now.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable { app.wave.music.playback.PlayerConnection.previous() },
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.SkipPrevious, "Previous song", tint = c.onSurface) }
         Box(
             Modifier.size(46.dp).pressable(RoundedCornerShape(16.dp), song.primary, pressedScale = 0.9f) { app.wave.music.playback.PlayerConnection.togglePlay() },
             contentAlignment = Alignment.Center,

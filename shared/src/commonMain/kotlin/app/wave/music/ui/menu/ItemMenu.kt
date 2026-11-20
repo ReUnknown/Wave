@@ -167,7 +167,8 @@ fun ItemMenuHost(
     if (target != null) {
         // Fully open right away, so every option is on screen and nothing shifts under your finger.
         val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val desktop = LocalDesktop.current
+        // Prisma: the menu opens right where your finger is (phones too), not as a panel.
+        val desktop = true
         /** Runs [action], then slides the sheet away (or closes the dropdown). */
         fun choose(action: () -> Unit) {
             action()
@@ -197,6 +198,7 @@ fun ItemMenuHost(
                 found?.let(go)
             }
         }
+        androidx.compose.runtime.CompositionLocalProvider(LocalDesktop provides true) {
         MenuContainer(desktop, sheet, onDismiss) {
                 when (target) {
                     is MenuTarget.Song -> {
@@ -311,6 +313,7 @@ fun ItemMenuHost(
                         }
                     }
                 }
+        }
         }
     }
     }
@@ -437,9 +440,10 @@ private fun MenuContainer(desktop: Boolean, sheet: androidx.compose.material3.Sh
             androidx.compose.material3.DropdownMenu(
                 expanded = true,
                 onDismissRequest = onDismiss,
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(24.dp),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.widthIn(min = 280.dp, max = 360.dp),
+                shadowElevation = 12.dp,
+                modifier = Modifier.widthIn(min = 260.dp, max = 320.dp),
             ) { content() }
         }
     } else {
@@ -518,9 +522,10 @@ private fun QuickAction(icon: ImageVector, label: String, on: Boolean = false, o
     val row = LocalQuickRow.current
     if (row == null) {
         androidx.compose.material3.DropdownMenuItem(
-            text = { Text(label, fontSize = 15.sp) },
-            leadingIcon = { Icon(icon, null, tint = if (on) c.primary else c.onSurfaceVariant) },
+            text = { Text(label, fontSize = 16.sp, fontWeight = FontWeight.Medium) },
+            leadingIcon = { Icon(icon, null, tint = if (on) c.primary else c.onSurface) },
             onClick = onClick,
+            modifier = Modifier.height(52.dp),
         )
         return
     }
@@ -576,11 +581,12 @@ private fun Option(
     val tint = if (danger) c.error else c.onSurface
     if (LocalDesktop.current) {
         androidx.compose.material3.DropdownMenuItem(
-            text = { Text(label, fontSize = 15.sp, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = { Text(label, fontSize = 16.sp, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = { Icon(icon, null, tint = if (danger) c.error else c.onSurfaceVariant) },
             trailingIcon = if (loading) ({ CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) }) else null,
             enabled = enabled,
             onClick = onClick,
+            modifier = Modifier.height(52.dp),
         )
         return
     }

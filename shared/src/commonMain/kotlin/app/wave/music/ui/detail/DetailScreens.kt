@@ -1,5 +1,8 @@
 package app.wave.music.ui.detail
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Star
 import app.wave.music.platform.topBarPadding
@@ -124,6 +127,8 @@ sealed interface Destination {
     data object History : Destination { override val id = "history" }
     data object Playlists : Destination { override val id = "playlists" }
     data object Saved : Destination { override val id = "saved" }
+    data object Settings : Destination { override val id = "settings" }
+    data class SettingsPage(override val id: String) : Destination
 
     companion object {
         fun of(item: YTItem): Destination? = when (item) {
@@ -144,6 +149,9 @@ class PageActions(
     val open: (YTItem) -> Unit,
     val back: () -> Unit,
     val createPlaylist: () -> Unit = {},
+    /** Opens another page (Prisma's settings pages). */
+    val navigate: (Destination) -> Unit = {},
+    val signOut: () -> Unit = {},
 )
 
 private fun isMusic(item: YTItem): Boolean = when (item) {
@@ -212,6 +220,12 @@ fun DetailScreen(
         Destination.History -> HistoryScreen(actions)
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
+        Destination.Settings -> app.wave.music.ui.settings.PrismaSettingsHome(
+            onBack = actions.back,
+            onSection = { actions.navigate(Destination.SettingsPage(it.id)) },
+            onSignOut = actions.signOut,
+        )
+        is Destination.SettingsPage -> app.wave.music.ui.settings.PrismaSettingsPage(app.wave.music.ui.settings.SettingsSection.of(destination.id), onBack = actions.back)
     }
     }
 }
@@ -516,55 +530,79 @@ private fun Hero(info: HeaderInfo) {
     }
 }
 
-/** Prisma (phones): an album or playlist, centered: its cover, name, who it's by, and the buttons in a row. */
+/**
+ * Prisma (phones): an album or playlist. Its art fills the top of the page with the name and
+ * buttons over its bottom edge; double-tap the art for the square cover, centered, instead.
+ */
 @Composable
 private fun CollectionHero(info: HeaderInfo, onAdd: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val statusTop = topInset()
-    Box(Modifier.fillMaxWidth()) {
-        // The cover's colors glow behind the top of the page.
-        BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxWidth().height(460.dp).clipToBounds().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }, radius = 90.dp)
-        Box(Modifier.fillMaxWidth().height(460.dp).background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.35f), 1f to c.background)))
-        Column(
-            Modifier.fillMaxWidth().padding(top = statusTop + 68.dp, start = 24.dp, end = 24.dp, bottom = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            AsyncImage(
-                model = info.art?.atSize(ArtSize.FULL),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(244.dp).shadow(24.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)),
-            )
-            Text(
-                info.title,
-                Modifier.padding(top = 18.dp),
-                color = c.onBackground,
-                style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            info.subtitle?.let {
-                Text(it, color = c.primary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 17.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            info.meta?.let {
-                Text(it, Modifier.padding(top = 2.dp), color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp))
-            }
-            Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                RoundButton(info.secondary.second, info.secondary.first, onClick = info.onSecondary)
-                Row(
-                    Modifier
-                        .width(196.dp)
-                        .height(52.dp)
-                        .pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = info.onPrimary),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(info.primary.second, null, tint = c.onPrimary)
-                    Text("  ${info.primary.first}", color = c.onPrimary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+    var square by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val flip = Modifier.pointerInput(Unit) { detectTapGestures(onDoubleTap = { square = !square }) }
+    androidx.compose.animation.AnimatedContent(square, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }, label = "cover") { isSquare ->
+        if (!isSquare) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.fillMaxWidth().height(500.dp).then(flip)) {
+                    AsyncImage(info.art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.25f), 0.18f to Color.Transparent, 0.55f to Color.Transparent, 0.85f to c.background.copy(alpha = 0.8f), 1f to c.background)))
+                    CollectionText(info, Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp))
                 }
-                RoundButton(Icons.Rounded.Add, "Save, add or share", onClick = onAdd)
+                CollectionButtons(info, onAdd)
+            }
+        } else {
+            Box(Modifier.fillMaxWidth()) {
+                BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxWidth().height(460.dp).clipToBounds().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }, radius = 90.dp)
+                Box(Modifier.fillMaxWidth().height(460.dp).background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.35f), 1f to c.background)))
+                Column(Modifier.fillMaxWidth().padding(top = statusTop + 68.dp, start = 24.dp, end = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    AsyncImage(
+                        model = info.art?.atSize(ArtSize.FULL),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(244.dp).shadow(24.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).then(flip),
+                    )
+                    CollectionText(info, Modifier.padding(top = 18.dp))
+                    CollectionButtons(info, onAdd)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun CollectionText(info: HeaderInfo, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            info.title,
+            color = c.onBackground,
+            style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        info.subtitle?.let {
+            Text(it, color = c.primary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 17.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        info.meta?.let {
+            Text(it, Modifier.padding(top = 2.dp), color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp))
+        }
+    }
+}
+
+@Composable
+private fun CollectionButtons(info: HeaderInfo, onAdd: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(Modifier.padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        RoundButton(info.secondary.second, info.secondary.first, onClick = info.onSecondary)
+        Row(
+            Modifier.width(196.dp).height(52.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = info.onPrimary),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(info.primary.second, null, tint = c.onPrimary)
+            Text("  ${info.primary.first}", color = c.onPrimary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+        }
+        RoundButton(Icons.Rounded.Add, "Save, add or share", onClick = onAdd)
     }
 }
 
@@ -606,25 +644,6 @@ private fun ArtistHero(info: HeaderInfo, open: (YTItem) -> Unit) {
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.PlayArrow, info.primary.first, tint = c.onPrimary, modifier = Modifier.size(40.dp)) }
             info.followCompact?.invoke() ?: Spacer(Modifier.size(52.dp))
-        }
-        info.latest?.let { (release, kind) ->
-            Row(
-                Modifier
-                    .padding(start = 16.dp, end = 16.dp, top = 20.dp)
-                    .fillMaxWidth()
-                    .pressable(RoundedCornerShape(26.dp), c.surfaceContainerHigh, pressedScale = 0.97f) { open(release) }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                AsyncImage(release.thumbnail?.atSize(ArtSize.CARD), null, Modifier.size(84.dp).clip(RoundedCornerShape(16.dp)), contentScale = ContentScale.Crop)
-                Column(Modifier.weight(1f)) {
-                    val year = (release as? AlbumItem)?.year
-                    Text(listOfNotNull(kind, year?.toString()).joinToString(" · "), color = c.onSurface.copy(alpha = 0.65f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp))
-                    Text(release.title, color = c.onSurface, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 19.sp, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Latest release", color = c.onSurface.copy(alpha = 0.6f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp))
-                }
-            }
         }
         Spacer(Modifier.height(4.dp))
     }
@@ -694,16 +713,16 @@ private fun ArtistScreen(browseId: String, actions: PageActions) {
                 eyebrow = "ARTIST",
                 title = p.artist.title,
                 subtitle = p.monthlyListenerCount ?: p.subscriberCountText,
-                primary = "Shuffle" to Icons.Rounded.Shuffle,
-                onPrimary = { actions.playItem(p.artist, true) },
-                secondary = "Radio" to Icons.Rounded.Sensors,
-                onSecondary = { actions.playItem(p.artist, false) },
+                primary = "Play" to Icons.Rounded.PlayArrow,
+                onPrimary = {
+                    val top = p.sections.firstOrNull { sec -> sec.items.isNotEmpty() && sec.items.all { it is SongItem } }?.items?.filterIsInstance<SongItem>()
+                    if (top.isNullOrEmpty()) actions.playItem(p.artist, true)
+                    else actions.play(QueueBuilder.forList(top, 0, PlaybackContext("artist-${p.artist.id}", "${p.artist.title}: Top songs", p.artist.thumbnail, null, isCollection = false), shuffle = false))
+                },
+                secondary = "Shuffle" to Icons.Rounded.Shuffle,
+                onSecondary = { actions.playItem(p.artist, true) },
                 extra = { FollowButton(p.artist.channelId ?: browseId, p.isSubscribed, p.artist.title) },
                 artist = true,
-                latest = p.sections
-                    .filter { it.title.contains("album", true) || it.title.contains("single", true) }
-                    .flatMap { sec -> sec.items.filterIsInstance<AlbumItem>().map { it to if (sec.title.contains("single", true)) "Single" else "Album" } }
-                    .maxByOrNull { it.first.year ?: 0 },
                 followCompact = { FollowButton(p.artist.channelId ?: browseId, p.isSubscribed, p.artist.title, compact = true) },
             )
         },
@@ -1005,8 +1024,8 @@ private fun FollowButton(channelId: String, initiallyFollowing: Boolean, name: S
     val ink by animateColorAsState(if (following) c.onPrimary else c.onBackground, tween(180), label = "followInk")
     Row(
         Modifier
-            .then(if (compact) Modifier.size(52.dp) else Modifier.fillMaxHeight())
-            .pressable(if (compact) CircleShape else RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), fill, pressedScale = 0.93f) {
+            .then(if (compact) Modifier.height(44.dp) else Modifier.fillMaxHeight())
+            .pressable(if (compact) CircleShape else RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), if (compact && !following) c.onBackground else fill, pressedScale = 0.93f) {
                 if (app.wave.music.data.SessionRepository.isGuest) {
                     app.wave.music.ui.components.Notices.show("Sign in with Google to follow artists")
                     return@pressable
@@ -1025,12 +1044,18 @@ private fun FollowButton(channelId: String, initiallyFollowing: Boolean, name: S
                         }
                 }
             }
-            .padding(horizontal = if (compact) 0.dp else 18.dp),
+            .padding(horizontal = 18.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (compact) {
-            Icon(if (following) Icons.Rounded.Star else Icons.Rounded.StarBorder, if (following) "Following $name" else "Follow $name", tint = ink)
+            val ink = if (following) c.onBackground else c.background
+            if (following) {
+                Icon(Icons.Rounded.NotificationsActive, null, tint = ink, modifier = Modifier.size(18.dp))
+                Text("  Subscribed", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
+            } else {
+                Text("Subscribe", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
+            }
             return@Row
         }
         androidx.compose.animation.AnimatedContent(following, label = "follow") { on ->

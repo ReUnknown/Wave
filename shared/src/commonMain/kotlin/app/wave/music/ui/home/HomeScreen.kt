@@ -547,7 +547,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     playItem = playItem,
                     onSignIn = onSignOut,
                     onNewPlaylist = { createPlaylist = true },
-                    topBar = { PrismaTopBar(session = session, onAvatar = { askSignOut = true }) },
+                    topBar = { PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                 )
             } else
             // Loading, failure and the feed fade into each other instead of snapping.
@@ -584,7 +584,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
-                        topBar = { PrismaTopBar(session = session, onAvatar = { askSignOut = true }) },
+                        topBar = { PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
                   } else {
                     item {
@@ -760,7 +760,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 if (!shell) PrismaSearch(
                     session = session,
                     onClose = { showSearch = false },
-                    onAvatar = { askSignOut = true },
+                    onAvatar = { showSearch = false; push(Destination.Settings) },
                     onPlay = playItem,
                     onOpen = openItem,
                     bottomPadding = 150.dp + PrismaBarHeight,
@@ -795,6 +795,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             open = openItem,
                             back = ::pop,
                             createPlaylist = { createPlaylist = true },
+                            navigate = { push(it) },
+                            signOut = onSignOut,
                         ),
                     )
                 }
