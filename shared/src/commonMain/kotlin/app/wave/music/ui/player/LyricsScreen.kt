@@ -188,7 +188,10 @@ fun LyricsScreen(
     var ui by remember(song.videoId) { mutableStateOf<LyricsUi>(LyricsUi.Loading) }
     var position by remember { mutableLongStateOf(0L) }
     var userScrolledAt by remember { mutableLongStateOf(0L) }
-    val listState = rememberLazyListState()
+    // A fresh list for each song, so a new song never starts scrolled to where the last one was.
+    val listState = remember(song.videoId) { androidx.compose.foundation.lazy.LazyListState() }
+    // New lyrics fade in once they're already on the right line (no jump from the top).
+    val appear = remember(song.videoId) { Animatable(0f) }
     val drag = remember { MutableInteractionSource() }
 
     LaunchedEffect(song.videoId, state.durationMs > 0) {
@@ -223,7 +226,7 @@ fun LyricsScreen(
             }
         }
     }
-    val cascade = remember { Cascade() }
+    val cascade = remember(song.videoId) { Cascade() }
     LaunchedEffect(cascade) {
         while (true) {
             androidx.compose.runtime.withFrameNanos { now -> if (cascade.moving) cascade.tick(now) }
@@ -239,13 +242,23 @@ fun LyricsScreen(
 
     val accent = MaterialTheme.colorScheme.primary
 
+    LaunchedEffect(ui) {
+        if (ui !is LyricsUi.Ready) { appear.snapTo(0f); return@LaunchedEffect }
+        // Wait a frame so the list exists, land on the sung line, then show it.
+        androidx.compose.runtime.withFrameNanos { }
+        val now = (ui as LyricsUi.Ready).lyrics.let { l -> if (l.synced) l.lines.indexOfLast { it.startMs <= PlayerConnection.position + 80 } else -1 }
+        if (now >= 0) runCatching { listState.scrollToItem(now) }
+        appear.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
+    }
+
     // A new line: the list jumps there at once, and each line below springs up after it in turn,
     // so the lyrics ripple into place instead of sliding as one block.
     LaunchedEffect(active, ui) {
         if (active < 0 || System.currentTimeMillis() - userScrolledAt <= 3_500) return@LaunchedEffect
         val delta = listState.anchorDelta(active)
         if (delta == null || kotlin.math.abs(delta) > listState.layoutInfo.viewportSize.height) {
-            listState.centerOn(active, animate = false)
+            // A big jump (a seek, or coming back from scrolling around): glide there instead of snapping.
+            listState.animateScrollToItem(active)
             return@LaunchedEffect
         }
         listState.scrollBy(delta)
@@ -283,7 +296,7 @@ fun LyricsScreen(
             is LyricsUi.Ready -> LazyColumn(
                 state = listState,
                 // Lines stay a readable width on big screens.
-                modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
+                modifier = Modifier.widthIn(max = 760.dp).fillMaxSize().graphicsLayer { alpha = appear.value; translationY = (1f - appear.value) * 24.dp.toPx() },
                 contentPadding = PaddingValues(top = maxHeight * ANCHOR, bottom = maxHeight * (1f - ANCHOR)),
             ) {
                 itemsIndexed(current.lyrics.lines) { index, line ->

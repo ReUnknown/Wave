@@ -264,7 +264,6 @@ private class HeaderInfo(
     /** The small line under the subtitle ("Album · 2024 · 12 songs"). */
     val meta: String? = null,
     /** An artist's newest album or single, shown as a card under the buttons. */
-    val latest: Pair<YTItem, String>? = null,
     /** The artist's follow button, round, for the phone layout. */
     val followCompact: (@Composable () -> Unit)? = null,
 )
@@ -536,34 +535,7 @@ private fun SideHero(info: HeaderInfo, modifier: Modifier) {
     }
 }
 
-@Composable
-private fun Hero(info: HeaderInfo) {
-    val c = MaterialTheme.colorScheme
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(520.dp),
-    ) {
-        ProgressiveBlurImage(info.art?.atSize(1080), Modifier.fillMaxSize(), start = 0.5f, end = 1f, maxRadius = 64.dp)
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(0.4f to Color.Transparent, 0.8f to c.background.copy(alpha = 0.6f), 1f to c.background)),
-        )
-        Column(
-            Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 20.dp),
-        ) {
-            Text(info.eyebrow, style = MaterialTheme.typography.labelSmall, color = c.primary)
-            Text(info.title, style = MaterialTheme.typography.displayMedium, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            info.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            Spacer(Modifier.height(16.dp))
-            HeroButtons(info)
-            Spacer(Modifier.height(8.dp))
-        }
-    }
-}
+
 
 /**
  * Prisma (phones): an album or playlist. Its art fills the top of the page with the name and

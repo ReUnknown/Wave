@@ -5,6 +5,14 @@ object Changelog {
     class Version(val version: String, val title: String, val notes: List<String>)
 
     val versions = listOf(
+        Version("2.0.0-alpha.13", "Smoother all over", listOf(
+            "A new update screen: a peek in About, then the full list of changes and one button to download and install",
+            "Back swipes follow your finger, and pages slide and settle more naturally",
+            "Home and Library cross over, the mini player grows into the dock, Up next rows glide",
+            "Lyrics no longer jump when a song changes or after a seek",
+            "Tablets get the whole new interface",
+            "A shorter, real Attribution list, and some old code cleared out",
+        )),
         Version("2.0.0-alpha.12", "Settings, rebuilt", listOf(
             "Settings in groups: Customize, Appearance, Playback & sound, Storage, Battery and About",
             "Storage: see what saved songs and covers take, set how much room they get, clear them",

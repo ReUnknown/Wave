@@ -154,13 +154,17 @@ fun rememberCovered(covering: Boolean, settleMs: Long = 450): Boolean {
 
 /** A page being swiped back: shrinks a little, rounds its corners and leans toward the edge. */
 fun Modifier.backGesture(progress: () -> Float): Modifier = graphicsLayer {
+    // Follows the swipe: the screen shrinks a little toward the far edge, slides with your finger
+    // and rounds off, so what's underneath shows around it. Letting go carries on from right here.
     val p = WaveMotion.EmphasizedDecelerate.transform(progress().coerceIn(0f, 1f))
-    val scale = 1f - 0.1f * p
+    val scale = 1f - 0.08f * p
     scaleX = scale
     scaleY = scale
-    translationX = p * 24.dp.toPx()
-    shape = RoundedCornerShape(32.dp.toPx() * p)
+    translationX = p * 56.dp.toPx()
+    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0.5f)
+    shape = RoundedCornerShape(36.dp.toPx() * p)
     clip = p > 0f
+    shadowElevation = 16.dp.toPx() * p
 }
 
 /**

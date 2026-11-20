@@ -1,5 +1,8 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -123,7 +126,8 @@ enum class SettingsSection(val id: String, val title: String, val summary: Strin
     Battery("battery", "Battery", "Battery saver, calmer motion", Icons.Rounded.BatteryStd),
     About("about", "About", "Version, updates, what's new, credits", Icons.Rounded.Info),
     Credits("credits", "Attribution", "", Icons.Rounded.Favorite),
-    WhatsNew("whatsnew", "What's new", "", Icons.Rounded.NewReleases);
+    WhatsNew("whatsnew", "What's new", "", Icons.Rounded.NewReleases),
+    Update("update", "Update", "", Icons.Rounded.SystemUpdate);
 
     companion object {
         fun of(id: String) = entries.firstOrNull { it.id == id } ?: Customize
@@ -215,6 +219,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
     if (section == SettingsSection.About) return AboutPage(onBack, open)
     if (section == SettingsSection.Credits) return CreditsPage(onBack)
     if (section == SettingsSection.WhatsNew) return WhatsNewPage(onBack)
+    if (section == SettingsSection.Update) return UpdatePage(onBack)
     SettingsPageFrame(section.title, onBack) {
         when (section) {
             SettingsSection.Customize -> {
@@ -316,7 +321,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 }
                 item { Toggle(Icons.Rounded.SelfImprovement, "Calm motion", "Fewer moving things, like the wavy progress line", settings.calmMotion) { on -> change { it.copy(calmMotion = on) } } }
             }
-            else -> Unit
+            SettingsSection.About, SettingsSection.Credits, SettingsSection.WhatsNew, SettingsSection.Update -> Unit
         }
     }
 }
@@ -429,6 +434,14 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
                 }
             }
         }
+        // A new version: a card with a peek at what's in it, opening the full preview.
+        val found = when (val u = update) {
+            is Updater.State.Available -> u.release
+            is Updater.State.Downloading -> u.release
+            is Updater.State.Ready -> u.release
+            else -> null
+        }
+        if (found != null) item { UpdateCard(found) { open(SettingsSection.Update) } }
         item {
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -488,35 +501,22 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
 private class Credit(val name: String, val what: String, val url: String)
 
 private val builtOn = listOf(
-    Credit("Metrolist InnerTube & InnerTubeX", "The YouTube Music client Wave talks to YouTube Music with (GPL v3)", "https://github.com/MetrolistGroup/Metrolist"),
-    Credit("Haze", "The frosted glass blur, by Chris Banes (Apache 2.0)", "https://github.com/chrisbanes/haze"),
-    Credit("Jetpack Compose & Compose Multiplatform", "Wave's whole interface (Apache 2.0)", "https://www.jetbrains.com/compose-multiplatform/"),
-    Credit("Material 3 Expressive", "Shapes, motion and components (Apache 2.0)", "https://m3.material.io"),
-    Credit("Media3 / ExoPlayer", "Playback, the notification and lock screen controls (Apache 2.0)", "https://github.com/androidx/media"),
-    Credit("Coil", "Loading covers and art (Apache 2.0)", "https://github.com/coil-kt/coil"),
-    Credit("Ktor & kotlinx", "Networking, JSON and coroutines (Apache 2.0)", "https://ktor.io"),
+    Credit("Metrolist InnerTube & InnerTubeX", "How Wave talks to YouTube Music (GPL v3)", "https://github.com/MetrolistGroup/Metrolist"),
+    Credit("Compose Multiplatform & Jetpack Compose", "Wave's whole interface (Apache 2.0)", "https://www.jetbrains.com/compose-multiplatform/"),
+    Credit("Material 3", "Components, shapes and motion (Apache 2.0)", "https://m3.material.io"),
+    Credit("Media3 / ExoPlayer", "Playback and the notification controls (Apache 2.0)", "https://github.com/androidx/media"),
+    Credit("Haze", "The frosted glass, by Chris Banes (Apache 2.0)", "https://github.com/chrisbanes/haze"),
+    Credit("Coil", "Loading covers (Apache 2.0)", "https://github.com/coil-kt/coil"),
+    Credit("Ktor", "Networking (Apache 2.0)", "https://ktor.io"),
     Credit("Reorderable", "Drag to reorder Up next, by Calvin Liang (Apache 2.0)", "https://github.com/Calvin-LL/Reorderable"),
-    Credit("Timber", "Logging, by Jake Wharton (Apache 2.0)", "https://github.com/JakeWharton/timber"),
     Credit("LRCLIB", "Time-synced lyrics", "https://lrclib.net"),
     Credit("Better Lyrics", "Word-by-word lyrics", "https://github.com/better-lyrics"),
-    Credit("Google Sans", "Prisma's font, from your phone", "https://fonts.google.com"),
-)
-
-private val inspiredBy = listOf(
-    Credit("InnerTune", "Settings on their own pages, and the About page", "https://github.com/z-huang/InnerTune"),
-    Credit("BitChord", "Home's top picks, and Apple-style lyric motion (credited to binimum)", "https://alternativeto.net/software/bitchord/about/"),
-    Credit("Apple Music", "The big artist name tag, and lyrics that ripple into place", "https://music.apple.com"),
-    Credit("YouTube Music", "Where all the music comes from", "https://music.youtube.com"),
-    Credit("Netflix & YouTube for TV", "The photo that stays behind the page as you scroll", "https://www.netflix.com"),
 )
 
 @Composable
 private fun CreditsPage(onBack: () -> Unit) {
     SettingsPageFrame("Attribution", onBack) {
-        item { GroupLabel("Built with") }
         builtOn.forEach { credit -> item(key = credit.name) { CreditRow(credit) } }
-        item { GroupLabel("Inspired by") }
-        inspiredBy.forEach { credit -> item(key = "i-" + credit.name) { CreditRow(credit) } }
         item {
             Text(
                 "Thank you to everyone who works on these. Wave isn't affiliated with any of them.",
@@ -667,3 +667,151 @@ private fun <T> Choice(icon: ImageVector, title: String, description: String, op
         }
     }
 }
+
+
+/** A release's notes, read from its markdown: headings, bullet points and plain lines. */
+private sealed interface NoteLine {
+    class Heading(val text: String) : NoteLine
+    class Bullet(val text: String) : NoteLine
+    class Plain(val text: String) : NoteLine
+}
+
+private fun parseNotes(notes: String): List<NoteLine> = notes.lines().mapNotNull { raw ->
+    val line = raw.trim().replace("**", "").replace("__", "")
+    when {
+        line.isBlank() -> null
+        line.startsWith("#") -> NoteLine.Heading(line.trimStart('#').trim())
+        line.startsWith("- ") || line.startsWith("* ") || line.startsWith("• ") -> NoteLine.Bullet(line.drop(2).trim())
+        else -> NoteLine.Plain(line)
+    }
+}
+
+/** The Wave mark, gently rising and falling, for the update screens. */
+@Composable
+private fun FloatingMark(color: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "mark")
+    val lift by t.animateFloat(-1f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(1800, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "lift")
+    Box(Modifier.graphicsLayer { translationY = lift * 6.dp.toPx(); rotationZ = lift * 3f }) { WaveMark(color, size = size) }
+}
+
+
+/** About's update card: song-colored, with the first few changes. */
+@Composable
+private fun UpdateCard(release: Updater.Release, onOpen: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val preview = parseNotes(release.notes).filterIsInstance<NoteLine.Bullet>().take(3)
+    Column(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(c.primaryContainer, c.tertiaryContainer)))
+            .clickable(onClick = onOpen)
+            .padding(20.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            FloatingMark(c.onPrimaryContainer, 40.dp)
+            Column(Modifier.weight(1f)) {
+                Text("NEW VERSION", color = c.onPrimaryContainer.copy(alpha = 0.7f), style = body(11.sp, FontWeight.Bold).copy(letterSpacing = 1.sp))
+                Text("Wave ${release.version} is here", color = c.onPrimaryContainer, style = display(20.sp))
+            }
+        }
+        preview.forEach { note ->
+            Text("•  ${note.text}", Modifier.padding(top = 8.dp), color = c.onPrimaryContainer.copy(alpha = 0.85f), style = body(14.sp).copy(lineHeight = 19.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Box(
+            Modifier.padding(top = 16.dp).height(44.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = onOpen).padding(horizontal = 20.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text("See what's new", color = c.onPrimary, style = body(15.sp, FontWeight.SemiBold)) }
+    }
+}
+
+/** The update preview: what's new in it, line by line, and one button that downloads then installs. */
+@Composable
+private fun UpdatePage(onBack: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val update by Updater.state.collectAsState()
+    val release = when (val u = update) {
+        is Updater.State.Available -> u.release
+        is Updater.State.Downloading -> u.release
+        is Updater.State.Ready -> u.release
+        else -> null
+    }
+    Box(Modifier.fillMaxSize()) {
+        SettingsPageFrame("", onBack) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    FloatingMark(c.primary, 88.dp)
+                    Text(if (release != null) "Wave ${release.version}" else "You're up to date", Modifier.padding(top = 14.dp), color = c.onBackground, style = display(32.sp))
+                    Text("You have ${WavePlatform.current.appVersion}", color = c.onBackground.copy(alpha = 0.6f), style = body(14.sp))
+                }
+            }
+            if (release != null) {
+                parseNotes(release.notes).forEachIndexed { i, line ->
+                    item(key = "n$i") {
+                        // Each line slides up into place, one after another.
+                        val appear = remember { androidx.compose.animation.core.Animatable(0f) }
+                        LaunchedEffect(Unit) {
+                            kotlinx.coroutines.delay((i * 45L).coerceAtMost(600L))
+                            appear.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 260f))
+                        }
+                        Box(Modifier.graphicsLayer { alpha = appear.value; translationY = (1f - appear.value) * 18.dp.toPx() }) {
+                            when (line) {
+                                is NoteLine.Heading -> Text(line.text, Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 4.dp), color = c.primary, style = display(18.sp))
+                                is NoteLine.Bullet -> Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Box(Modifier.padding(top = 7.dp).size(7.dp).clip(CircleShape).background(c.primary))
+                                    Text(line.text, color = c.onBackground.copy(alpha = 0.85f), style = body(15.sp).copy(lineHeight = 21.sp))
+                                }
+                                is NoteLine.Plain -> Text(line.text, Modifier.padding(horizontal = 20.dp, vertical = 6.dp), color = c.onBackground.copy(alpha = 0.75f), style = body(15.sp).copy(lineHeight = 21.sp))
+                            }
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        "See it on GitHub",
+                        Modifier.padding(horizontal = 20.dp, vertical = 16.dp).clickable { WavePlatform.current.openUrl(release.pageUrl) },
+                        color = c.primary, style = body(14.sp, FontWeight.SemiBold),
+                    )
+                }
+                item { Box(Modifier.height(96.dp)) }
+            }
+        }
+        // One button at the bottom: Download, then a filling progress bar, then Install.
+        if (release != null) {
+            val progress = (update as? Updater.State.Downloading)?.progress
+            val fill by androidx.compose.animation.core.animateFloatAsState(progress ?: if (update is Updater.State.Ready) 1f else 0f, tween(300), label = "dl")
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 20.dp)
+                    .widthIn(max = 520.dp)
+                    .fillMaxWidth()
+                    .height(58.dp)
+                    .clip(CircleShape)
+                    .background(c.primary.copy(alpha = if (progress != null) 0.35f else 1f))
+                    .clickable(enabled = progress == null) {
+                        when (val u = update) {
+                            is Updater.State.Available -> scope.launch { Updater.download(u.release) }
+                            is Updater.State.Ready -> Updater.install(u.file)
+                            else -> Unit
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (progress != null) Box(Modifier.align(Alignment.CenterStart).fillMaxSize().fillMaxWidth(fill.coerceIn(0f, 1f)).background(c.primary))
+                Text(
+                    when {
+                        progress != null -> "Downloading ${(progress * 100).toInt()}%"
+                        update is Updater.State.Ready -> "Install now"
+                        else -> "Download update"
+                    },
+                    color = c.onPrimary, style = display(17.sp),
+                )
+            }
+        }
+    }
+}
+

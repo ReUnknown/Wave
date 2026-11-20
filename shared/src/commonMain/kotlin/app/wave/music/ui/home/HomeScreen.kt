@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
 import app.wave.music.ui.components.glass
 import dev.chrisbanes.haze.hazeSource
 import app.wave.music.platform.topBarPadding
@@ -371,7 +373,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // get the phone layout, so nothing is ever squeezed.
     val conf = currentWindowDp()
     val wideWindow = conf.screenWidthDp >= 840
-    val tabletShell = !desktop && wideWindow && conf.smallestScreenWidthDp >= 600
+    // Wave Prisma: tablets use the whole new interface (the dock, Prisma's pages and player),
+    // sized for the bigger screen, instead of the old big-screen layout.
+    val tabletShell = false
     val desktopShell = desktop && wideWindow
     val shell = desktopShell || tabletShell
     // Prisma's home, library, search and backgrounds: phones and tablets. Tablets keep their own
@@ -561,7 +565,16 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
             // Modern with song colors: the whole background is the playing cover, blurred to nothing but color.
             if (prisma && !settings.legacyUi && settings.matchSongColors) AppBackdrop(player.current?.artworkUrl)
-            if (prisma && tab == 1) {
+            // Home and Library cross over with a little lift instead of swapping in place.
+            AnimatedContent(
+                prisma && tab == 1,
+                transitionSpec = {
+                    (fadeIn(tween(240, delayMillis = 40)) + scaleIn(tween(300, easing = WaveMotion.EmphasizedDecelerate), initialScale = 0.97f)) togetherWith
+                        fadeOut(tween(140))
+                },
+                label = "tab",
+            ) { showLibrary ->
+            if (showLibrary) {
                 PrismaLibrary(
                     session = session,
                     playlists = myPlaylists,
@@ -674,6 +687,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     }
                   }
                 }
+            }
             }
             }
             }
@@ -828,10 +842,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             AnimatedContent(
                 targetState = stack.lastOrNull(),
                 transitionSpec = {
-                    val dir = if (forward) 1 else -1
-                    (slideInHorizontally(tween(300, easing = WaveMotion.EmphasizedDecelerate)) { dir * it / 4 } + fadeIn(tween(180, delayMillis = 30))) togetherWith
-                        (slideOutHorizontally(tween(200, easing = WaveMotion.EmphasizedAccelerate)) { -dir * it / 8 } + fadeOut(tween(120))) using
-                        SizeTransform(clip = false)
+                    // Deeper: the new page slides in over the old one, which sinks back a touch.
+                    // Back: the page slides off to the right, and the one under it rises back up.
+                    if (forward) {
+                        ((slideInHorizontally(tween(340, easing = WaveMotion.EmphasizedDecelerate)) { it / 3 } + fadeIn(tween(200, delayMillis = 20))) togetherWith
+                            (scaleOut(tween(300, easing = WaveMotion.Emphasized), targetScale = 0.94f) + fadeOut(tween(220)))).apply { targetContentZIndex = 1f }
+                    } else {
+                        ((scaleIn(tween(320, easing = WaveMotion.EmphasizedDecelerate), initialScale = 0.94f) + fadeIn(tween(220))) togetherWith
+                            (slideOutHorizontally(tween(260, easing = WaveMotion.EmphasizedAccelerate)) { it / 3 } + fadeOut(tween(220, delayMillis = 40)))).apply { targetContentZIndex = -1f }
+                    } using SizeTransform(clip = false)
                 },
                 label = "pages",
             ) { dest ->

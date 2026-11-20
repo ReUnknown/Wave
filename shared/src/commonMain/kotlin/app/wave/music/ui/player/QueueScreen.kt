@@ -210,7 +210,7 @@ fun QueueScreen(
             }
 
             items(entries, key = { it.key }) { entry ->
-                ReorderableItem(reorder, key = entry.key) { isDragging ->
+                ReorderableItem(reorder, key = entry.key, modifier = Modifier.animateItem()) { isDragging ->
                     // Picked up: it lifts and grows a touch; let go and it settles back in.
                     val lift by animateFloatAsState(if (isDragging) 1f else 0f, WaveMotion.bouncy(), label = "lift")
                     Row(

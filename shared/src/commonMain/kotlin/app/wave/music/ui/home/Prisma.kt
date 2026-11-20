@@ -1,5 +1,8 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import app.wave.music.ui.components.glass
 import app.wave.music.ui.menu.menuAnchor
@@ -232,17 +235,32 @@ fun PrismaTabBar(
     Column(
         modifier
             .fillMaxWidth()
+            // Tablets: a comfortable dock in the middle instead of one stretched edge to edge.
+            .widthIn(max = 640.dp)
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (split && now != null) {
-            Box(Modifier.fillMaxWidth().then(glass)) { DockSong(now, playing, onOpenPlayer, loading) }
+        // The song grows into the dock when something starts playing, and folds away when it stops.
+        var lastSong by remember { mutableStateOf(now) }
+        if (now != null) lastSong = now
+        androidx.compose.animation.AnimatedVisibility(
+            visible = split && now != null,
+            enter = androidx.compose.animation.expandVertically(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) + androidx.compose.animation.fadeIn(tween(220)),
+            exit = androidx.compose.animation.shrinkVertically(tween(240)) + androidx.compose.animation.fadeOut(tween(160)),
+        ) {
+            lastSong?.let { song -> Box(Modifier.fillMaxWidth().then(glass)) { DockSong(song, playing, onOpenPlayer, loading) } }
         }
         if (showTabs) Column(Modifier.fillMaxWidth().then(glass)) {
-            if (!split && now != null) {
-                DockSong(now, playing, onOpenPlayer, loading)
-                Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(c.onSurface.copy(alpha = 0.08f)))
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !split && now != null,
+                enter = androidx.compose.animation.expandVertically(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) + androidx.compose.animation.fadeIn(tween(220)),
+                exit = androidx.compose.animation.shrinkVertically(tween(240)) + androidx.compose.animation.fadeOut(tween(160)),
+            ) {
+                Column {
+                    lastSong?.let { song -> DockSong(song, playing, onOpenPlayer, loading) }
+                    Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(c.onSurface.copy(alpha = 0.08f)))
+                }
             }
             Row(
                 Modifier.fillMaxWidth().height(PrismaBarHeight - 16.dp).padding(7.dp),
@@ -463,8 +481,8 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
     Box(
         Modifier
             // Tablets: bigger picks, since there's room.
-            .width((if (app.wave.music.platform.PrismaLook.dense) 176.dp else 224.dp) * (if (app.wave.music.ui.components.LocalShell.current) 1.25f else 1f))
-            .height((if (app.wave.music.platform.PrismaLook.dense) 232.dp else 296.dp) * (if (app.wave.music.ui.components.LocalShell.current) 1.25f else 1f))
+            .width((if (app.wave.music.platform.PrismaLook.dense) 176.dp else 224.dp) * (if (app.wave.music.platform.currentWindowDp().screenWidthDp >= 600) 1.25f else 1f))
+            .height((if (app.wave.music.platform.PrismaLook.dense) 232.dp else 296.dp) * (if (app.wave.music.platform.currentWindowDp().screenWidthDp >= 600) 1.25f else 1f))
             .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(onClick = { onClick(item) }, onLongClick = { menu.openFor(item) }),
