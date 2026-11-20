@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -91,6 +92,10 @@ fun SettingsContent() {
     Group {
         Toggle(Icons.Rounded.Palette, "Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on ->
             change { it.copy(matchSongColors = on) }
+        }
+        Divider()
+        Toggle(Icons.Rounded.DarkMode, "AMOLED black", "Pure black backgrounds in dark mode, easy on OLED screens and the battery", settings.amoled) { on ->
+            change { it.copy(amoled = on) }
         }
         Divider()
         Toggle(Icons.Rounded.GraphicEq, "Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on ->

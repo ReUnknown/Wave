@@ -408,7 +408,17 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
     }
     val pageLook = remember { app.wave.music.ui.components.PageLook() }
-    val appScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: (if (shell) hero?.art else null) else null)
+    val artScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: (if (shell) hero?.art else null) else null)
+    val appScheme = if (settings.amoled && artScheme.background.luminance() < 0.5f) artScheme.copy(
+        background = Color.Black,
+        surface = Color.Black,
+        surfaceDim = Color.Black,
+        surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = Color(0xFF0B0B0B),
+        surfaceContainer = Color(0xFF121212),
+        surfaceContainerHigh = Color(0xFF1B1B1B),
+        surfaceContainerHighest = Color(0xFF242424),
+    ) else artScheme
     val pageCovers = rememberCovered(stack.isNotEmpty())
     val playerCovers = rememberCovered(showPlayer && player.current != null && !docked)
     val searchCovers = rememberCovered(showSearch)
@@ -443,6 +453,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // What darkens (dark mode) or lightens (light mode) a busy picture under text.
         val scrim = if (c.background.luminance() < 0.5f) Color.Black else Color.White
         val backdrop = rememberBackdrop()
+        val barBackdrop = rememberBackdrop()
         val listState = rememberLazyListState()
         val greetingAlpha by remember {
             derivedStateOf {
@@ -521,18 +532,21 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully
             // covers it, and is drawn again the moment a back swipe could reveal it.
             val homeHidden = (pageCovers || playerCovers || searchCovers) && !peeking.value
+            Box(Modifier.fillMaxSize().then(if (!shell) Modifier.backdropSource(barBackdrop) else Modifier)) {
             Box(Modifier.fillMaxSize().drawWithContent { if (!homeHidden) drawContent() }) {
             if (!shell && tab == 1) {
                 PrismaLibrary(
                     session = session,
                     playlists = myPlaylists,
                     recent = (playedHere + ((ui as? HomeUi.Ready)?.feed?.recent ?: emptyList())).distinctBy { it.id },
-                    topPadding = statusTop + PrismaTopHeight + 6.dp,
+                    topPadding = statusTop + 4.dp,
                     bottomPadding = 150.dp + PrismaBarHeight,
                     onOpen = { push(it) },
                     openItem = openItem,
                     playItem = playItem,
                     onSignIn = onSignOut,
+                    onNewPlaylist = { createPlaylist = true },
+                    topBar = { PrismaTopBar(session = session, onAvatar = { askSignOut = true }) },
                 )
             } else
             // Loading, failure and the feed fade into each other instead of snapping.
@@ -558,7 +572,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .backdropSource(backdrop),
-                    contentPadding = if (shell) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + PrismaTopHeight + 6.dp, bottom = 150.dp + PrismaBarHeight),
+                    contentPadding = if (shell) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + 4.dp, bottom = 150.dp + PrismaBarHeight),
                 ) {
                   if (!shell) {
                     prismaHome(
@@ -569,6 +583,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
+                        topBar = { PrismaTopBar(session = session, onAvatar = { askSignOut = true }) },
                     )
                   } else {
                     item {
@@ -666,7 +681,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     ),
             )
             if (!shell) {
-                PrismaTopBar(session = session, onAvatar = { askSignOut = true }, modifier = Modifier.topBarPadding())
+                // Prisma: the top bar is the first row of the page and scrolls away with it.
             } else
             Column(
                 Modifier
@@ -741,7 +756,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 // Same for search when a page opened from it covers it.
                 modifier = Modifier.drawWithContent { if (!(pageCovers && !peeking.value)) drawContent() },
             ) {
-                SearchScreen(
+                if (!shell) PrismaSearch(
+                    session = session,
+                    onClose = { showSearch = false },
+                    onAvatar = { askSignOut = true },
+                    onPlay = playItem,
+                    onOpen = openItem,
+                    bottomPadding = 150.dp + PrismaBarHeight,
+                ) else SearchScreen(
                     onClose = { showSearch = false },
                     onPlay = playItem,
                     onPlayNext = playNext,
@@ -777,6 +799,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
 
+            }
             val barVisible = !shell && !showPlayer && WindowInsets.ime.getBottom(LocalDensity.current) == 0
             Column(
                 Modifier
@@ -794,12 +817,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
+                    MaterialTheme(colorScheme = rememberArtColorScheme(player.current?.artworkUrl)) {
                     MiniPlayer(
                         player,
                         onOpen = { showPlayer = true },
                         // A comfortable size on big screens instead of spanning the whole window.
                         modifier = Modifier.widthIn(max = 640.dp).sharedContainer("player", this, RoundedCornerShape(32.dp)),
                     )
+                    }
                 }
             }
             if (barVisible) {
@@ -816,6 +841,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     },
                     modifier = Modifier.align(Alignment.BottomCenter),
+                    backdrop = barBackdrop,
                 )
             }
         }

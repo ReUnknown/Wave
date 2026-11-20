@@ -36,6 +36,8 @@ data class Settings(
     val waveMini: Boolean = false,
     /** Computers: the "no longer updated" notice at the top of the window has been closed. */
     val desktopNoticeClosed: Boolean = false,
+    /** Pure black behind everything in dark mode (saves battery on OLED screens). */
+    val amoled: Boolean = false,
 )
 
 
@@ -55,6 +57,7 @@ object WaveSettings {
     private val scale = androidx.datastore.preferences.core.floatPreferencesKey("ui_scale")
     private val mini = booleanPreferencesKey("wave_mini")
     private val noticeClosed = booleanPreferencesKey("desktop_notice_closed")
+    private val amoledKey = booleanPreferencesKey("amoled")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -78,6 +81,7 @@ object WaveSettings {
             uiScale = p[scale] ?: 0.9f,
             waveMini = p[mini] ?: false,
             desktopNoticeClosed = p[noticeClosed] ?: false,
+            amoled = p[amoledKey] ?: false,
         )
         loaded = true
     }
@@ -100,6 +104,7 @@ object WaveSettings {
             it[scale] = next.uiScale
             it[mini] = next.waveMini
             it[noticeClosed] = next.desktopNoticeClosed
+            it[amoledKey] = next.amoled
         }
     }
 

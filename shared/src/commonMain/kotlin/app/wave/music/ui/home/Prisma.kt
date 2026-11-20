@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
@@ -50,7 +51,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -89,7 +96,7 @@ import com.metrolist.innertube.models.YTItem
  */
 
 /** Height of the bottom bar, not counting the gesture bar under it. */
-val PrismaBarHeight: Dp = 72.dp
+val PrismaBarHeight: Dp = 86.dp
 
 /** Height of the bar at the top (the Wave mark and your picture) under the status bar. */
 val PrismaTopHeight: Dp = 60.dp
@@ -103,7 +110,7 @@ private fun body(size: TextUnit, weight: FontWeight = FontWeight.Normal) =
 
 // ---------------------------------------------------------------- The top
 
-/** Wave's mark on the left and your picture on the right, the same size. Stays put while you scroll. */
+/** Wave's mark on the left and your picture on the right, the same size. Scrolls away with the page. */
 @Composable
 fun PrismaTopBar(session: Session, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
@@ -138,47 +145,68 @@ fun PrismaTopBar(session: Session, onAvatar: () -> Unit, modifier: Modifier = Mo
  * (like WaveMini's tabs); the others stay as icons.
  */
 @Composable
-fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier, backdrop: app.wave.music.ui.components.Backdrop? = null) {
     val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(32.dp)
+    var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     Box(
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Row(
+        Box(
             Modifier
                 .fillMaxWidth()
                 .height(PrismaBarHeight - 16.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(c.surfaceContainerHigh.copy(alpha = 0.97f))
-                .border(1.dp, c.onSurface.copy(alpha = 0.08f), RoundedCornerShape(28.dp))
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .onGloballyPositioned { origin = it.positionInRoot() }
+                .clip(shape),
         ) {
-            val tabs = listOf(
-                Triple("Home", Icons.Rounded.Home, Icons.Outlined.Home),
-                Triple("Library", Icons.Rounded.LibraryMusic, Icons.Outlined.LibraryMusic),
-                Triple("Search", Icons.Rounded.Search, Icons.Rounded.Search),
-            )
-            tabs.forEachIndexed { i, (label, on, off) ->
-                val selected = i == tab
-                val weight by animateFloatAsState(if (selected) 1.8f else 1f, app.wave.music.ui.components.WaveMotion.bouncy(), label = "tabWeight")
-                val fill by animateColorAsState(if (selected) c.primary else Color.Transparent, tween(180), label = "tabFill")
-                val ink by animateColorAsState(if (selected) c.onPrimary else c.onSurfaceVariant, tween(180), label = "tabInk")
-                Row(
+            // A blur of whatever's behind the bar, then a light tint so the icons read.
+            if (backdrop != null) {
+                Box(
                     Modifier
-                        .weight(weight)
-                        .fillMaxHeight()
-                        .pressable(RoundedCornerShape(22.dp), fill, pressedScale = 0.92f) { onTab(i) },
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(if (selected) on else off, label, tint = ink, modifier = Modifier.size(24.dp))
-                    if (selected) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(label, color = ink, style = display(15.sp, FontWeight.Bold), maxLines = 1)
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            val r = 28.dp.toPx()
+                            renderEffect = androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp)
+                        }
+                        .drawBehind {
+                            backdrop.version
+                            translate(-origin.x, -origin.y) { drawLayer(backdrop.layer) }
+                        },
+                )
+            }
+            Box(Modifier.fillMaxSize().background(c.surfaceContainer.copy(alpha = if (backdrop != null) 0.58f else 0.97f)))
+            Box(Modifier.fillMaxSize().border(1.dp, c.onSurface.copy(alpha = 0.1f), shape))
+            Row(
+                Modifier.fillMaxSize().padding(7.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val tabs = listOf(
+                    Triple("Home", Icons.Rounded.Home, Icons.Outlined.Home),
+                    Triple("Library", Icons.Rounded.LibraryMusic, Icons.Outlined.LibraryMusic),
+                    Triple("Search", Icons.Rounded.Search, Icons.Rounded.Search),
+                )
+                tabs.forEachIndexed { i, (label, on, off) ->
+                    val selected = i == tab
+                    val weight by animateFloatAsState(if (selected) 1.8f else 1f, app.wave.music.ui.components.WaveMotion.bouncy(), label = "tabWeight")
+                    val fill by animateColorAsState(if (selected) c.primary else Color.Transparent, tween(180), label = "tabFill")
+                    val ink by animateColorAsState(if (selected) c.onPrimary else c.onSurface.copy(alpha = 0.75f), tween(180), label = "tabInk")
+                    Row(
+                        Modifier
+                            .weight(weight)
+                            .fillMaxHeight()
+                            .pressable(RoundedCornerShape(26.dp), fill, pressedScale = 0.92f) { onTab(i) },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(if (selected) on else off, label, tint = ink, modifier = Modifier.size(26.dp))
+                        if (selected) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(label, color = ink, style = display(16.sp, FontWeight.Bold), maxLines = 1)
+                        }
                     }
                 }
             }
@@ -236,7 +264,9 @@ fun LazyListScope.prismaHome(
     playItem: (YTItem, Boolean) -> Unit,
     openItem: (YTItem) -> Unit,
     playSongs: (String, List<SongItem>, Int) -> Unit,
+    topBar: @Composable () -> Unit,
 ) {
+    item(key = "top") { topBar() }
     val picks = picksFrom(feed, recent)
     if (picks.isNotEmpty()) {
         item(key = "picks-h") { PrismaSectionTitle("Top picks for you", first = true) }
@@ -295,13 +325,18 @@ fun LazyListScope.prismaHome(
 }
 
 @Composable
-private fun PrismaSectionTitle(title: String, label: String? = null, first: Boolean = false) {
+private fun PrismaSectionTitle(title: String, label: String? = null, first: Boolean = false, onClick: (() -> Unit)? = null) {
     val c = MaterialTheme.colorScheme
-    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (first) 4.dp else 22.dp, bottom = 10.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(start = 16.dp, end = 16.dp, top = if (first) 4.dp else 22.dp, bottom = 10.dp),
+    ) {
         if (!label.isNullOrBlank()) Text(label.uppercase(), color = c.onBackground.copy(alpha = 0.6f), style = body(11.sp, FontWeight.Bold).copy(letterSpacing = 1.sp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = c.onBackground, style = display(21.sp, FontWeight.Bold, (-0.2).sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onBackground.copy(alpha = 0.5f))
+            if (onClick != null) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "See all", tint = c.onBackground.copy(alpha = 0.6f))
         }
     }
 }
@@ -408,7 +443,11 @@ private fun SongLine(song: SongItem, onClick: () -> Unit) {
 
 // ---------------------------------------------------------------- Library
 
-/** Your library: a title that scrolls away, tiles for the main parts, then playlists and what you played lately. */
+/**
+ * Your library: the top bar and a title that scroll away, tiles for the main parts, your
+ * playlists in a row (the arrow opens all of them), then what you played lately (the arrow opens
+ * your history).
+ */
 @Composable
 fun PrismaLibrary(
     session: Session,
@@ -420,10 +459,13 @@ fun PrismaLibrary(
     openItem: (YTItem) -> Unit,
     playItem: (YTItem, Boolean) -> Unit,
     onSignIn: () -> Unit,
+    onNewPlaylist: () -> Unit,
+    topBar: @Composable () -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding)) {
-        item { Text("Library", color = c.onBackground, style = display(32.sp, FontWeight.Bold, (-0.6).sp), modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 12.dp)) }
+        item { topBar() }
+        item { Text("Library", color = c.onBackground, style = display(32.sp, FontWeight.Bold, (-0.6).sp), modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 14.dp)) }
         if (session.guest) {
             item {
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -453,14 +495,30 @@ fun PrismaLibrary(
                 }
             }
         }
-        if (playlists.isNotEmpty()) {
-            item { PrismaSectionTitle("Your playlists") }
-            items(playlists, key = { "lp" + it.id }) { list -> LibraryRow(list) { openItem(list) } }
+        item { PrismaSectionTitle("Your playlists", onClick = { onOpen(Destination.Playlists) }) }
+        item {
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { NewPlaylistCard(onNewPlaylist) }
+                items(playlists, key = { "lp" + it.id }) { list -> SquareCard(list, onClick = openItem) }
+            }
         }
         if (recent.isNotEmpty()) {
-            item { PrismaSectionTitle("Played lately") }
-            items(recent.take(10), key = { "lr" + it.id }) { song -> LibraryRow(song) { playItem(song, false) } }
+            item { PrismaSectionTitle("Played lately", onClick = { onOpen(Destination.History) }) }
+            items(recent.take(8), key = { "lr" + it.id }) { song -> LibraryRow(song) { playItem(song, false) } }
         }
+    }
+}
+
+/** The first card in your playlists: makes a new one. */
+@Composable
+private fun NewPlaylistCard(onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.width(128.dp).clickable(onClick = onClick)) {
+        Box(
+            Modifier.size(128.dp).clip(RoundedCornerShape(18.dp)).background(c.surfaceContainerHigh).border(1.dp, c.onSurface.copy(alpha = 0.1f), RoundedCornerShape(18.dp)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(androidx.compose.material.icons.Icons.Rounded.Add, null, tint = c.primary, modifier = Modifier.size(40.dp)) }
+        Text("New playlist", color = c.onBackground, style = body(14.sp, FontWeight.Medium), modifier = Modifier.padding(top = 6.dp))
     }
 }
 
