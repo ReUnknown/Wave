@@ -416,9 +416,8 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
     SettingsPageFrame("", onBack) {
         item {
             Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(112.dp).clip(RoundedCornerShape(36.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                    WaveMark(c.onPrimaryContainer, size = 64.dp)
-                }
+                // Just the Wave mark, white on the page (dark in light mode).
+                WaveMark(c.onBackground, size = 96.dp)
                 Text("Wave", Modifier.padding(top = 16.dp), color = c.onBackground, style = display(32.sp))
                 Text("Prisma ${WavePlatform.current.appVersion}", color = c.onBackground.copy(alpha = 0.65f), style = body(15.sp))
                 Row(
