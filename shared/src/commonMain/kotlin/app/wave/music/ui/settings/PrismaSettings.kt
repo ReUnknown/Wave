@@ -1,5 +1,14 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.Forward10
+import androidx.compose.material.icons.rounded.ViewCompact
+import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,8 +97,8 @@ import kotlinx.coroutines.launch
 
 /** The sections, in the order they're listed. */
 enum class SettingsSection(val id: String, val title: String, val summary: String, val icon: ImageVector) {
-    Customize("customize", "Customize", "Modern or Legacy, bar or search, mini player", Icons.Rounded.Dashboard),
-    Looks("looks", "Appearance", "Song colors, AMOLED black, motion", Icons.Rounded.Palette),
+    Customize("customize", "Customize", "Modern or Legacy, layout, corners, buttons, haptics", Icons.Rounded.Dashboard),
+    Looks("looks", "Appearance", "Theme, background, blur, text size, colors", Icons.Rounded.Palette),
     Sound("sound", "Sound", "Quality, even volume, crossfade", Icons.Rounded.Tune),
     Playback("playback", "Playback", "Autoplay, skip silence, battery", Icons.Rounded.PlayCircle),
     About("about", "Updates & about", "Version and updates", Icons.Rounded.Info);
@@ -217,8 +226,52 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit) {
                         settings.separateMiniPlayer || settings.topSearch,
                     ) { on -> change { it.copy(separateMiniPlayer = on) } }
                 }
+                item {
+                    Choice(
+                        Icons.Rounded.RoundedCorner, "Corners", "How round cards, menus and the bar are",
+                        listOf(0 to "Rounded", 1 to "Squircle", 2 to "Sharp"), settings.cornerStyle,
+                    ) { v -> change { it.copy(cornerStyle = v) } }
+                }
+                item { Toggle(Icons.Rounded.ViewCompact, "Denser home", "Smaller cards, so you see more at once", settings.denseHome) { on -> change { it.copy(denseHome = on) } } }
+                item {
+                    Choice(
+                        Icons.Rounded.Forward10, "Buttons beside play", "In the player: skip songs, or jump 10 seconds",
+                        listOf(false to "Skip songs", true to "10 seconds"), settings.seekButtons,
+                    ) { v -> change { it.copy(seekButtons = v) } }
+                }
+                item { Toggle(Icons.Rounded.SkipNext, "Previous and next in the mini player", "Off leaves just the play button", settings.dockSkip) { on -> change { it.copy(dockSkip = on) } } }
+                item {
+                    Choice(
+                        Icons.Rounded.Vibration, "Haptics", "The little buzzes when you tap and drag",
+                        listOf(0 to "On", 1 to "Subtle", 2 to "Off"), settings.haptics,
+                    ) { v -> change { it.copy(haptics = v) } }
+                }
             }
             SettingsSection.Looks -> {
+                item {
+                    Choice(
+                        Icons.Rounded.Contrast, "Theme", "Follow your phone, or always light or dark",
+                        listOf(0 to "System", 1 to "Light", 2 to "Dark"), settings.theme,
+                    ) { v -> change { it.copy(theme = v) } }
+                }
+                item {
+                    Choice(
+                        Icons.Rounded.Wallpaper, "Background", "With song colors on: the cover blurred behind everything, a glow at the top, or plain",
+                        listOf(0 to "Cover", 1 to "Glow", 2 to "Plain"), settings.backdropStyle,
+                    ) { v -> change { it.copy(backdropStyle = v) } }
+                }
+                item {
+                    Choice(
+                        Icons.Rounded.BlurOn, "Blur", "Frosted glass on the bar, menus and page tops (off is easier on slower phones)",
+                        listOf(0 to "Off", 1 to "Light", 2 to "Full"), settings.blurLevel,
+                    ) { v -> change { it.copy(blurLevel = v) } }
+                }
+                item {
+                    Choice(
+                        Icons.Rounded.FormatSize, "Text size", "On top of your phone's own text size",
+                        listOf(0.9f to "Smaller", 1f to "Default", 1.12f to "Bigger"), settings.textScale,
+                    ) { v -> change { it.copy(textScale = v) } }
+                }
                 item { Toggle(Icons.Rounded.Palette, "Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on -> change { it.copy(matchSongColors = on) } } }
                 item { Toggle(Icons.Rounded.DarkMode, "AMOLED black", "Pure black backgrounds in dark mode", settings.amoled) { on -> change { it.copy(amoled = on) } } }
                 item { Toggle(Icons.Rounded.GraphicEq, "Move with the music", "Shapes pulse and waves flow with the beat", settings.moveWithMusic) { on -> change { it.copy(moveWithMusic = on) } } }

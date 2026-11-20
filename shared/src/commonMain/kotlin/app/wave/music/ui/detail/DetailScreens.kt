@@ -1,5 +1,6 @@
 package app.wave.music.ui.detail
 
+import app.wave.music.ui.components.glass
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.ui.draw.drawBehind
@@ -378,13 +379,7 @@ private fun <T> PageFrame(
                         .fillMaxWidth()
                         .height(statusTop + 76.dp)
                         .graphicsLayer { alpha = glassAlpha }
-                        .hazeEffect(pageGlass) {
-                            blurRadius = 24.dp
-                            backgroundColor = c.background
-                            tints = listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.5f)))
-                            noiseFactor = 0f
-                            progressive = dev.chrisbanes.haze.HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0f, preferPerformance = true)
-                        },
+                        .glass(pageGlass, 24.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.5f))), c.background.copy(alpha = 0.92f), progressive = true),
                 )
             }
             Box(
@@ -572,7 +567,8 @@ private fun Hero(info: HeaderInfo) {
 private fun CollectionHero(info: HeaderInfo, onAdd: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val statusTop = topInset()
-    var square by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // Legacy opens on 1.0's square cover; double-tap swaps either way.
+    var square by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(app.wave.music.platform.PrismaLook.legacy) }
     val flip = Modifier.pointerInput(Unit) { detectTapGestures(onDoubleTap = { square = !square }) }
     androidx.compose.animation.AnimatedContent(square, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }, label = "cover") { isSquare ->
         if (!isSquare) {
@@ -591,7 +587,7 @@ private fun CollectionHero(info: HeaderInfo, onAdd: () -> Unit) {
                         model = info.art?.atSize(ArtSize.FULL),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(244.dp).shadow(24.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).then(flip),
+                        modifier = Modifier.size(244.dp).shadow(24.dp, RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(24.dp))).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(24.dp))).then(flip),
                     )
                     CollectionText(info, Modifier.padding(top = 18.dp))
                     CollectionButtons(info, onAdd)
@@ -698,7 +694,7 @@ private fun ArtistHero(info: HeaderInfo, open: (YTItem) -> Unit) {
         PinnedHero(info.art, Brush.verticalGradient(0.35f to Color.Transparent, 0.82f to c.background.copy(alpha = 0.75f), 1f to c.background), Modifier.fillMaxWidth().height(500.dp)) { scrolled, heroPx ->
             // The name tag: as big as fits on one line, heavy and tightly set. Long names that won't
             // fit even small go onto two lines instead of getting cut off.
-            val name = info.title.uppercase()
+            val name = if (app.wave.music.platform.PrismaLook.legacy) info.title else info.title.uppercase()
             val measurer = androidx.compose.ui.text.rememberTextMeasurer()
             val density = androidx.compose.ui.platform.LocalDensity.current
             val avail = constraints.maxWidth - with(density) { 32.dp.roundToPx() }

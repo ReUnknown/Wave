@@ -1,5 +1,7 @@
 package app.wave.music.ui.theme
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
@@ -43,7 +45,10 @@ fun darkBaseScheme(): androidx.compose.material3.ColorScheme =
 @Composable
 fun WaveTheme(content: @Composable () -> Unit) {
     // Follows the phone: light mode when the system is light.
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    // Customize › Theme: follow the phone, or always light or dark.
+    val theme by app.wave.music.data.WaveSettings.state.collectAsState()
+    val system = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = when (theme.theme) { 1 -> false; 2 -> true; else -> system }
     val colorScheme = app.wave.music.platform.systemColorScheme(dark)
         ?: if (dark) WaveDarkBlue else androidx.compose.material3.lightColorScheme()
     MaterialExpressiveTheme(

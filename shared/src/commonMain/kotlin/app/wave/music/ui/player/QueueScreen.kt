@@ -194,13 +194,13 @@ fun QueueScreen(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 10.dp, vertical = 2.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(20.dp)))
                         .background(Brush.horizontalGradient(listOf(c.primary.copy(alpha = 0.28f), c.primary.copy(alpha = 0.1f))))
                         .padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    AsyncImage(current.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+                    AsyncImage(current.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(48.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(12.dp))), contentScale = ContentScale.Crop)
                     Column(Modifier.weight(1f)) {
                         Text(current.title, color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(current.artist, color = c.onBackground.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -221,15 +221,15 @@ fun QueueScreen(
                                 scaleX = 1f + 0.03f * lift
                                 scaleY = 1f + 0.03f * lift
                             }
-                            .shadow(12.dp * lift, RoundedCornerShape(20.dp))
-                            .clip(RoundedCornerShape(20.dp))
+                            .shadow(12.dp * lift, RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(20.dp)))
+                            .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(20.dp)))
                             .background(c.surfaceContainerHighest.copy(alpha = lift.coerceIn(0f, 1f)))
                             .clickable { PlayerConnection.skipTo(entry.index) }
                             .padding(start = 10.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        AsyncImage(entry.song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+                        AsyncImage(entry.song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(48.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(12.dp))), contentScale = ContentScale.Crop)
                         Column(Modifier.weight(1f)) {
                             Text(entry.song.title, color = c.onBackground, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(entry.song.artist, color = c.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -1,5 +1,9 @@
 package app.wave.music.ui.player
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material.icons.rounded.Forward10
+import androidx.compose.material.icons.rounded.Replay10
+import app.wave.music.ui.components.glass
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.layout.heightIn
@@ -566,6 +570,40 @@ private fun Controls(
         )
         Times(position, state.durationMs, c.onBackground.copy(alpha = 0.6f))
 
+        if (app.wave.music.platform.PrismaLook.legacy) {
+        // Legacy: 1.0's connected group, previous · play/pause · next.
+        Row(
+            Modifier
+                .padding(top = if (dense) 8.dp else 14.dp)
+                .fillMaxWidth()
+                .height(if (dense) 68.dp else 92.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val seekL = WaveSettings.state.collectAsState().value.seekButtons
+            GroupButton(if (seekL) Icons.Rounded.Replay10 else Icons.Rounded.SkipPrevious, if (seekL) "Back 10 seconds" else "Previous song", RoundedCornerShape(46.dp, 14.dp, 14.dp, 46.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
+                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                if (seekL) PlayerConnection.seekTo((position.value - 10_000).coerceAtLeast(0)) else PlayerConnection.previous()
+            }
+            val playCornerL by animateDpAsState(if (state.isPlaying) 30.dp else 46.dp, WaveMotion.bouncy(), label = "playShapeL")
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .pressable(RoundedCornerShape(playCornerL), c.primary, pressedScale = 0.94f) {
+                        haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                        PlayerConnection.togglePlay()
+                    }
+                    .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
+                contentAlignment = Alignment.Center,
+            ) {
+                PlayPauseIcon(state.isPlaying, c.onPrimary, size = if (dense) 36.dp else 46.dp)
+            }
+            GroupButton(if (seekL) Icons.Rounded.Forward10 else Icons.Rounded.SkipNext, if (seekL) "Forward 10 seconds" else "Next song", RoundedCornerShape(14.dp, 46.dp, 46.dp, 14.dp), c.secondaryContainer, c.onSecondaryContainer, 84) {
+                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                if (seekL) PlayerConnection.seekTo((position.value + 10_000).coerceAtMost(state.durationMs.coerceAtLeast(0))) else PlayerConnection.next()
+            }
+        }
+        } else {
         // Previous and next as glass circles around a big play pill, like the play row on pages.
         val rowHeight = if (dense) 64.dp else 80.dp
         Row(
@@ -576,9 +614,11 @@ private fun Controls(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SkipCircle(Icons.Rounded.SkipPrevious, "Previous song", rowHeight) {
+            // Customize: these can skip 10 seconds instead of songs.
+            val seek = WaveSettings.state.collectAsState().value.seekButtons
+            SkipCircle(if (seek) Icons.Rounded.Replay10 else Icons.Rounded.SkipPrevious, if (seek) "Back 10 seconds" else "Previous song", rowHeight) {
                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                PlayerConnection.previous()
+                if (seek) PlayerConnection.seekTo((position.value - 10_000).coerceAtLeast(0)) else PlayerConnection.previous()
             }
             // Playing: a firm squircle. Paused: it relaxes into a pill, and the icon morphs.
             val playCorner by animateDpAsState(if (state.isPlaying) 26.dp else rowHeight / 2, WaveMotion.bouncy(), label = "playShape")
@@ -595,10 +635,12 @@ private fun Controls(
             ) {
                 PlayPauseIcon(state.isPlaying, c.onPrimary, size = if (dense) 34.dp else 42.dp)
             }
-            SkipCircle(Icons.Rounded.SkipNext, "Next song", rowHeight) {
+            SkipCircle(if (seek) Icons.Rounded.Forward10 else Icons.Rounded.SkipNext, if (seek) "Forward 10 seconds" else "Next song", rowHeight) {
                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                PlayerConnection.next()
+                if (seek) PlayerConnection.seekTo((position.value + 10_000).coerceAtMost(state.durationMs.coerceAtLeast(0))) else PlayerConnection.next()
             }
+        }
+
         }
 
         // Labeled play modes
@@ -643,18 +685,15 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             // Frosted glass over the art behind it.
+            // Heavy blur (so the mirrored art under it never reads as a picture), darkened, with a
+            // touch of the song's color. Legacy: the song-colored tray of 1.0.
             .then(
-                if (glass != null) Modifier.hazeEffect(glass) {
-                    // Heavy blur (so the mirrored art under it never reads as a picture), darkened,
-                    // with a touch of the song's color.
-                    blurRadius = 48.dp
-                    backgroundColor = c.background
-                    tints = listOf(
-                        dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.52f)),
-                        dev.chrisbanes.haze.HazeTint(c.primary.copy(alpha = 0.14f)),
-                    )
-                    noiseFactor = 0f
-                } else Modifier.background(Color.Black.copy(alpha = 0.28f)),
+                if (app.wave.music.platform.PrismaLook.legacy) Modifier.background(c.primaryContainer.copy(alpha = 0.92f))
+                else Modifier.glass(
+                    glass, 48.dp, c.background,
+                    listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.52f)), dev.chrisbanes.haze.HazeTint(c.primary.copy(alpha = 0.14f))),
+                    androidx.compose.ui.graphics.lerp(Color.Black, c.primary, 0.12f).copy(alpha = 0.85f),
+                ),
             )
             .revealDrag(reveal)
             .navigationBarsPadding(),
@@ -744,9 +783,10 @@ private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
             pop.animateTo(1f, WaveMotion.bouncy())
         }
     }
-    val container by animateColorAsState(if (liked) c.primary else Color.White.copy(alpha = 0.12f), tween(200), label = "likeBg")
-    val content by animateColorAsState(if (liked) c.onPrimary else Color.White, tween(200), label = "likeFg")
-    val corner by animateDpAsState(if (liked) 16.dp else 24.dp, WaveMotion.bouncy(), label = "likeShape")
+    val legacy = app.wave.music.platform.PrismaLook.legacy
+    val container by animateColorAsState(if (liked) c.primary else if (legacy) c.primaryContainer else Color.White.copy(alpha = 0.12f), tween(200), label = "likeBg")
+    val content by animateColorAsState(if (liked) c.onPrimary else if (legacy) c.onPrimaryContainer else Color.White, tween(200), label = "likeFg")
+    val corner by animateDpAsState(if (legacy) (if (liked) 26.dp else 18.dp) else if (liked) 16.dp else 24.dp, WaveMotion.bouncy(), label = "likeShape")
     Box(
         Modifier
             .size(48.dp)
@@ -792,9 +832,11 @@ private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: 
     val c = MaterialTheme.colorScheme
     // Turning a mode on fills it in and firms up its corners; off, it relaxes back to an outline.
     val corner by animateDpAsState(if (on) 16.dp else 22.dp, WaveMotion.bouncy(), label = "modeShape")
-    val fill by animateColorAsState(if (on) c.primary else Color.White.copy(alpha = 0.1f), tween(170), label = "modeFill")
+    val legacy = app.wave.music.platform.PrismaLook.legacy
+    val fill by animateColorAsState(if (on) c.primary else if (legacy) Color.Transparent else Color.White.copy(alpha = 0.1f), tween(170), label = "modeFill")
     val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground.copy(alpha = 0.85f), tween(170), label = "modeInk")
-    val outline = Color.Transparent
+    // Legacy: 1.0's outlined buttons.
+    val outline = if (legacy && !on) c.onBackground.copy(alpha = 0.2f) else Color.Transparent
     val shape = RoundedCornerShape(corner)
     val haptics = LocalHapticFeedback.current
     Row(

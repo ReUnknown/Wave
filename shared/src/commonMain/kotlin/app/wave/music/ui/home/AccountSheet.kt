@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.border
@@ -90,6 +91,9 @@ fun AccountSheet(
                     Tile(Icons.Rounded.History, "History", Modifier.weight(1f)) { onOpen(Destination.History) }
                 }
             }
+
+            // Wave Prisma: every setting (Customize, Legacy and Modern) lives on its own pages.
+            Tile(Icons.Rounded.Settings, "All settings & Customize", Modifier.fillMaxWidth()) { onOpen(Destination.Settings) }
 
             // Swipe up: everything else lives right below.
             app.wave.music.ui.settings.SettingsContent()

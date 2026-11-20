@@ -1,6 +1,10 @@
 package app.wave.music
 
 import android.os.Bundle
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -82,6 +86,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Customize › Theme: the status bar icons follow Wave's light or dark, not just the phone's.
+        lifecycleScope.launch {
+            app.wave.music.data.WaveSettings.state.map { it.theme }.distinctUntilChanged().collect { theme ->
+                val clear = android.graphics.Color.TRANSPARENT
+                val style = when (theme) {
+                    1 -> androidx.activity.SystemBarStyle.light(clear, clear)
+                    2 -> androidx.activity.SystemBarStyle.dark(clear)
+                    else -> androidx.activity.SystemBarStyle.auto(clear, clear)
+                }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
+        }
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
         AndroidPlayer.connect(this)
         // Opened from a YouTube Music link (or one shared to Wave).

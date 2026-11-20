@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import app.wave.music.ui.components.glass
 import dev.chrisbanes.haze.hazeSource
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
@@ -375,6 +376,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Prisma's home, library, search and backgrounds: phones and tablets. Tablets keep their own
     // player bar along the bottom and the player docking beside the app.
     val prisma = !desktopShell
+    // Legacy: home, its header and search go back to Wave 1.0's (a modern take on them).
+    val legacyHome = prisma && settings.legacyUi
+    val prismaHomeUi = prisma && !settings.legacyUi
+    // Top search: the search bar stays pinned at the top while home and library scroll under it.
+    val pinnedSearch = prismaHomeUi && (settings.topSearch || shell)
     // Computers keep your library in a sidebar when there's room for it.
     val sidebar = desktopShell && conf.screenWidthDp >= 1000
     // The player can sit beside the app: drag the player bar up to the left or right half (tablets,
@@ -566,13 +572,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     playItem = playItem,
                     onSignIn = onSignOut,
                     onNewPlaylist = { createPlaylist = true },
-                    topBar = { PrismaTopBar(
-                        session = session,
-                        onAvatar = { push(Destination.Settings) },
-                        search = if (settings.topSearch || shell) ({ showSearch = true }) else null,
-                        inLibrary = tab == 1,
-                        onLibrary = { tab = if (tab == 1) 0 else 1 },
-                    ) },
+                    topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                 )
             } else
             // Loading, failure and the feed fade into each other instead of snapping.
@@ -598,9 +598,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .backdropSource(backdrop),
-                    contentPadding = if (!prisma) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + 4.dp, bottom = if (shell) 140.dp else 150.dp + PrismaBarHeight),
+                    contentPadding = if (!prismaHomeUi) PaddingValues(bottom = if (legacyHome && !shell) 150.dp + PrismaBarHeight else 140.dp) else PaddingValues(top = statusTop + 4.dp, bottom = if (shell) 140.dp else 150.dp + PrismaBarHeight),
                 ) {
-                  if (prisma) {
+                  if (prismaHomeUi) {
                     prismaHome(
                         feed = state.feed,
                         recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
@@ -609,13 +609,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
-                        topBar = { PrismaTopBar(
-                        session = session,
-                        onAvatar = { push(Destination.Settings) },
-                        search = if (settings.topSearch || shell) ({ showSearch = true }) else null,
-                        inLibrary = tab == 1,
-                        onLibrary = { tab = if (tab == 1) 0 else 1 },
-                    ) },
+                        topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
                   } else {
                     item {
@@ -680,21 +674,22 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 currentWindowDp().screenHeightDp < 600 -> 150.dp
                 else -> 230.dp
             }
-            if (prisma) {
-                Box(
+            if (prismaHomeUi) {
+                // A little shade under the status bar (the pinned search bar brings its own glass).
+                if (!pinnedSearch) Box(
                     Modifier
                         .fillMaxWidth()
                         .height(statusTop + 64.dp)
-                        .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.6f), 1f to Color.Transparent)),
+                        .background(Brush.verticalGradient(0f to (if (c.background.luminance() < 0.5f) Color.Black.copy(alpha = 0.6f) else c.background.copy(alpha = 0.85f)), 1f to Color.Transparent)),
                 )
-            } else ProgressiveBackdropBlur(
+            } else if (!(legacyHome && tab == 1)) ProgressiveBackdropBlur(
                 backdrop = backdrop,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(statusTop + headerBand),
             )
             // Tint on top of the blur so white text always has contrast.
-            if (!prisma) Box(
+            if (!prismaHomeUi && !(legacyHome && tab == 1)) Box(
                 Modifier
                     .fillMaxWidth()
                     .height(statusTop + headerBand)
@@ -712,7 +707,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         },
                     ),
             )
-            if (prisma) {
+            if (prismaHomeUi || (legacyHome && tab == 1)) {
                 // Prisma: the top bar is the first row of the page and scrolls away with it.
             } else
             Column(
@@ -788,7 +783,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 // Same for search when a page opened from it covers it.
                 modifier = Modifier.drawWithContent { if (!(pageCovers && !peeking.value)) drawContent() },
             ) {
-                if (prisma) PrismaSearch(
+                if (prismaHomeUi) PrismaSearch(
                     session = session,
                     onClose = { showSearch = false },
                     onAvatar = { showSearch = false; push(Destination.Settings) },
@@ -833,6 +828,29 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
 
+            }
+            // The pinned search bar, on frosted glass that fades out downward (no hard edge).
+            FadeVisibility(
+                visible = pinnedSearch && !showSearch && stack.isEmpty() && !(showPlayer && !docked),
+                enter = fadeIn(tween(160)),
+                exit = fadeOut(tween(120)),
+            ) {
+                Box(Modifier.fillMaxWidth()) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(statusTop + PrismaTopHeight + 36.dp)
+                            .glass(barHaze, 26.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.45f))), c.background.copy(alpha = 0.9f), progressive = true),
+                    )
+                    PrismaTopBar(
+                        session = session,
+                        onAvatar = { push(Destination.Settings) },
+                        search = { showSearch = true },
+                        inLibrary = tab == 1,
+                        onLibrary = { tab = if (tab == 1) 0 else 1 },
+                        modifier = Modifier.padding(top = statusTop + 4.dp),
+                    )
+                }
             }
             val keyboardUp = WindowInsets.ime.getBottom(LocalDensity.current) != 0
             // Customize: the bar at the bottom (or search at the top), the mini player joined to the bar

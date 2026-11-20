@@ -46,6 +46,24 @@ data class Settings(
     val separateMiniPlayer: Boolean = false,
     /** Prisma: the first-run setup has been finished. */
     val setupDone: Boolean = false,
+    /** 0 follow the phone, 1 light, 2 dark. */
+    val theme: Int = 0,
+    /** Background with song colors: 0 blurred cover, 1 a glow at the top, 2 plain. */
+    val backdropStyle: Int = 0,
+    /** Frosted glass: 0 off (solid), 1 light, 2 full. */
+    val blurLevel: Int = 2,
+    /** Corners: 0 rounded, 1 squircle, 2 sharp. */
+    val cornerStyle: Int = 0,
+    /** Text size across Wave, on top of the phone's own. */
+    val textScale: Float = 1f,
+    /** Home shows more at once, with smaller cards. */
+    val denseHome: Boolean = false,
+    /** Haptics: 0 on, 1 subtle, 2 off. */
+    val haptics: Int = 0,
+    /** The player's buttons beside play skip 10 seconds instead of songs. */
+    val seekButtons: Boolean = false,
+    /** The dock's mini player has previous and next beside play. */
+    val dockSkip: Boolean = true,
 )
 
 
@@ -70,6 +88,15 @@ object WaveSettings {
     private val topSearchKey = booleanPreferencesKey("top_search")
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
+    private val themeKey = androidx.datastore.preferences.core.intPreferencesKey("theme")
+    private val backdropKey = androidx.datastore.preferences.core.intPreferencesKey("backdrop_style")
+    private val blurKey = androidx.datastore.preferences.core.intPreferencesKey("blur_level")
+    private val cornerKey = androidx.datastore.preferences.core.intPreferencesKey("corner_style")
+    private val textKey = androidx.datastore.preferences.core.floatPreferencesKey("text_scale")
+    private val denseKey = androidx.datastore.preferences.core.booleanPreferencesKey("dense_home")
+    private val hapticsKey = androidx.datastore.preferences.core.intPreferencesKey("haptics")
+    private val seekKey = androidx.datastore.preferences.core.booleanPreferencesKey("seek_buttons")
+    private val dockSkipKey = androidx.datastore.preferences.core.booleanPreferencesKey("dock_skip")
 
     private val _state = MutableStateFlow(Settings())
     val state: StateFlow<Settings> = _state.asStateFlow()
@@ -101,6 +128,15 @@ object WaveSettings {
             separateMiniPlayer = p[separateKey] ?: false,
             // Anyone already using Wave has effectively set it up.
             setupDone = p[setupKey] ?: (p[matchColors] != null),
+            theme = p[themeKey] ?: 0,
+            backdropStyle = p[backdropKey] ?: 0,
+            blurLevel = p[blurKey] ?: 2,
+            cornerStyle = p[cornerKey] ?: 0,
+            textScale = p[textKey] ?: 1f,
+            denseHome = p[denseKey] ?: false,
+            haptics = p[hapticsKey] ?: 0,
+            seekButtons = p[seekKey] ?: false,
+            dockSkip = p[dockSkipKey] ?: true,
         )
         loaded = true
         ready.value = true
@@ -129,6 +165,15 @@ object WaveSettings {
             it[topSearchKey] = next.topSearch
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
+            it[themeKey] = next.theme
+            it[backdropKey] = next.backdropStyle
+            it[blurKey] = next.blurLevel
+            it[cornerKey] = next.cornerStyle
+            it[textKey] = next.textScale
+            it[denseKey] = next.denseHome
+            it[hapticsKey] = next.haptics
+            it[seekKey] = next.seekButtons
+            it[dockSkipKey] = next.dockSkip
         }
     }
 

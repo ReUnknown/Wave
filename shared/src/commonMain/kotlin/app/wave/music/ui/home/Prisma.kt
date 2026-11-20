@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import androidx.compose.runtime.collectAsState
+import app.wave.music.ui.components.glass
 import app.wave.music.ui.menu.menuAnchor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -219,20 +221,11 @@ fun PrismaTabBar(
     split: Boolean = false,
 ) {
     val c = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(32.dp))
     // Frosted glass (Modern) or a solid bar (Legacy).
     val glass = Modifier
         .clip(shape)
-        .then(
-            if (haze != null) {
-                Modifier.hazeEffect(state = haze) {
-                    blurRadius = 30.dp
-                    backgroundColor = c.background
-                    tints = listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f)))
-                    noiseFactor = 0f
-                }
-            } else Modifier.background(c.surfaceContainer.copy(alpha = 0.97f)),
-        )
+        .glass(haze, 30.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f))), c.surfaceContainer.copy(alpha = 0.97f))
         .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape)
     Column(
         modifier
@@ -268,7 +261,7 @@ fun PrismaTabBar(
                         Modifier
                             .weight(weight)
                             .fillMaxHeight()
-                            .pressable(RoundedCornerShape(26.dp), fill, pressedScale = 0.92f) { onTab(i) },
+                            .pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)), fill, pressedScale = 0.92f) { onTab(i) },
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -299,17 +292,19 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+        AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(14.dp))).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
             Text(now.title, color = c.onSurface, style = body(15.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(now.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(
+        // Customize: previous and next beside play, or just play.
+        val skip = app.wave.music.data.WaveSettings.state.collectAsState().value.dockSkip
+        if (skip) Box(
             Modifier.size(40.dp).clip(CircleShape).clickable { app.wave.music.playback.PlayerConnection.previous() },
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Rounded.SkipPrevious, "Previous song", tint = c.onSurface) }
         Box(
-            Modifier.size(46.dp).pressable(RoundedCornerShape(16.dp), song.primary, pressedScale = 0.9f) { app.wave.music.playback.PlayerConnection.togglePlay() },
+            Modifier.size(46.dp).pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(16.dp)), song.primary, pressedScale = 0.9f) { app.wave.music.playback.PlayerConnection.togglePlay() },
             contentAlignment = Alignment.Center,
         ) {
             androidx.compose.animation.Crossfade(loading, label = "dockLoading") { busy ->
@@ -317,7 +312,7 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
                 else app.wave.music.ui.components.PlayPauseIcon(playing, song.onPrimary)
             }
         }
-        Box(
+        if (skip) Box(
             Modifier.size(40.dp).clip(CircleShape).clickable { app.wave.music.playback.PlayerConnection.next() },
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Rounded.SkipNext, "Next song", tint = c.onSurface) }
@@ -417,7 +412,7 @@ fun LazyListScope.prismaHome(
                 val columns = songs.chunked(4)
                 LazyRow(contentPadding = PaddingValues(horizontal = 8.dp)) {
                     items(columns.size) { col ->
-                        Column(Modifier.width(312.dp)) {
+                        Column(Modifier.width(if (app.wave.music.platform.PrismaLook.dense) 280.dp else 312.dp)) {
                             columns[col].forEachIndexed { row, song ->
                                 SongLine(song) { playSongs(section.title, songs, col * 4 + row) }
                             }
@@ -442,7 +437,7 @@ private fun PrismaSectionTitle(title: String, label: String? = null, first: Bool
         Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(start = 16.dp, end = 16.dp, top = if (first) 4.dp else 22.dp, bottom = 10.dp),
+            .padding(start = 16.dp, end = 16.dp, top = if (first) 4.dp else if (app.wave.music.platform.PrismaLook.dense) 14.dp else 22.dp, bottom = if (app.wave.music.platform.PrismaLook.dense) 6.dp else 10.dp),
     ) {
         if (!label.isNullOrBlank()) Text(label.uppercase(), color = c.onBackground.copy(alpha = 0.6f), style = body(11.sp, FontWeight.Bold).copy(letterSpacing = 1.sp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -463,9 +458,9 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
     val art = item.thumbnail?.atSize(1080)
     Box(
         Modifier
-            .width(224.dp)
-            .height(296.dp)
-            .clip(RoundedCornerShape(26.dp))
+            .width(if (app.wave.music.platform.PrismaLook.dense) 176.dp else 224.dp)
+            .height(if (app.wave.music.platform.PrismaLook.dense) 232.dp else 296.dp)
+            .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(onClick = { onClick(item) }, onLongClick = { menu.openFor(item) }),
     ) {
@@ -496,7 +491,7 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
                 Modifier
                     .padding(start = 8.dp)
                     .size(42.dp)
-                    .pressable(RoundedCornerShape(16.dp), tone.primary, pressedScale = 0.9f, onClick = onPlay),
+                    .pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(16.dp)), tone.primary, pressedScale = 0.9f, onClick = onPlay),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = tone.onPrimary) }
         }
@@ -512,13 +507,13 @@ private fun SquareCard(item: YTItem, onClick: (YTItem) -> Unit) {
     val round = item is ArtistItem
     Column(
         Modifier
-            .width(128.dp)
+            .width(squareSize())
             .combinedClickable(onClick = { onClick(item) }, onLongClick = { menu.openFor(item) }),
     ) {
         AsyncImage(
             item.thumbnail?.atSize(400),
             null,
-            Modifier.size(128.dp).clip(if (round) CircleShape else RoundedCornerShape(18.dp)).background(c.surfaceContainerHigh),
+            Modifier.size(squareSize()).clip(if (round) CircleShape else RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(18.dp))).background(c.surfaceContainerHigh),
             contentScale = ContentScale.Crop,
         )
         Text(item.title, color = c.onBackground, style = body(14.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
@@ -535,14 +530,14 @@ private fun SongLine(song: SongItem, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(60.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(if (app.wave.music.platform.PrismaLook.dense) 52.dp else 60.dp)
+            .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(14.dp)))
             .combinedClickable(onClick = onClick, onLongClick = { menu.openFor(song) })
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AsyncImage(song.thumbnail?.atSize(226), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+        AsyncImage(song.thumbnail?.atSize(226), null, Modifier.size(48.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(12.dp))).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
             Text(song.title, color = c.onBackground, style = body(15.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(song.artists.joinToString { it.name }, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -627,7 +622,7 @@ private fun NewPlaylistCard(onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Column(Modifier.width(128.dp).clickable(onClick = onClick)) {
         Box(
-            Modifier.size(128.dp).clip(RoundedCornerShape(18.dp)).background(c.surfaceContainerHigh).border(1.dp, c.onSurface.copy(alpha = 0.1f), RoundedCornerShape(18.dp)),
+            Modifier.size(128.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(18.dp))).background(c.surfaceContainerHigh).border(1.dp, c.onSurface.copy(alpha = 0.1f), RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(18.dp))),
             contentAlignment = Alignment.Center,
         ) { Icon(androidx.compose.material.icons.Icons.Rounded.Add, null, tint = c.primary, modifier = Modifier.size(40.dp)) }
         Text("New playlist", color = c.onBackground, style = body(14.sp, FontWeight.Medium), modifier = Modifier.padding(top = 6.dp))
@@ -639,7 +634,7 @@ private fun LibraryTile(icon: ImageVector, label: String, fill: Color, ink: Colo
     Row(
         modifier
             .height(64.dp)
-            .pressable(RoundedCornerShape(22.dp), fill, pressedScale = 0.95f, onClick = onClick)
+            .pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(22.dp)), fill, pressedScale = 0.95f, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -658,13 +653,13 @@ private fun LibraryRow(item: YTItem, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(16.dp)))
             .combinedClickable(onClick = onClick, onLongClick = { menu.openFor(item) })
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AsyncImage(item.thumbnail?.atSize(226), null, Modifier.size(50.dp).clip(if (item is ArtistItem) CircleShape else RoundedCornerShape(12.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+        AsyncImage(item.thumbnail?.atSize(226), null, Modifier.size(50.dp).clip(if (item is ArtistItem) CircleShape else RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(12.dp))).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
             Text(item.title, color = c.onBackground, style = body(15.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
             subtitle(item)?.let { Text(it, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -684,8 +679,16 @@ private fun List<PlaylistItem>.withoutLiked() = filterNot { it.id == "LM" || it.
 @Composable
 fun AppBackdrop(art: String?) {
     val c = MaterialTheme.colorScheme
+    // Customize › Background: the whole cover (0), a glow down from the top (1), or nothing (2).
+    val style = app.wave.music.data.WaveSettings.state.collectAsState().value.backdropStyle
+    if (style == 2) return
     androidx.compose.animation.Crossfade(art, animationSpec = tween(700), label = "backdrop") { a ->
-        if (a != null) Box(Modifier.fillMaxSize()) {
+        if (a != null && style == 1) app.wave.music.ui.components.BlurredImage(
+            a.atSize(app.wave.music.ui.components.ArtSize.BLUR),
+            Modifier.fillMaxWidth().height(520.dp).graphicsLayer { alpha = 0.55f; scaleX = 1.6f; scaleY = 1.3f },
+            radius = 100.dp,
+            fadeBottom = 0.75f,
+        ) else if (a != null) Box(Modifier.fillMaxSize()) {
             app.wave.music.ui.components.BlurredImage(
                 a.atSize(app.wave.music.ui.components.ArtSize.BLUR),
                 Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f },
@@ -695,3 +698,7 @@ fun AppBackdrop(art: String?) {
         }
     }
 }
+
+
+/** Square cards: smaller on a dense home. */
+private fun squareSize() = if (app.wave.music.platform.PrismaLook.dense) 104.dp else 128.dp

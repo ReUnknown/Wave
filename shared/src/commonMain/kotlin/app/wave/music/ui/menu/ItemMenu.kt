@@ -1,5 +1,6 @@
 package app.wave.music.ui.menu
 
+import app.wave.music.ui.components.glass
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
@@ -184,7 +185,8 @@ fun ItemMenuHost(
         // Fully open right away, so every option is on screen and nothing shifts under your finger.
         val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         // Prisma: the menu opens right where your finger is (phones too), not as a panel.
-        val desktop = true
+        // Modern: the menu grows out of the ⋮. Legacy: 1.0's sheet from the bottom.
+        val desktop = !app.wave.music.platform.PrismaLook.legacy || LocalDesktop.current
         /** Runs [action], then slides the sheet away (or closes the dropdown). */
         fun choose(action: () -> Unit) {
             action()
@@ -214,7 +216,7 @@ fun ItemMenuHost(
                 found?.let(go)
             }
         }
-        androidx.compose.runtime.CompositionLocalProvider(LocalDesktop provides true) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalDesktop provides desktop) {
         MenuContainer(desktop, sheet, onDismiss) {
                 when (target) {
                     is MenuTarget.Song -> {
@@ -520,7 +522,7 @@ private fun MorphMenu(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                         l(start.left, 0f).coerceAtLeast(0f), l(start.top, 0f).coerceAtLeast(0f),
                         l(start.right, size.width).coerceAtMost(size.width), l(start.bottom, size.height).coerceAtMost(size.height),
                     )
-                    val corner = l(start.height / 2f, with(density) { 24.dp.toPx() }).coerceAtMost(rect.minDimension / 2f)
+                    val corner = l(start.height / 2f, with(density) { app.wave.music.platform.PrismaLook.corner(24.dp).toPx() }).coerceAtMost(rect.minDimension / 2f)
                     return androidx.compose.ui.graphics.Outline.Rounded(androidx.compose.ui.geometry.RoundRect(rect, androidx.compose.ui.geometry.CornerRadius(corner)))
                 }
             }
@@ -535,18 +537,11 @@ private fun MorphMenu(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                             clip = true
                             shadowElevation = 16.dp.toPx() * progress.value.coerceIn(0f, 1f)
                         }
-                        .then(
-                            if (haze != null) Modifier.hazeEffect(haze) {
-                                blurRadius = 28.dp
-                                backgroundColor = c.background
-                                tints = listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainerHigh.copy(alpha = 0.62f)))
-                                noiseFactor = 0f
-                            } else Modifier,
-                        )
+                        .glass(haze, 28.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainerHigh.copy(alpha = 0.62f))), Color.Transparent)
                         .drawBehind {
                             // Starts as the button's own color, then gives way to the frosted glass.
                             val p = (progress.value * 1.6f).coerceIn(0f, 1f)
-                            val glass = if (haze != null) Color.Transparent else c.surfaceContainerHigh
+                            val glass = if (haze != null && app.wave.music.platform.PrismaLook.blur > 0) Color.Transparent else c.surfaceContainerHigh
                             drawRect(androidx.compose.ui.graphics.lerp(from.color, glass, p))
                             drawRect(Color.White.copy(alpha = 0.04f))
                         },

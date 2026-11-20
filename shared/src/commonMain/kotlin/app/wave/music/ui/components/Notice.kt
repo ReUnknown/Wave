@@ -97,15 +97,8 @@ fun NoticeHost(modifier: Modifier = Modifier, enabled: Boolean = true, glass: de
                 .shadow(14.dp, CircleShape)
                 .clip(CircleShape)
                 // A frosted pill when there's something behind it to frost.
-                .then(
-                    if (glass != null) Modifier.hazeEffect(glass) {
-                        blurRadius = 24.dp
-                        backgroundColor = c.background
-                        tints = listOf(dev.chrisbanes.haze.HazeTint(c.primaryContainer.copy(alpha = 0.55f)))
-                        noiseFactor = 0f
-                    } else Modifier,
-                )
-                .pressable(CircleShape, if (glass != null) Color.Transparent else c.primaryContainer, pressedScale = 0.95f) { Notices.dismiss(shown.id) }
+                .glass(glass, 24.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.primaryContainer.copy(alpha = 0.55f))), c.primaryContainer)
+                .pressable(CircleShape, Color.Transparent, pressedScale = 0.95f) { Notices.dismiss(shown.id) }
                 .border(1.dp, c.onPrimaryContainer.copy(alpha = 0.12f), CircleShape)
                 .padding(start = 14.dp, end = 18.dp),
             verticalAlignment = Alignment.CenterVertically,

@@ -133,6 +133,9 @@ object RenderApp {
             "topsearch" -> app.wave.music.data.WaveSettings.preview { it.copy(topSearch = true) }
             "split" -> app.wave.music.data.WaveSettings.preview { it.copy(separateMiniPlayer = true) }
             "legacy" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
+            "light" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1) }
+            "lighttop" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1, topSearch = true, denseHome = true) }
+            "legacybar" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = false) }
         }
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }

@@ -1,5 +1,8 @@
 package app.wave.music.ui.home
 
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.luminance
+import app.wave.music.ui.components.glass
 import androidx.compose.ui.layout.layout
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -335,13 +338,7 @@ fun PrismaSearch(
                 .fillMaxWidth()
                 .height(statusTop + 84.dp)
                 // Frosted glass behind the field, fading out at its lower edge.
-                .hazeEffect(glass) {
-                    blurRadius = 24.dp
-                    backgroundColor = c.background
-                    tints = listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.55f)))
-                    noiseFactor = 0f
-                    progressive = dev.chrisbanes.haze.HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0f, preferPerformance = true)
-                },
+                .glass(glass, 24.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.background.copy(alpha = 0.55f))), c.background.copy(alpha = 0.92f), progressive = true),
         )
         Row(
             Modifier.fillMaxWidth().padding(top = statusTop + 8.dp, start = 12.dp, end = 12.dp),
@@ -445,7 +442,7 @@ private fun FoundRow(item: YTItem, onClick: () -> Unit, trailing: (@Composable (
         AsyncImage(
             item.thumbnail?.atSize(226),
             null,
-            Modifier.size(52.dp).clip(if (item is ArtistItem) CircleShape else RoundedCornerShape(12.dp)).background(c.surfaceContainerHigh),
+            Modifier.size(52.dp).clip(if (item is ArtistItem) CircleShape else RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(12.dp))).background(c.surfaceContainerHigh),
             contentScale = ContentScale.Crop,
         )
         Column(Modifier.weight(1f)) {
@@ -462,37 +459,36 @@ private fun TopResult(item: YTItem, onOpen: () -> Unit, onPlay: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val tone = app.wave.music.ui.components.rememberArtColorScheme(item.thumbnail?.atSize(226))
     val round = item is ArtistItem
-    // Artists and albums: their art spreads across the whole top of search, only lightly blurred, and
-    // fades into the page. Songs and playlists sit on a blurred card of their art.
-    val wide = item is ArtistItem || item is AlbumItem
+    // The top result's art spreads across the whole top of search (under the field), lightly
+    // blurred, and fades out to whatever's behind search, so there's no edge at the bottom.
+    val wide = true
     val reach = with(androidx.compose.ui.platform.LocalDensity.current) { (app.wave.music.platform.topInset() + 76.dp).roundToPx() }
+    val darkPage = c.background.luminance() < 0.5f
     Box(
-        if (wide) Modifier
+        Modifier
             .fillMaxWidth()
             // Reach up under the search field to the very top of the screen.
             .layout { m, k ->
                 val p = m.measure(k.copy(maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
                 layout(p.width, (p.height - reach).coerceAtLeast(0)) { p.place(0, -reach) }
-            }
-        else Modifier
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(32.dp)),
+            },
     ) {
-    if (wide) {
+    Box(
+        Modifier
+            .matchParentSize()
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                // Fade the whole art layer out toward the bottom.
+                drawRect(Brush.verticalGradient(0f to Color.Black, 0.55f to Color.Black, 1f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+            },
+    ) {
         app.wave.music.ui.components.BlurredImage(
             item.thumbnail?.atSize(app.wave.music.ui.components.ArtSize.CARD),
             Modifier.matchParentSize().graphicsLayer { scaleX = 1.15f; scaleY = 1.15f },
             radius = 14.dp,
         )
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.45f), 0.3f to Color.Black.copy(alpha = 0.15f), 0.75f to c.background.copy(alpha = 0.55f), 1f to c.background)))
-    } else {
-        app.wave.music.ui.components.BlurredImage(
-            item.thumbnail?.atSize(app.wave.music.ui.components.ArtSize.BLUR),
-            Modifier.matchParentSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f },
-            radius = 48.dp,
-        )
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.15f), 1f to Color.Black.copy(alpha = 0.5f))))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.45f), 0.35f to Color.Black.copy(alpha = 0.12f), 1f to c.background.copy(alpha = 0.7f))))
     }
     Column(
         Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(top = if (wide) with(androidx.compose.ui.platform.LocalDensity.current) { reach.toDp() } + 16.dp else 20.dp, bottom = 20.dp),
@@ -501,13 +497,13 @@ private fun TopResult(item: YTItem, onOpen: () -> Unit, onPlay: () -> Unit) {
         AsyncImage(
             item.thumbnail?.atSize(544),
             null,
-            Modifier.size(168.dp).shadow(20.dp, if (round) CircleShape else RoundedCornerShape(24.dp)).clip(if (round) CircleShape else RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh),
+            Modifier.size(168.dp).shadow(20.dp, if (round) CircleShape else RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(24.dp))).clip(if (round) CircleShape else RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(24.dp))).background(c.surfaceContainerHigh),
             contentScale = ContentScale.Crop,
         )
-        Text(item.title, Modifier.padding(top = 14.dp, start = 24.dp, end = 24.dp), color = Color.White, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(item.title, Modifier.padding(top = 14.dp, start = 24.dp, end = 24.dp), color = if (darkPage) Color.White else c.onBackground, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
         val kind = when (item) { is SongItem -> "Song"; is AlbumItem -> "Album"; is ArtistItem -> "Artist"; is PlaylistItem -> "Playlist"; else -> null }
         val line = listOfNotNull(kind, (if (item is SongItem) subtitle(item) else null)).joinToString(" · ")
-        if (line.isNotBlank()) Text(line, color = Color.White.copy(alpha = 0.75f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp))
+        if (line.isNotBlank()) Text(line, color = (if (darkPage) Color.White else c.onBackground).copy(alpha = 0.75f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp))
         Row(
             Modifier
                 .padding(top = 14.dp)

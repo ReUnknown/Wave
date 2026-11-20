@@ -46,6 +46,21 @@ fun WaveApp(
     CompositionLocalProvider(LocalDesktop provides computer) {
         WaveTheme {
           // Text and icons default to the theme's color (black on a dark window otherwise).
+          // Customize: the look's switches (read while drawing), text size and haptics, for everything.
+          val look by WaveSettings.state.collectAsState()
+          app.wave.music.platform.PrismaLook.apply {
+              legacy = look.legacyUi
+              blur = look.blurLevel
+              corners = look.cornerStyle
+              dense = look.denseHome
+          }
+          val baseDensity = androidx.compose.ui.platform.LocalDensity.current
+          val baseHaptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+          val haptics = remember(baseHaptics, look.haptics) { app.wave.music.ui.components.FilteredHaptics(baseHaptics, look.haptics) }
+          CompositionLocalProvider(
+              androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(baseDensity.density, baseDensity.fontScale * look.textScale),
+              androidx.compose.ui.platform.LocalHapticFeedback provides haptics,
+          ) {
           CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.material3.MaterialTheme.colorScheme.onBackground) {
             val background = androidx.compose.material3.MaterialTheme.colorScheme.background
             LaunchedEffect(background) {
@@ -78,8 +93,7 @@ fun WaveApp(
             }
 
             val settingsReady by WaveSettings.ready.collectAsState()
-            val legacyLook by remember { WaveSettings.state.map { it.legacyUi }.distinctUntilChanged() }.collectAsState(false)
-            androidx.compose.runtime.SideEffect { app.wave.music.platform.PrismaLook.legacy = legacyLook }
+
             val setupDone by remember { WaveSettings.state.map { it.setupDone }.distinctUntilChanged() }.collectAsState(true)
             if (signingIn) {
                 LoginScreen(onDone = { signingIn = false }, onCancel = { signingIn = false })
@@ -106,6 +120,7 @@ fun WaveApp(
                     }
                 }
             }
+          }
           }
         }
     }
