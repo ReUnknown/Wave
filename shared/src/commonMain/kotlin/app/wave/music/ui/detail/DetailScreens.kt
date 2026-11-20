@@ -1,5 +1,7 @@
 package app.wave.music.ui.detail
 
+import androidx.compose.material.icons.rounded.Subscriptions
+import androidx.compose.material.icons.outlined.Subscriptions
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -546,7 +548,7 @@ private fun CollectionHero(info: HeaderInfo, onAdd: () -> Unit) {
                 Box(Modifier.fillMaxWidth().height(500.dp).then(flip)) {
                     AsyncImage(info.art?.atSize(ArtSize.FULL), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.25f), 0.18f to Color.Transparent, 0.55f to Color.Transparent, 0.85f to c.background.copy(alpha = 0.8f), 1f to c.background)))
-                    CollectionText(info, Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp))
+                    CollectionText(info, Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp), details = false)
                 }
                 CollectionButtons(info, onAdd)
             }
@@ -570,7 +572,7 @@ private fun CollectionHero(info: HeaderInfo, onAdd: () -> Unit) {
 }
 
 @Composable
-private fun CollectionText(info: HeaderInfo, modifier: Modifier) {
+private fun CollectionText(info: HeaderInfo, modifier: Modifier, details: Boolean = true) {
     val c = MaterialTheme.colorScheme
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -583,7 +585,7 @@ private fun CollectionText(info: HeaderInfo, modifier: Modifier) {
         info.subtitle?.let {
             Text(it, color = c.primary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 17.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        info.meta?.let {
+        if (details) info.meta?.let {
             Text(it, Modifier.padding(top = 2.dp), color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp))
         }
     }
@@ -771,6 +773,7 @@ private fun ArtistScreen(browseId: String, actions: PageActions) {
 
 @Composable
 private fun AlbumScreen(browseId: String, actions: PageActions) {
+    val shellPage = app.wave.music.ui.components.LocalShell.current
     val (load, retry) = rememberLoad(browseId) { YouTube.album(browseId) }
     val page = (load as? Load.Ready)?.value
     PageFrame(
@@ -786,11 +789,11 @@ private fun AlbumScreen(browseId: String, actions: PageActions) {
                 art = p.album.thumbnail,
                 eyebrow = "ALBUM",
                 title = p.album.title,
-                subtitle = listOfNotNull(
+                subtitle = if (shellPage) listOfNotNull(
                     p.album.artists?.joinToString { it.name },
                     p.album.year?.toString(),
                     "${p.songs.size} songs",
-                ).joinToString(" · "),
+                ).joinToString(" · ") else p.album.artists?.joinToString { it.name },
                 meta = listOfNotNull("Album", p.album.year?.toString(), "${p.songs.size} songs", totalTime(p.songs)).joinToString(" · "),
                 primary = "Play" to Icons.Rounded.PlayArrow,
                 onPrimary = { actions.play(QueueBuilder.forList(p.songs, 0, ctx, shuffle = false)) },
@@ -829,6 +832,7 @@ private class PlaylistData(val playlist: PlaylistItem, val songs: List<SongItem>
 
 @Composable
 private fun PlaylistScreen(playlistId: String, actions: PageActions) {
+    val shellPage = app.wave.music.ui.components.LocalShell.current
     val version by LibraryRepository.version.collectAsState()
     val (load, retry) = rememberLoad("$playlistId-$version") {
         runCatching {
@@ -859,7 +863,7 @@ private fun PlaylistScreen(playlistId: String, actions: PageActions) {
                 art = p.playlist.thumbnail,
                 eyebrow = "PLAYLIST",
                 title = p.playlist.title,
-                subtitle = listOfNotNull(p.playlist.author?.name, "${p.songs.size} songs").joinToString(" · "),
+                subtitle = if (shellPage) listOfNotNull(p.playlist.author?.name, "${p.songs.size} songs").joinToString(" · ") else p.playlist.author?.name,
                 meta = listOfNotNull("Playlist", "${p.songs.size} songs", totalTime(p.songs)).joinToString(" · "),
                 primary = "Play" to Icons.Rounded.PlayArrow,
                 onPrimary = { actions.play(QueueBuilder.forList(p.songs, 0, ctx, shuffle = false)) },
@@ -1024,8 +1028,8 @@ private fun FollowButton(channelId: String, initiallyFollowing: Boolean, name: S
     val ink by animateColorAsState(if (following) c.onPrimary else c.onBackground, tween(180), label = "followInk")
     Row(
         Modifier
-            .then(if (compact) Modifier.height(44.dp) else Modifier.fillMaxHeight())
-            .pressable(if (compact) CircleShape else RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), if (compact && !following) c.onBackground else fill, pressedScale = 0.93f) {
+            .then(if (compact) Modifier.size(52.dp) else Modifier.fillMaxHeight())
+            .pressable(if (compact) CircleShape else RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp), fill, pressedScale = 0.93f) {
                 if (app.wave.music.data.SessionRepository.isGuest) {
                     app.wave.music.ui.components.Notices.show("Sign in with Google to follow artists")
                     return@pressable
@@ -1044,18 +1048,16 @@ private fun FollowButton(channelId: String, initiallyFollowing: Boolean, name: S
                         }
                 }
             }
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = if (compact) 0.dp else 18.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (compact) {
-            val ink = if (following) c.onBackground else c.background
-            if (following) {
-                Icon(Icons.Rounded.NotificationsActive, null, tint = ink, modifier = Modifier.size(18.dp))
-                Text("  Subscribed", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
-            } else {
-                Text("Subscribe", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
-            }
+            Icon(
+                if (following) Icons.Rounded.Subscriptions else androidx.compose.material.icons.Icons.Outlined.Subscriptions,
+                if (following) "Subscribed to $name" else "Subscribe to $name",
+                tint = ink,
+            )
             return@Row
         }
         androidx.compose.animation.AnimatedContent(following, label = "follow") { on ->

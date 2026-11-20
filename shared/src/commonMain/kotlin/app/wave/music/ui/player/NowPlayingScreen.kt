@@ -117,6 +117,9 @@ import app.wave.music.ui.components.rememberBackdrop
 import app.wave.music.ui.components.rememberArtColorScheme
 import coil3.compose.AsyncImage
 
+/** How much of the screen the song's art covers (Prisma shows more of it). */
+private const val ART = 0.7f
+
 private fun formatTime(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(total / 60, total % 60)
@@ -244,20 +247,20 @@ fun NowPlayingScreen(
             // Fractions of the screen: the art is the top 62%, blurring from 58% of the way down it.
             app.wave.music.ui.components.ProgressiveBlur(
                 Modifier.fillMaxSize(),
-                start = 0.62f * 0.58f,
-                end = 0.62f,
-                maxRadius = 72.dp,
+                start = ART * 0.82f,
+                end = ART + 0.06f,
+                maxRadius = 30.dp,
             ) {
                 // Sized as fractions of the box, never in dp: the blurred copies are drawn smaller
                 // and scaled up, and must line up exactly with the sharp one.
                 Box(Modifier.fillMaxSize()) {
-                    AsyncImage(art, null, Modifier.fillMaxWidth().fillMaxHeight(0.62f), contentScale = ContentScale.Crop)
+                    AsyncImage(art, null, Modifier.fillMaxWidth().fillMaxHeight(ART), contentScale = ContentScale.Crop)
                     AsyncImage(
                         art,
                         null,
                         Modifier
                             .fillMaxWidth()
-                            .fillMaxHeight(0.62f)
+                            .fillMaxHeight(ART)
                             .layout { measurable, constraints ->
                                 val placeable = measurable.measure(constraints)
                                 layout(placeable.width, placeable.height) { placeable.place(0, placeable.height) }
@@ -269,18 +272,18 @@ fun NowPlayingScreen(
             }
             }
             // Frosted top so "Playing from" always reads, whatever the art.
-            ProgressiveBackdropBlur(topBlur, Modifier.fillMaxWidth().height(statusTop + 110.dp))
+            // Just a little shade at the top so "Playing from" reads, no frosting.
             // Darken toward the controls so text stays readable, keeping the song's color.
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.3f),
-                            0.12f to Color.Transparent,
-                            0.38f to Color.Transparent,
-                            0.62f to c.background.copy(alpha = 0.55f),
-                            1f to c.background.copy(alpha = 0.82f),
+                            0f to Color.Black.copy(alpha = 0.4f),
+                            0.1f to Color.Transparent,
+                            0.5f to Color.Transparent,
+                            0.72f to c.background.copy(alpha = 0.5f),
+                            1f to c.background.copy(alpha = 0.8f),
                         ),
                     ),
             )
@@ -529,8 +532,8 @@ private fun Controls(
                 label = "title",
             ) { shown ->
                 Column {
-                    Text(shown.title, color = c.onBackground, fontSize = if (dense) 24.sp else 32.sp, lineHeight = if (dense) 28.sp else 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(shown.artist, color = c.onSurfaceVariant, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 30.sp, lineHeight = if (dense) 28.sp else 35.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 17.sp, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             LikeButton(state.liked) {

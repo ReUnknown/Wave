@@ -1,5 +1,10 @@
 package app.wave.music.ui.menu
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
@@ -435,15 +440,57 @@ fun ItemMenuHost(
 @Composable
 private fun MenuContainer(desktop: Boolean, sheet: androidx.compose.material3.SheetState, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     if (desktop) {
+        // The menu grows out of the spot you touched (the ⋮ button), covering it as it opens,
+        // and opens toward whichever side has room.
         val spot = PointerSpot.position
-        Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(spot.x.toInt(), spot.y.toInt()) }.size(1.dp)) {
-            androidx.compose.material3.DropdownMenu(
-                expanded = true,
-                onDismissRequest = onDismiss,
-                shape = RoundedCornerShape(24.dp),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shadowElevation = 12.dp,
-                modifier = Modifier.widthIn(min = 260.dp, max = 320.dp),
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val nudge = with(density) { 20.dp.toPx() }
+        val margin = with(density) { 12.dp.toPx() }
+        var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.graphics.TransformOrigin(1f, 0f)) }
+        val position = androidx.compose.runtime.remember(spot) {
+            object : androidx.compose.ui.window.PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: androidx.compose.ui.unit.IntRect,
+                    windowSize: androidx.compose.ui.unit.IntSize,
+                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                    popupContentSize: androidx.compose.ui.unit.IntSize,
+                ): androidx.compose.ui.unit.IntOffset {
+                    val w = popupContentSize.width.toFloat()
+                    val h = popupContentSize.height.toFloat()
+                    val toLeft = spot.x > windowSize.width / 2f
+                    val x = (if (toLeft) spot.x + nudge - w else spot.x - nudge).coerceIn(margin, (windowSize.width - w - margin).coerceAtLeast(margin))
+                    val down = spot.y - nudge + h + margin < windowSize.height
+                    val y = (if (down) spot.y - nudge else spot.y + nudge - h).coerceIn(margin, (windowSize.height - h - margin).coerceAtLeast(margin))
+                    if (w > 0 && h > 0) origin = androidx.compose.ui.graphics.TransformOrigin(((spot.x - x) / w).coerceIn(0f, 1f), ((spot.y - y) / h).coerceIn(0f, 1f))
+                    return androidx.compose.ui.unit.IntOffset(x.toInt(), y.toInt())
+                }
+            }
+        }
+        androidx.compose.ui.window.Popup(
+            popupPositionProvider = position,
+            onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+        ) {
+            val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.MutableTransitionState(false) }.apply { targetState = true }
+            val t = androidx.compose.animation.core.rememberTransition(shown, label = "menu")
+            val scale by t.animateFloat({ androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 520f) }, label = "menuScale") { if (it) 1f else 0.12f }
+            val fade by t.animateFloat({ androidx.compose.animation.core.tween(110) }, label = "menuFade") { if (it) 1f else 0f }
+            val corner by t.animateDp({ androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f) }, label = "menuCorner") { if (it) 26.dp else 80.dp }
+            val shape = RoundedCornerShape(corner)
+            Column(
+                Modifier
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = fade
+                        transformOrigin = origin
+                    }
+                    .shadow(18.dp, shape)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .widthIn(min = 250.dp, max = 310.dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(vertical = 6.dp),
             ) { content() }
         }
     } else {
