@@ -408,7 +408,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
     }
     val pageLook = remember { app.wave.music.ui.components.PageLook() }
-    val appScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: hero?.art else null)
+    val appScheme = rememberArtColorScheme(if (settings.matchSongColors) player.current?.artworkUrl ?: (if (shell) hero?.art else null) else null)
     val pageCovers = rememberCovered(stack.isNotEmpty())
     val playerCovers = rememberCovered(showPlayer && player.current != null && !docked)
     val searchCovers = rememberCovered(showSearch)
@@ -527,7 +527,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     session = session,
                     playlists = myPlaylists,
                     recent = (playedHere + ((ui as? HomeUi.Ready)?.feed?.recent ?: emptyList())).distinctBy { it.id },
-                    topPadding = statusTop + 128.dp,
+                    topPadding = statusTop + PrismaTopHeight + 6.dp,
                     bottomPadding = 150.dp + PrismaBarHeight,
                     onOpen = { push(it) },
                     openItem = openItem,
@@ -558,7 +558,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .backdropSource(backdrop),
-                    contentPadding = if (shell) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + 128.dp, bottom = 150.dp + PrismaBarHeight),
+                    contentPadding = if (shell) PaddingValues(bottom = 140.dp) else PaddingValues(top = statusTop + PrismaTopHeight + 6.dp, bottom = 150.dp + PrismaBarHeight),
                 ) {
                   if (!shell) {
                     prismaHome(
@@ -566,7 +566,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
                         playlists = myPlaylists,
                         guest = session.guest,
-                        onSignIn = onSignOut,
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
@@ -634,14 +633,21 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 currentWindowDp().screenHeightDp < 600 -> 150.dp
                 else -> 230.dp
             }
-            ProgressiveBackdropBlur(
+            if (!shell) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(statusTop + 64.dp)
+                        .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.6f), 1f to Color.Transparent)),
+                )
+            } else ProgressiveBackdropBlur(
                 backdrop = backdrop,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(statusTop + headerBand),
             )
             // Tint on top of the blur so white text always has contrast.
-            Box(
+            if (shell) Box(
                 Modifier
                     .fillMaxWidth()
                     .height(statusTop + headerBand)
@@ -660,12 +666,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     ),
             )
             if (!shell) {
-                PrismaHeader(
-                    session = session,
-                    title = if (tab == 1) "Library" else null,
-                    onAvatar = { askSignOut = true },
-                    modifier = Modifier.topBarPadding(),
-                )
+                PrismaTopBar(session = session, onAvatar = { askSignOut = true }, modifier = Modifier.topBarPadding())
             } else
             Column(
                 Modifier

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Favorite
@@ -38,8 +41,6 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,19 +48,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.wave.music.data.HomeFeed
 import app.wave.music.data.Session
+import app.wave.music.platform.prismaDisplayFont
+import app.wave.music.platform.prismaTextFont
 import app.wave.music.ui.components.WaveMark
 import app.wave.music.ui.components.atSize
 import app.wave.music.ui.components.pressable
@@ -75,41 +84,38 @@ import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.YTItem
 
 /*
- * Wave Prisma (Wave 2.0, alpha): a bottom bar instead of the search bar at the top, and a home
- * laid out in big picks, song mixes and rows. Wave's own look, just looser than strict M3E.
+ * Wave Prisma (Wave 2.0, alpha): a bottom bar instead of the search bar at the top, and a denser
+ * home of big picks, song mixes and rows. Wave's own look, looser than strict M3E.
  */
 
 /** Height of the bottom bar, not counting the gesture bar under it. */
 val PrismaBarHeight: Dp = 72.dp
 
+/** Height of the bar at the top (the Wave mark and your picture) under the status bar. */
+val PrismaTopHeight: Dp = 60.dp
+
+/** Headings in Google Sans, everything else in Google Sans Text (where the phone has them). */
+private fun display(size: TextUnit, weight: FontWeight = FontWeight.Bold, spacing: TextUnit = 0.sp) =
+    TextStyle(fontFamily = prismaDisplayFont, fontSize = size, fontWeight = weight, letterSpacing = spacing)
+
+private fun body(size: TextUnit, weight: FontWeight = FontWeight.Normal) =
+    TextStyle(fontFamily = prismaTextFont, fontSize = size, fontWeight = weight)
+
 // ---------------------------------------------------------------- The top
 
-/** Wave's mark and a greeting on the left, your picture on the right. No search bar. */
+/** Wave's mark on the left and your picture on the right, the same size. Stays put while you scroll. */
 @Composable
-fun PrismaHeader(session: Session, title: String?, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
+fun PrismaTopBar(session: Session, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
-    Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            WaveMark(c.onBackground.copy(alpha = 0.9f), size = 30.dp)
-            Spacer(Modifier.height(10.dp))
-            if (title != null) {
-                Text(title, color = c.onBackground, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)
-            } else {
-                Text(greetingLine(), color = c.onBackground.copy(alpha = 0.75f), fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                Text(
-                    if (session.guest) "Welcome to Wave" else session.name.substringBefore(' '),
-                    color = c.onBackground,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.8).sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+    Row(
+        modifier.fillMaxWidth().height(PrismaTopHeight).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { WaveMark(c.onBackground, size = 40.dp) }
+        Spacer(Modifier.weight(1f))
         Box(
             Modifier
-                .size(52.dp)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(c.onBackground.copy(alpha = 0.1f))
                 .border(1.dp, c.onBackground.copy(alpha = 0.16f), CircleShape)
@@ -117,24 +123,18 @@ fun PrismaHeader(session: Session, title: String?, onAvatar: () -> Unit, modifie
             contentAlignment = Alignment.Center,
         ) {
             if (session.photoUrl != null) {
-                AsyncImage(session.photoUrl, "Your account", Modifier.size(52.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                AsyncImage(session.photoUrl, "Your account", Modifier.size(44.dp).clip(CircleShape), contentScale = ContentScale.Crop)
             } else {
-                Icon(Icons.Rounded.AccountCircle, "Your account", Modifier.size(30.dp), tint = c.onBackground)
+                Icon(Icons.Rounded.AccountCircle, "Your account", Modifier.size(28.dp), tint = c.onBackground)
             }
         }
     }
 }
 
-private fun greetingLine(): String = when (java.time.LocalTime.now().hour) {
-    in 5..11 -> "Good morning"
-    in 12..16 -> "Good afternoon"
-    else -> "Good evening"
-}
-
 // ---------------------------------------------------------------- The bottom bar
 
 /**
- * Three tabs on a floating, rounded bar. The open tab grows into a filled squircle with its name
+ * Three tabs on a floating, rounded bar. The open tab grows into a filled shape with its name
  * (like WaveMini's tabs); the others stay as icons.
  */
 @Composable
@@ -151,7 +151,7 @@ fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier) 
                 .fillMaxWidth()
                 .height(PrismaBarHeight - 16.dp)
                 .clip(RoundedCornerShape(28.dp))
-                .background(c.surfaceContainerHigh.copy(alpha = 0.96f))
+                .background(c.surfaceContainerHigh.copy(alpha = 0.97f))
                 .border(1.dp, c.onSurface.copy(alpha = 0.08f), RoundedCornerShape(28.dp))
                 .padding(6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -170,7 +170,7 @@ fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier) 
                 Row(
                     Modifier
                         .weight(weight)
-                        .fillMaxSize()
+                        .fillMaxHeight()
                         .pressable(RoundedCornerShape(22.dp), fill, pressedScale = 0.92f) { onTab(i) },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
@@ -178,7 +178,7 @@ fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier) 
                     Icon(if (selected) on else off, label, tint = ink, modifier = Modifier.size(24.dp))
                     if (selected) {
                         Spacer(Modifier.width(8.dp))
-                        Text(label, color = ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+                        Text(label, color = ink, style = display(15.sp, FontWeight.Bold), maxLines = 1)
                     }
                 }
             }
@@ -188,36 +188,63 @@ fun PrismaTabBar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier = Modifier) 
 
 // ---------------------------------------------------------------- Home
 
+private val thisYear = java.time.Year.now().value
+
+/** The small line over a pick's title: why it's there. */
 private fun captionFor(item: YTItem): String = when (item) {
-    is AlbumItem -> item.artists?.firstOrNull()?.name?.let { "New from $it" } ?: "Album"
+    is AlbumItem -> {
+        val artist = item.artists?.firstOrNull()?.name
+        if (item.year != null && item.year!! >= thisYear - 1 && artist != null) "New from $artist" else "Album for you"
+    }
     is PlaylistItem -> "Made for you"
-    is ArtistItem -> "Artist"
-    is SongItem -> item.artists.firstOrNull()?.name?.let { "From $it" } ?: "Song"
-    else -> ""
+    is ArtistItem -> "Artist for you"
+    is SongItem -> "Song for you"
+    else -> "For you"
 }
 
-/** Home's rows, added to the list that scrolls under the header. */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Twelve picks if there are that many, never fewer than five: the day's pick, then albums and
+ * playlists from anywhere on home (newest albums first), then artists, then songs, then what you
+ * played lately.
+ */
+private fun picksFrom(feed: HomeFeed, recent: List<SongItem>): List<YTItem> {
+    val all = feed.sections.flatMap { it.items }
+    val albums = all.filterIsInstance<AlbumItem>().sortedByDescending { it.year ?: 0 }
+    val lists = all.filterIsInstance<PlaylistItem>()
+    val artists = all.filterIsInstance<ArtistItem>()
+    val songs = all.filterIsInstance<SongItem>()
+    // Albums and playlists take turns, so it isn't a wall of one kind.
+    val mixed = buildList {
+        val a = albums.iterator()
+        val p = lists.iterator()
+        while (a.hasNext() || p.hasNext()) {
+            if (a.hasNext()) add(a.next())
+            if (p.hasNext()) add(p.next())
+        }
+    }
+    val picks = (listOfNotNull(feed.hero?.item) + mixed + artists.take(2)).distinctBy { it.id }.take(12)
+    if (picks.size >= 5) return picks
+    return (picks + songs + recent).distinctBy { it.id }.take(12)
+}
+
+/** Home's rows, added to the list that scrolls under the top bar. */
 fun LazyListScope.prismaHome(
     feed: HomeFeed,
     recent: List<SongItem>,
     playlists: List<PlaylistItem>,
     guest: Boolean,
-    onSignIn: () -> Unit,
     playItem: (YTItem, Boolean) -> Unit,
     openItem: (YTItem) -> Unit,
     playSongs: (String, List<SongItem>, Int) -> Unit,
 ) {
-    if (guest) item(key = "signin") { SignInCard(onSignIn) }
-
-    // Big picks: the day's pick first, then the first row of albums and playlists.
-    val pickRow = feed.sections.firstOrNull { s -> s.items.any { it !is SongItem } }
-    val picks = (listOfNotNull(feed.hero?.item) + (pickRow?.items.orEmpty().filter { it !is SongItem })).distinctBy { it.id }.take(8)
+    val picks = picksFrom(feed, recent)
     if (picks.isNotEmpty()) {
-        item(key = "picks-h") { PrismaSectionTitle("Top picks for you") }
+        item(key = "picks-h") { PrismaSectionTitle("Top picks for you", first = true) }
         item(key = "picks") {
-            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                items(picks, key = { it.id }) { pick -> PickCard(pick, onClick = openItem, onPlay = { playItem(pick, false) }) }
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(picks, key = { "pick" + it.id }) { pick ->
+                    PickCard(pick, onClick = { if (it is SongItem) playItem(it, false) else openItem(it) }, onPlay = { playItem(pick, false) })
+                }
             }
         }
     }
@@ -225,7 +252,7 @@ fun LazyListScope.prismaHome(
     if (recent.isNotEmpty()) {
         item(key = "recent-h") { PrismaSectionTitle("Recently played") }
         item(key = "recent") {
-            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(recent, key = { "r" + it.id }) { song -> SquareCard(song) { playItem(song, false) } }
             }
         }
@@ -234,23 +261,22 @@ fun LazyListScope.prismaHome(
     if (!guest && playlists.isNotEmpty()) {
         item(key = "mine-h") { PrismaSectionTitle("Your playlists") }
         item(key = "mine") {
-            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(playlists, key = { "p" + it.id }) { list -> SquareCard(list, onClick = openItem) }
             }
         }
     }
 
     feed.sections.forEachIndexed { index, section ->
-        if (section === pickRow) return@forEachIndexed
         val songs = section.items.filterIsInstance<SongItem>()
         item(key = "s-h-$index") { PrismaSectionTitle(section.title, section.label) }
         if (songs.size == section.items.size && songs.size >= 4) {
             // Song mixes: columns of four rows you swipe through.
             item(key = "s-$index") {
                 val columns = songs.chunked(4)
-                LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 8.dp)) {
                     items(columns.size) { col ->
-                        Column(Modifier.width(320.dp)) {
+                        Column(Modifier.width(312.dp)) {
                             columns[col].forEachIndexed { row, song ->
                                 SongLine(song) { playSongs(section.title, songs, col * 4 + row) }
                             }
@@ -260,7 +286,7 @@ fun LazyListScope.prismaHome(
             }
         } else {
             item(key = "s-$index") {
-                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(section.items, key = { "s$index" + it.id }) { entry -> SquareCard(entry, onClick = openItem) }
                 }
             }
@@ -269,67 +295,61 @@ fun LazyListScope.prismaHome(
 }
 
 @Composable
-private fun PrismaSectionTitle(title: String, label: String? = null) {
+private fun PrismaSectionTitle(title: String, label: String? = null, first: Boolean = false) {
     val c = MaterialTheme.colorScheme
-    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 28.dp, bottom = 12.dp)) {
-        if (!label.isNullOrBlank()) Text(label.uppercase(), color = c.onBackground.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (first) 4.dp else 22.dp, bottom = 10.dp)) {
+        if (!label.isNullOrBlank()) Text(label.uppercase(), color = c.onBackground.copy(alpha = 0.6f), style = body(11.sp, FontWeight.Bold).copy(letterSpacing = 1.sp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = c.onBackground, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text(title, color = c.onBackground, style = display(21.sp, FontWeight.Bold, (-0.2).sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onBackground.copy(alpha = 0.5f))
         }
     }
 }
 
-@Composable
-private fun SignInCard(onSignIn: () -> Unit) {
-    val c = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(32.dp))
-            .background(Brush.linearGradient(listOf(c.primary, c.tertiary)))
-            .padding(24.dp),
-    ) {
-        Text("Your music, everywhere", color = c.onPrimary, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
-        Text("Sign in to see your playlists, likes and mixes.", color = c.onPrimary.copy(alpha = 0.85f), fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
-        Box(
-            Modifier
-                .padding(top = 18.dp)
-                .height(52.dp)
-                .pressable(CircleShape, Color.White, pressedScale = 0.94f, onClick = onSignIn)
-                .padding(horizontal = 24.dp),
-            contentAlignment = Alignment.Center,
-        ) { Text("Sign in with Google", color = Color(0xFF1B1B1F), fontWeight = FontWeight.Bold, fontSize = 16.sp) }
-    }
-}
-
-/** A tall card: the art fills it, the words sit at the bottom over a soft shade. */
+/**
+ * A tall card: the art fills it, and its bottom part turns into a blur of the same art, darkened,
+ * so the words over it always read.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit) {
     val menu = LocalItemMenu.current
+    val art = item.thumbnail?.atSize(1080)
     Box(
         Modifier
-            .width(268.dp)
-            .height(356.dp)
-            .clip(RoundedCornerShape(30.dp))
+            .width(224.dp)
+            .height(296.dp)
+            .clip(RoundedCornerShape(26.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(onClick = { onClick(item) }, onLongClick = { menu.openFor(item) }),
     ) {
-        AsyncImage(item.thumbnail?.atSize(1080), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.78f))))
-        Row(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalAlignment = Alignment.Bottom) {
+        AsyncImage(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // The same art, blurred, showing only toward the bottom.
+        AsyncImage(
+            art,
+            null,
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(Brush.verticalGradient(0.52f to Color.Transparent, 0.72f to Color.Black), blendMode = BlendMode.DstIn)
+                }
+                .blur(28.dp),
+            contentScale = ContentScale.Crop,
+        )
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f))))
+        Row(Modifier.align(Alignment.BottomStart).padding(14.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
-                Text(captionFor(item), color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(item.title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 25.sp)
-                subtitle(item)?.let { Text(it, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Text(captionFor(item), color = Color.White.copy(alpha = 0.82f), style = body(12.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(item.title, color = Color.White, style = display(19.sp, FontWeight.Bold, (-0.2).sp).copy(lineHeight = 22.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                subtitle(item)?.let { Text(it, color = Color.White.copy(alpha = 0.75f), style = body(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
             Box(
                 Modifier
-                    .padding(start = 10.dp)
-                    .size(48.dp)
-                    .pressable(RoundedCornerShape(18.dp), Color.White, pressedScale = 0.9f, onClick = onPlay),
+                    .padding(start = 8.dp)
+                    .size(42.dp)
+                    .pressable(RoundedCornerShape(16.dp), Color.White, pressedScale = 0.9f, onClick = onPlay),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Color(0xFF1B1B1F)) }
         }
@@ -345,17 +365,17 @@ private fun SquareCard(item: YTItem, onClick: (YTItem) -> Unit) {
     val round = item is ArtistItem
     Column(
         Modifier
-            .width(150.dp)
+            .width(128.dp)
             .combinedClickable(onClick = { onClick(item) }, onLongClick = { menu.openFor(item) }),
     ) {
         AsyncImage(
             item.thumbnail?.atSize(400),
             null,
-            Modifier.size(150.dp).clip(if (round) CircleShape else RoundedCornerShape(20.dp)).background(c.surfaceContainerHigh),
+            Modifier.size(128.dp).clip(if (round) CircleShape else RoundedCornerShape(18.dp)).background(c.surfaceContainerHigh),
             contentScale = ContentScale.Crop,
         )
-        Text(item.title, color = c.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        subtitle(item)?.let { Text(it, color = c.onBackground.copy(alpha = 0.6f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        Text(item.title, color = c.onBackground, style = body(14.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        subtitle(item)?.let { Text(it, color = c.onBackground.copy(alpha = 0.6f), style = body(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -368,27 +388,27 @@ private fun SongLine(song: SongItem, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(68.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(60.dp)
+            .clip(RoundedCornerShape(14.dp))
             .combinedClickable(onClick = onClick, onLongClick = { menu.openFor(song) })
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AsyncImage(song.thumbnail?.atSize(226), null, Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+        AsyncImage(song.thumbnail?.atSize(226), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
-            Text(song.title, color = c.onBackground, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(song.artists.joinToString { it.name }, color = c.onBackground.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.title, color = c.onBackground, style = body(15.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.artists.joinToString { it.name }, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.size(40.dp).clip(CircleShape).clickable { menu.openFor(song) }, contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.MoreVert, "More", tint = c.onBackground.copy(alpha = 0.6f))
+        Box(Modifier.size(36.dp).clip(CircleShape).clickable { menu.openFor(song) }, contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.MoreVert, "More", tint = c.onBackground.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
         }
     }
 }
 
 // ---------------------------------------------------------------- Library
 
-/** Your library: big tiles for the main parts, then your playlists and what you played lately. */
+/** Your library: a title that scrolls away, tiles for the main parts, then playlists and what you played lately. */
 @Composable
 fun PrismaLibrary(
     session: Session,
@@ -403,17 +423,31 @@ fun PrismaLibrary(
 ) {
     val c = MaterialTheme.colorScheme
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding)) {
+        item { Text("Library", color = c.onBackground, style = display(32.sp, FontWeight.Bold, (-0.6).sp), modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 12.dp)) }
         if (session.guest) {
-            item { SignInCard(onSignIn) }
+            item {
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Your playlists, likes and history show up here once you're signed in.", color = c.onBackground.copy(alpha = 0.75f), style = body(15.sp))
+                    Box(
+                        Modifier
+                            .height(44.dp)
+                            .border(1.dp, c.outline, CircleShape)
+                            .clip(CircleShape)
+                            .clickable(onClick = onSignIn)
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Sign in", color = c.primary, style = body(15.sp, FontWeight.SemiBold)) }
+                }
+            }
             return@LazyColumn
         }
         item {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LibraryTile(Icons.Rounded.Favorite, "Liked songs", c.primary, c.onPrimary, Modifier.weight(1f)) { onOpen(Destination.Playlist("LM")) }
                     LibraryTile(Icons.Rounded.LibraryMusic, "Playlists", c.secondaryContainer, c.onSecondaryContainer, Modifier.weight(1f)) { onOpen(Destination.Playlists) }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LibraryTile(Icons.Rounded.Album, "Albums & artists", c.tertiaryContainer, c.onTertiaryContainer, Modifier.weight(1f)) { onOpen(Destination.Saved) }
                     LibraryTile(Icons.Rounded.History, "History", c.surfaceContainerHighest, c.onSurface, Modifier.weight(1f)) { onOpen(Destination.History) }
                 }
@@ -432,15 +466,16 @@ fun PrismaLibrary(
 
 @Composable
 private fun LibraryTile(icon: ImageVector, label: String, fill: Color, ink: Color, modifier: Modifier, onClick: () -> Unit) {
-    Column(
+    Row(
         modifier
-            .height(104.dp)
-            .pressable(RoundedCornerShape(28.dp), fill, pressedScale = 0.95f, onClick = onClick)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+            .height(64.dp)
+            .pressable(RoundedCornerShape(22.dp), fill, pressedScale = 0.95f, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(icon, null, tint = ink, modifier = Modifier.size(28.dp))
-        Text(label, color = ink, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, tint = ink, modifier = Modifier.size(24.dp))
+        Text(label, color = ink, style = display(15.sp, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -452,17 +487,17 @@ private fun LibraryRow(item: YTItem, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .padding(horizontal = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
             .combinedClickable(onClick = onClick, onLongClick = { menu.openFor(item) })
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AsyncImage(item.thumbnail?.atSize(226), null, Modifier.size(58.dp).clip(if (item is ArtistItem) CircleShape else RoundedCornerShape(14.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+        AsyncImage(item.thumbnail?.atSize(226), null, Modifier.size(50.dp).clip(if (item is ArtistItem) CircleShape else RoundedCornerShape(12.dp)).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
-            Text(item.title, color = c.onBackground, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            subtitle(item)?.let { Text(it, color = c.onBackground.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Text(item.title, color = c.onBackground, style = body(15.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            subtitle(item)?.let { Text(it, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }
