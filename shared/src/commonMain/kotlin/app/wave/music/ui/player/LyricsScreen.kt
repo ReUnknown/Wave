@@ -111,6 +111,15 @@ private sealed interface LyricsUi {
 
 private val LineStyle = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
 
+/** Settings › Lyrics, as the lines need it. */
+private class LyricLook(val words: Boolean, val motion: Int, val size: Int, val center: Boolean, val blur: Boolean) {
+    val line: TextStyle = when (size) {
+        0 -> LineStyle.copy(fontSize = 26.sp, lineHeight = 33.sp)
+        2 -> LineStyle.copy(fontSize = 38.sp, lineHeight = 46.sp)
+        else -> LineStyle
+    }
+}
+
 /** Where the sung line sits: a little under a third of the way down, like Apple Music. */
 private const val ANCHOR = 0.3f
 
@@ -236,7 +245,15 @@ fun LyricsScreen(
         while (cascade.moving) androidx.compose.runtime.withFrameNanos { now -> cascade.tick(now) }
     }
 
-    val lyrics = (ui as? LyricsUi.Ready)?.lyrics
+    // Timing: Wave's own sync (already applied), then your offset for every song, then this song's.
+    val prefs by WaveSettings.state.collectAsState()
+    var songOffset by remember(song.videoId) { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(song.videoId) { songOffset = app.wave.music.data.LyricOffsets.get(song.videoId) }
+    val rawLyrics = (ui as? LyricsUi.Ready)?.lyrics
+    val lyrics = remember(rawLyrics, prefs.lyricsOffsetMs, songOffset) { rawLyrics?.shifted((prefs.lyricsOffsetMs + songOffset).toLong()) }
+    val look = remember(prefs.lyricsWords, prefs.lyricsMotion, prefs.lyricsSize, prefs.lyricsCenter, prefs.lyricsBlur) {
+        LyricLook(prefs.lyricsWords, prefs.lyricsMotion, prefs.lyricsSize, prefs.lyricsCenter, prefs.lyricsBlur)
+    }
     // Only recomposes when the line changes; the per-frame word fill happens at draw time.
     val active by remember(lyrics) {
         derivedStateOf { if (lyrics?.synced == true) lyrics.lines.indexOfLast { it.startMs <= position + 80 } else -1 }
@@ -305,18 +322,19 @@ fun LyricsScreen(
                 modifier = Modifier.widthIn(max = 760.dp).fillMaxSize().graphicsLayer { alpha = appear.value; translationY = (1f - appear.value) * 24.dp.toPx() },
                 contentPadding = PaddingValues(top = maxHeight * ANCHOR, bottom = maxHeight * (1f - ANCHOR)),
             ) {
-                itemsIndexed(current.lyrics.lines) { index, line ->
+                itemsIndexed(lyrics!!.lines) { index, line ->
                     LyricLineItem(
                         line = line,
-                        synced = current.lyrics.synced,
-                        distance = if (current.lyrics.synced && active >= 0) index - active else 0,
+                        synced = lyrics!!.synced,
+                        distance = if (lyrics!!.synced && active >= 0) index - active else 0,
                         position = positionNow,
                         level = { 0f },
                         pulse = { 0f },
                         cascade = cascade,
                         browsing = browsing,
+                        look = look,
                         onTap = {
-                            if (current.lyrics.synced) {
+                            if (lyrics!!.synced) {
                                 PlayerConnection.seekTo(line.startMs)
                                 PlayerConnection.play()
                                 userScrolledAt = 0L
@@ -327,7 +345,7 @@ fun LyricsScreen(
                 }
                 item {
                     Text(
-                        (if (current.lyrics.synced) "" else "These lyrics aren't time-synced · ") + "Lyrics from ${current.lyrics.source}",
+                        (if (lyrics!!.synced) "" else "These lyrics aren't time-synced · ") + "Lyrics from ${lyrics!!.source}",
                         modifier = Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 13.sp,
@@ -362,6 +380,25 @@ fun LyricsScreen(
             Column(Modifier.weight(1f)) {
                 Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            // Timing for this song: earlier or later a tenth of a second at a time, remembered.
+            // Tap the number to put it back.
+            if (lyrics?.synced == true) Row(
+                Modifier.height(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.3f)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                fun nudge(by: Int) {
+                    songOffset = (songOffset + by).coerceIn(-10_000, 10_000)
+                    val saved = songOffset
+                    scope.launch { app.wave.music.data.LyricOffsets.set(song.videoId, saved) }
+                }
+                Box(Modifier.size(40.dp).clickable { nudge(-100) }, contentAlignment = Alignment.Center) { Text("−", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                Text(
+                    if (songOffset == 0) "Sync" else "%+.1fs".format(songOffset / 1000f),
+                    Modifier.clickable { if (songOffset != 0) nudge(-songOffset) }.padding(horizontal = 4.dp),
+                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                )
+                Box(Modifier.size(40.dp).clickable { nudge(100) }, contentAlignment = Alignment.Center) { Text("+", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
             }
         }
 
@@ -418,6 +455,7 @@ private fun LyricLineItem(
     drop: () -> Float = { 0f },
     cascade: Cascade? = null,
     browsing: Boolean = false,
+    look: LyricLook = LyricLook(true, 1, 1, false, true),
 ) {
     val isActive = synced && distance == 0
     // A hook line swells a little when it comes around, on top of everything else.
@@ -435,7 +473,7 @@ private fun LyricLineItem(
     // The sung line grows in with a soft spring; the rest sit a touch smaller.
     val scale by animateFloatAsState(if (isActive || !synced) 1f else 0.95f, spring(dampingRatio = 0.62f, stiffness = 140f), label = "scale")
     // Lines further from the sung one blur more, all sharp while you're scrolling around.
-    val blur by animateFloatAsState(if (!synced || browsing || distance == 0) 0f else (abs(distance) * 1.1f).coerceAtMost(6f), tween(600), label = "blur")
+    val blur by animateFloatAsState(if (!look.blur || !synced || browsing || distance == 0) 0f else (abs(distance) * 1.1f).coerceAtMost(6f), tween(600), label = "blur")
     val isBreak = synced && line.text.isBlank()
     Column(
         Modifier
@@ -446,7 +484,7 @@ private fun LyricLineItem(
                 val beatBump = if (isActive) 1f + pulse() * 0.025f + drop() * 0.06f else 1f
                 scaleX = scale * beatBump * hookBoost
                 scaleY = scale * beatBump * hookBoost
-                transformOrigin = TransformOrigin(0f, 0.5f)
+                transformOrigin = TransformOrigin(if (look.center) 0.5f else 0f, 0.5f)
             }
             .graphicsLayer { translationY = cascade?.offset(distance) ?: 0f }
             .alpha(alpha)
@@ -456,16 +494,18 @@ private fun LyricLineItem(
             if (isActive) BreakDots()
             return@Column
         }
-        FlowRow {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = if (look.center) Arrangement.Center else Arrangement.Start) {
             val wordPosition: () -> Long = when {
+                // Line by line: the whole line lights up at once.
+                isActive && !look.words -> { -> Long.MAX_VALUE }
                 isActive -> position
                 distance < 0 -> { -> Long.MAX_VALUE }
                 else -> { -> Long.MIN_VALUE }
             }
-            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, LineStyle, synced, hook = false, accent = accent, rise = false) }
+            line.words.forEach { word -> LyricWordText(word, wordPosition, if (isActive) level else { -> 0f }, look.line, synced, hook = false, accent = accent, rise = isActive && look.motion >= 1 && look.words, glow = look.motion == 2 && look.words) }
         }
         if (line.background.isNotEmpty()) {
-            FlowRow(Modifier.padding(top = 4.dp)) {
+            FlowRow(Modifier.padding(top = 4.dp).fillMaxWidth(), horizontalArrangement = if (look.center) Arrangement.Center else Arrangement.Start) {
                 line.background.forEach { word -> LyricWordText(word, if (isActive) position else { -> Long.MIN_VALUE }, { 0f }, BackingStyle, synced) }
             }
         }
@@ -490,6 +530,8 @@ private fun LyricWordText(
     accent: Color = Color.White,
     /** The word lifts a little as it's sung and stays up until its line is over. */
     rise: Boolean = false,
+    /** Held notes glow and swell gently while they're sung (Settings › Lyrics › Motion). */
+    glow: Boolean = false,
 ) {
     val text = word.text + if (word.spaceAfter) " " else ""
     if (!synced) {
@@ -498,7 +540,7 @@ private fun LyricWordText(
     }
     val duration = (word.endMs - word.startMs).coerceAtLeast(1)
     // No held-word glow or lift: just the wipe.
-    val emphasized = false
+    val emphasized = glow && duration >= 900 && word.text.length <= 14
     fun fillAt(p: Long) = ((p - word.startMs).toFloat() / duration).coerceIn(0f, 1f)
     fun liftAt(p: Long) = if (emphasized && p in word.startMs..word.endMs) sin(PI * fillAt(p)).toFloat() else 0f
     // 0 until the word starts, easing up to 1 as it's sung, then staying there.

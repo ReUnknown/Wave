@@ -69,7 +69,7 @@ private fun fakeBackend(): PlayerBackend {
         override fun setSpeed(speed: Float) {}
         override fun toggleShuffle() {}
         override fun cycleRepeat() {}
-        override fun reset() {}
+        override fun reset() { state.value = PlayerUiState() }
     }
 }
 
@@ -94,6 +94,9 @@ object RenderApp {
             "lighttop" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1, topSearch = true, denseHome = true) }
             "legacybar" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = false) }
         }
+        if (mode.startsWith("opening")) app.wave.music.ui.home.RenderStart.openAfterMs = 6000
+        if (mode == "openingflat") app.wave.music.data.WaveSettings.preview { it.copy(blurLevel = 0) }
+        if (mode == "openinglegacy") app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu", "lightplayer")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
         if (mode == "settings") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Settings
@@ -116,6 +119,21 @@ object RenderApp {
             }
         }
         var image = scene.render(0)
+        if (mode == "dismiss") {
+            Thread {
+                Thread.sleep(6000)
+                PlayerConnection.reset()
+            }.start()
+        }
+        if (mode.startsWith("opening")) {
+            // Open the player a few seconds in, then grab a frame part-way through the animation.
+            var t = 0L
+            while (app.wave.music.ui.home.RenderStart.openedAtNanos == 0L && t < 20_000_000_000L) { Thread.sleep(50); t += 50_000_000L; image = scene.render(t) }
+            val at = app.wave.music.ui.home.RenderStart.openedAtNanos
+            for (step in 1..4) { image = scene.render(at + step * 50_000_000L) }
+            File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            println("done"); kotlin.system.exitProcess(0)
+        }
         for (i in 1..150) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
         File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         println("done")

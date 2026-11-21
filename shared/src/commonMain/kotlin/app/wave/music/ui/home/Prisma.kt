@@ -240,13 +240,18 @@ fun PrismaTabBar(
         .clip(shape)
         .glass(haze, 30.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f))), c.surfaceContainer.copy(alpha = 0.97f))
         .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape)
+    // Swiped away: the song folds out of the dock right away, without waiting for the player to catch up.
+    var swipedAway by remember { mutableStateOf<String?>(null) }
+    // Once the player has really stopped, the same song can show again if you play it.
+    if (now == null && swipedAway != null) swipedAway = null
+    val now = now?.takeIf { it.videoId != swipedAway }
     var lastSong by remember { mutableStateOf(now) }
     if (now != null) lastSong = now
     val songShape = RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(if (split || oneRow) 32.dp else 26.dp))
     // The song: the player grows out of exactly this.
     val song: @Composable (Modifier) -> Unit = { m ->
         lastSong?.let { s ->
-            DockSong(s, playing, onOpenPlayer, loading, m.then(Modifier.sharedContainer("player", visibility, songShape)))
+            DockSong(s, playing, onOpenPlayer, loading, m.then(Modifier.sharedContainer("player", visibility, songShape)), onSwipedAway = { swipedAway = s.videoId })
         }
     }
     val enter = androidx.compose.animation.expandVertically(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) + androidx.compose.animation.fadeIn(tween(220))
@@ -349,7 +354,7 @@ private fun DockTabs(tab: Int, onTab: (Int) -> Unit, modifier: Modifier) {
 /** The mini player inside the dock: cover, song, and a play button in the song's color. */
 @Composable
 @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit, loading: Boolean = false, modifier: Modifier = Modifier) {
+private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit, loading: Boolean = false, modifier: Modifier = Modifier, onSwipedAway: () -> Unit = {}) {
     val c = MaterialTheme.colorScheme
     val song = app.wave.music.ui.components.rememberArtColorScheme(now.artworkUrl)
     // Swipe it down to close the song: it follows your finger, and past a point it drops away
@@ -374,7 +379,8 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
                 onDragStopped = { velocity ->
                     if (drag.value > closeAt || velocity > 1800f) {
                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
-                        drag.animateTo(closeAt * 3f, tween(180))
+                        drag.animateTo(closeAt * 1.6f, tween(140))
+                        onSwipedAway()
                         app.wave.music.playback.PlayerConnection.reset()
                     } else {
                         drag.animateTo(0f, app.wave.music.ui.components.WaveMotion.bouncy())

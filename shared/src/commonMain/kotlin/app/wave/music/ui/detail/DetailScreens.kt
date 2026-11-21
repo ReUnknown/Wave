@@ -361,6 +361,13 @@ private fun <T> PageFrame(
             }
             if (app.wave.music.ui.components.LocalShell.current) ProgressiveBackdropBlur(backdrop, Modifier.fillMaxWidth().height(statusTop + 96.dp))
             else {
+                // A whisper of blur right under the status bar over the full art, fading out fast.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(statusTop + 18.dp)
+                        .glass(pageGlass, 10.dp, Color.Transparent, emptyList(), Color.Transparent, progressive = true),
+                )
                 val glassAlpha by androidx.compose.animation.core.animateFloatAsState(if (scrolledPast) 1f else 0f, tween(240), label = "pageGlass")
                 if (glassAlpha > 0f) Box(
                     Modifier

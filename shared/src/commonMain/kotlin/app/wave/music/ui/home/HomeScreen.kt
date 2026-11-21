@@ -205,6 +205,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         if (WaveSettings.state.value.checkUpdates) Updater.check()
     }
     var showPlayer by rememberSaveable { mutableStateOf(RenderStart.player) }
+    if (RenderStart.openAfterMs > 0) LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(RenderStart.openAfterMs)
+        RenderStart.openedAtNanos = androidx.compose.runtime.withFrameNanos { it }
+        showPlayer = true
+    }
     // Asked to open from home's banner; handled once the player's layout state exists below.
     var openRequested by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
@@ -926,7 +931,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 }
             }
             // Big tablets: the mini player beside the tabs, in one row (Customize).
-            val oneRow = !legacyMini && settings.dockOneRow && conf.screenWidthDp >= 840 && tabsShown
+            // What the dock shows doesn't change while the player opens: the song row has to stay put
+            // for the player to grow out of it (hiding the tabs at that moment took the song with them).
+            val dockTabs = !shell && !keyboardUp && !settings.topSearch
+            val oneRow = !legacyMini && settings.dockOneRow && conf.screenWidthDp >= 840 && dockTabs
             // Kept in an AnimatedVisibility so the player can grow out of the mini player and fold back.
             androidx.compose.animation.AnimatedVisibility(visible = barVisible, enter = EnterTransition.None, exit = ExitTransition.None, modifier = Modifier.align(Alignment.BottomCenter)) {
                 PrismaTabBar(
@@ -941,12 +949,12 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             tab = t
                         }
                     },
-                    haze = if (settings.legacyUi) null else barHaze,
+                    haze = barHaze,
                     now = if (legacyMini) null else dockSong,
                     playing = player.isPlaying,
                     loading = preparing,
                     onOpenPlayer = { openPlayer(null) },
-                    showTabs = tabsShown,
+                    showTabs = dockTabs,
                     split = songOnItsOwn,
                     oneRow = oneRow,
                     visibility = this,
@@ -1457,7 +1465,12 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
 
 
 /** For offscreen renders only: start with the player open. */
-object RenderStart { var player = false; var openTo: String? = null; var menu: MenuTarget? = null; var page: Destination? = null }
+object RenderStart {
+    var player = false; var openTo: String? = null; var menu: MenuTarget? = null; var page: Destination? = null
+    /** Renders only: open the player after this many ms, and note the frame time it happened. */
+    var openAfterMs = 0L
+    @Volatile var openedAtNanos = 0L
+}
 
 
 /** What the dock shows for something you just picked, before it starts playing. */

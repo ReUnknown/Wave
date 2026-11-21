@@ -30,7 +30,77 @@ data class LyricLine(
  * [wordSynced]: real per-word timing (Apple Music style). Otherwise lines are timed and words
  * are spread across each line by length, or there's no timing at all ([synced] false).
  */
-data class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val wordSynced: Boolean, val source: String)
+data class Lyrics(
+    val lines: List<LyricLine>,
+    val synced: Boolean,
+    val wordSynced: Boolean,
+    val source: String,
+    /** How much longer the song is than the recording these lyrics were timed to (LRCLIB knows). */
+    val durationDiffMs: Long? = null,
+    /** How far Wave moved the timing to line it up with this song (0 = untouched). */
+    val autoShiftMs: Long = 0,
+) {
+    /** The same lyrics, everything [ms] later (negative: earlier). */
+    fun shifted(ms: Long): Lyrics = if (ms == 0L) this else copy(
+        lines = lines.map { line ->
+            line.copy(
+                startMs = line.startMs + ms,
+                endMs = line.endMs + ms,
+                words = line.words.map { it.copy(startMs = it.startMs + ms, endMs = it.endMs + ms) },
+                background = line.background.map { it.copy(startMs = it.startMs + ms, endMs = it.endMs + ms) },
+            )
+        },
+    )
+}
+
+/**
+ * Lining lyrics up with the song. Word-timed lyrics come from Apple Music's recording, which can
+ * start a little earlier or later than YouTube's; LRCLIB is timed to a recording of a known length.
+ */
+private object LyricSync {
+    private fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N}]"), "")
+
+    /** The typical gap between the same lines in [reference] and [lyrics], or null if too few match. */
+    fun medianShift(lyrics: Lyrics, reference: Lyrics): Long? {
+        val ref = reference.lines.filter { it.text.isNotBlank() }.groupBy { norm(it.text) }
+        val used = HashMap<String, Int>()
+        val gaps = lyrics.lines.filter { it.text.isNotBlank() }.mapNotNull { line ->
+            val key = norm(line.text)
+            val matches = ref[key] ?: return@mapNotNull null
+            val n = used.merge(key, 1, Int::plus)!! - 1
+            matches.getOrNull(n)?.let { it.startMs - line.startMs }
+        }
+        if (gaps.size < 3) return null
+        val sorted = gaps.sorted()
+        val median = sorted[sorted.size / 2]
+        // Only a steady gap counts: most lines must agree within half a second.
+        val agree = gaps.count { kotlin.math.abs(it - median) < 500 }
+        return if (agree * 3 >= gaps.size * 2) median else null
+    }
+
+    /** Lyrics timed to a recording a little shorter or longer: assume the difference is at the start. */
+    fun lengthShift(lyrics: Lyrics): Long {
+        val diff = lyrics.durationDiffMs ?: return 0
+        if (kotlin.math.abs(diff) !in 1_200..6_000) return 0
+        val first = lyrics.lines.firstOrNull { it.text.isNotBlank() }?.startMs ?: return 0
+        // Moving earlier can't push the first line before the song starts.
+        return if (diff < 0 && first + diff < 0) 0 else diff
+    }
+
+    fun align(chosen: Lyrics, words: Lyrics?, lines: Lyrics?): Lyrics {
+        if (!chosen.synced) return chosen
+        // Word-timed lyrics, checked against LRCLIB's line timing when that matches the song's length.
+        if (chosen.wordSynced && lines != null && lines.synced && kotlin.math.abs(lines.durationDiffMs ?: Long.MAX_VALUE) < 1_500) {
+            val shift = medianShift(chosen, lines)
+            if (shift != null && kotlin.math.abs(shift) in 250..8_000) return chosen.shifted(shift).copy(autoShiftMs = shift)
+        }
+        if (chosen.source == "LRCLIB") {
+            val shift = lengthShift(chosen)
+            if (shift != 0L) return chosen.shifted(shift).copy(autoShiftMs = shift)
+        }
+        return chosen
+    }
+}
 
 /**
  * Lyrics, best first: word-timed lyrics from Better Lyrics (Apple Music's TTML), then
@@ -56,10 +126,10 @@ object LyricsRepository {
                 coroutineScope {
                     val words = async { runCatching { fromBetterLyrics(title, artist, durationMs, album) }.getOrNull() }
                     val lines = async { runCatching { fromLrcLib(title, artist, durationMs) }.getOrNull() }
-                    words.await()?.takeIf { it.wordSynced }
-                        ?: lines.await()?.takeIf { it.synced }
-                        ?: words.await()
-                        ?: lines.await()
+                    val w = words.await()
+                    val l = lines.await()
+                    (w?.takeIf { it.wordSynced } ?: l?.takeIf { it.synced } ?: w ?: l)
+                        ?.let { LyricSync.align(it, w, l) }
                         ?: runCatching { fromYouTube(videoId) }.getOrNull()
                 }.also { found ->
                     if (found != null) cache[videoId] = found
@@ -222,14 +292,16 @@ object LyricsRepository {
             }
         }
         val durationSec = durationMs / 1000.0
+        // Timed lyrics first, then the recording whose length is closest to this song's.
         val best = candidates
             .filter { durationMs <= 0 || kotlin.math.abs(it.optDouble("duration", durationSec) - durationSec) < 6 }
-            .sortedByDescending { it.optString("syncedLyrics").isNotBlank() }
+            .sortedWith(compareByDescending<JSONObject> { it.optString("syncedLyrics").isNotBlank() }.thenBy { kotlin.math.abs(it.optDouble("duration", durationSec) - durationSec) })
             .firstOrNull() ?: return null
+        val diffMs = if (durationMs > 0 && best.has("duration")) durationMs - (best.optDouble("duration") * 1000).toLong() else null
 
         best.optString("syncedLyrics").takeIf { it.isNotBlank() }?.let { lrc ->
             val lines = parseLrc(lrc, durationMs)
-            if (lines.isNotEmpty()) return Lyrics(lines, synced = true, wordSynced = false, source = "LRCLIB")
+            if (lines.isNotEmpty()) return Lyrics(lines, synced = true, wordSynced = false, source = "LRCLIB", durationDiffMs = diffMs)
         }
         return best.optString("plainLyrics").takeIf { it.isNotBlank() }?.let { plain -> plainLyrics(plain, "LRCLIB") }
     }

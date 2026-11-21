@@ -82,6 +82,17 @@ data class Settings(
     val saveData: Boolean = true,
     /** Tablets: the mini player sits beside the tabs in one row. */
     val dockOneRow: Boolean = true,
+    /** Lyrics light up word by word (off: the whole line at once). */
+    val lyricsWords: Boolean = true,
+    /** Lyric motion: 0 still, 1 words lift as they're sung, 2 lift and held words glow. */
+    val lyricsMotion: Int = 1,
+    /** Lyrics size: 0 small, 1 medium, 2 large. */
+    val lyricsSize: Int = 1,
+    val lyricsCenter: Boolean = false,
+    /** Lines away from the sung one blur. */
+    val lyricsBlur: Boolean = true,
+    /** Every song's lyrics this much later (negative: earlier), in ms. */
+    val lyricsOffsetMs: Int = 0,
 )
 
 
@@ -106,6 +117,12 @@ object WaveSettings {
     private val topSearchKey = booleanPreferencesKey("top_search")
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
+    private val lyWordsKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_words")
+    private val lyMotionKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_motion")
+    private val lySizeKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_size")
+    private val lyCenterKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_center")
+    private val lyBlurKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_blur")
+    private val lyOffsetKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_offset")
     private val storageKey = androidx.datastore.preferences.core.intPreferencesKey("storage_mb")
     private val saveDataKey = androidx.datastore.preferences.core.booleanPreferencesKey("save_data")
     private val oneRowKey = androidx.datastore.preferences.core.booleanPreferencesKey("dock_one_row")
@@ -156,6 +173,12 @@ object WaveSettings {
             separateMiniPlayer = p[separateKey] ?: false,
             // Anyone already using Wave has effectively set it up.
             setupDone = p[setupKey] ?: (p[matchColors] != null),
+            lyricsWords = p[lyWordsKey] ?: true,
+            lyricsMotion = p[lyMotionKey] ?: 1,
+            lyricsSize = p[lySizeKey] ?: 1,
+            lyricsCenter = p[lyCenterKey] ?: false,
+            lyricsBlur = p[lyBlurKey] ?: true,
+            lyricsOffsetMs = p[lyOffsetKey] ?: 0,
             storageMb = p[storageKey] ?: 256,
             saveData = p[saveDataKey] ?: true,
             dockOneRow = p[oneRowKey] ?: true,
@@ -202,6 +225,12 @@ object WaveSettings {
             it[topSearchKey] = next.topSearch
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
+            it[lyWordsKey] = next.lyricsWords
+            it[lyMotionKey] = next.lyricsMotion
+            it[lySizeKey] = next.lyricsSize
+            it[lyCenterKey] = next.lyricsCenter
+            it[lyBlurKey] = next.lyricsBlur
+            it[lyOffsetKey] = next.lyricsOffsetMs
             it[storageKey] = next.storageMb
             it[saveDataKey] = next.saveData
             it[oneRowKey] = next.dockOneRow

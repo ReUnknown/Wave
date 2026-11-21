@@ -1,5 +1,8 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloat
@@ -123,6 +126,7 @@ enum class SettingsSection(val id: String, val title: String, val summary: Strin
     Customize("customize", "Customize", "Modern or Legacy, layout, buttons, haptics", Icons.Rounded.Dashboard),
     Looks("looks", "Appearance", "Theme, background, blur, text size, colors", Icons.Rounded.Palette),
     Playback("playback", "Playback & sound", "Quality, fades, more songs when a queue ends", Icons.Rounded.MusicNote),
+    Lyrics("lyrics", "Lyrics", "Style, motion, size, timing", Icons.Rounded.Lyrics),
     Storage("storage", "Storage", "Saved songs and covers, history, erase", Icons.Rounded.Storage),
     Battery("battery", "Battery", "Battery saver, calmer motion", Icons.Rounded.BatteryStd),
     About("about", "About", "Version, updates, what's new, credits", Icons.Rounded.Info),
@@ -135,7 +139,7 @@ enum class SettingsSection(val id: String, val title: String, val summary: Strin
         /** The ones listed on the main settings page, in groups. */
         val groups = listOf(
             "Make it yours" to listOf(Customize, Looks),
-            "Listening" to listOf(Playback),
+            "Listening" to listOf(Playback, Lyrics),
             "This phone" to listOf(Storage, Battery),
             "Wave" to listOf(About),
         )
@@ -300,6 +304,23 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 item { GroupLabel("Queue") }
                 item { Toggle(Icons.Rounded.PlayCircle, "Auto-load more songs", "When your queue ends, Wave keeps going with songs like the last one", settings.autoplay) { on -> change { it.copy(autoplay = on) } } }
                 item { Toggle(Icons.Rounded.FastForward, "Skip silence", "Trims the quiet gaps in songs", settings.skipSilence) { on -> change { it.copy(skipSilence = on) } } }
+            }
+            SettingsSection.Lyrics -> {
+                item {
+                    Text(
+                        "Wave lines lyrics up with each song by itself. If one is still off, use − and + in Lyrics; Wave remembers it for that song.",
+                        Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        color = c.onBackground.copy(alpha = 0.7f), style = body(14.sp).copy(lineHeight = 20.sp),
+                    )
+                }
+                item { GroupLabel("Look") }
+                item { Choice(Icons.Rounded.Lyrics, "Light up", "Word by word as they're sung, or the whole line at once", listOf(true to "Word by word", false to "Line by line"), settings.lyricsWords) { v -> change { it.copy(lyricsWords = v) } } }
+                item { Choice(Icons.Rounded.AutoAwesome, "Motion", "Words lift gently as they're sung; held notes can glow too", listOf(0 to "Still", 1 to "Lift", 2 to "Lift & glow"), settings.lyricsMotion) { v -> change { it.copy(lyricsMotion = v) } } }
+                item { Choice(Icons.Rounded.FormatSize, "Size", "How big the lines are", listOf(0 to "Small", 1 to "Medium", 2 to "Large"), settings.lyricsSize) { v -> change { it.copy(lyricsSize = v) } } }
+                item { Choice(Icons.AutoMirrored.Rounded.FormatAlignLeft, "Alignment", "Lines on the left, or centered", listOf(false to "Left", true to "Center"), settings.lyricsCenter) { v -> change { it.copy(lyricsCenter = v) } } }
+                item { Toggle(Icons.Rounded.BlurOn, "Blur other lines", "Lines away from the one being sung soften, so it stands out", settings.lyricsBlur) { on -> change { it.copy(lyricsBlur = on) } } }
+                item { GroupLabel("Timing") }
+                item { Choice(Icons.Rounded.Timer, "Every song", "Move all lyrics earlier or later, if your headphones lag", listOf(-1000 to "−1s", -500 to "−½s", 0 to "None", 500 to "+½s", 1000 to "+1s"), settings.lyricsOffsetMs) { v -> change { it.copy(lyricsOffsetMs = v) } } }
             }
             SettingsSection.Storage -> storagePage(settings, ::change)
             SettingsSection.Battery -> {

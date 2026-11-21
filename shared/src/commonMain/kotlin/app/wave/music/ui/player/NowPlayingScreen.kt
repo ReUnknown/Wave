@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.animation.slideInVertically
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.collectAsState
@@ -393,7 +394,7 @@ private fun WideNowPlaying(
     // controls sit. Up next and Lyrics slide in over the right half when you ask for them, so the
     // song alone is the default view.
     val c = MaterialTheme.colorScheme
-    var panel by rememberSaveable { mutableStateOf(openTo?.takeIf { it == "queue" || it == "lyrics" }) }
+    var panel by rememberSaveable { mutableStateOf((openTo ?: app.wave.music.ui.home.RenderStart.openTo)?.takeIf { it == "queue" || it == "lyrics" }) }
     Box(Modifier.fillMaxSize()) {
         Crossfade(song.artworkUrl?.atSize(ArtSize.BLUR), Modifier.fillMaxSize(), animationSpec = tween(320), label = "wideBackdrop") { art ->
             BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.3f; scaleY = 1.3f }, radius = 96.dp)
@@ -420,20 +421,26 @@ private fun WideNowPlaying(
                 ) { art -> AsyncImage(art, song.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.18f to Color.Transparent)))
             }
-            // The controls, centered on the right, or Up next / Lyrics over them.
+            // The right half: the controls, or Up next / Lyrics. When a panel opens it takes the whole
+            // right half and the controls move over the cover on the left, so nothing overlaps.
             Box(Modifier.weight(1f).fillMaxHeight().topBarPadding().navigationBarsPadding().then(inner)) {
-                Column(
-                    Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 40.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (roomy) 22.dp else 10.dp, Alignment.CenterVertically),
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = panel == null,
+                    enter = fadeIn(tween(220, delayMillis = 80)) + slideInHorizontally(tween(320, easing = WaveMotion.EmphasizedDecelerate)) { -it / 6 },
+                    exit = fadeOut(tween(140)) + slideOutHorizontally(tween(220)) { -it / 6 },
                 ) {
-                    Controls(state, song, position, dense = !roomy, airy = roomy)
-                    Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", panel == "queue", Modifier.weight(1f)) { panel = if (panel == "queue") null else "queue" }
-                        PanelButton(Icons.Rounded.Lyrics, "Lyrics", "lyrics", panel == "lyrics", Modifier.weight(1f)) { panel = if (panel == "lyrics") null else "lyrics" }
+                    Box(Modifier.fillMaxSize()) {
+                        Column(
+                            Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 40.dp),
+                            verticalArrangement = Arrangement.spacedBy(if (roomy) 22.dp else 10.dp, Alignment.CenterVertically),
+                        ) {
+                            Controls(state, song, position, dense = !roomy, airy = roomy)
+                            PanelButtons(panel) { panel = it }
+                            // Room enough on a tablet: volume and speed right here, no pull handle.
+                            if (roomy) PlaybackExtras(state.speed, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                            else ExtrasDrawer(state)
+                        }
                     }
-                    // Room enough on a tablet: volume and speed right here, no pull handle.
-                    if (roomy) PlaybackExtras(state.speed, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                    else ExtrasDrawer(state)
                 }
                 androidx.compose.animation.AnimatedVisibility(
                     visible = panel != null,
@@ -461,6 +468,25 @@ private fun WideNowPlaying(
                     // Back closes the panel first.
                     androidx.compose.ui.backhandler.BackHandler(enabled = panel != null) { panel = null }
                 }
+            }
+        }
+        // With a panel open, the controls sit over the bottom of the cover, on a soft shade.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = panel != null,
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(0.5f),
+            enter = fadeIn(tween(240, delayMillis = 100)) + slideInVertically(tween(340, easing = WaveMotion.EmphasizedDecelerate)) { it / 4 },
+            exit = fadeOut(tween(140)),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(0f to Color.Transparent, 0.35f to c.background.copy(alpha = 0.7f), 1f to c.background.copy(alpha = 0.92f)))
+                    .navigationBarsPadding()
+                    .padding(start = 32.dp, end = 32.dp, top = 56.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Controls(state, song, position, dense = true)
+                PanelButtons(panel) { panel = it }
             }
         }
         Header(state, song, onClose, Modifier.topBarPadding().then(inner), onToggleSize, docked)
@@ -503,21 +529,19 @@ private fun ExtrasDrawer(state: PlayerUiState, modifier: Modifier = Modifier) {
 /** Up next / Lyrics as buttons that grow into their pages (short wide layout). */
 @Composable
 private fun PanelButton(icon: ImageVector, label: String, key: String, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    // Always there: the open one is filled in, and tapping it again closes it.
     val c = MaterialTheme.colorScheme
-    Box(modifier.fillMaxHeight()) {
-        MorphVisibility(!open) {
-            Row(
-                Modifier
-                    .sharedContainer(key, this, RoundedCornerShape(22.dp))
-                    .fillMaxSize()
-                    .pressable(RoundedCornerShape(22.dp), c.primaryContainer.copy(alpha = 0.92f), pressedScale = 0.95f, onClick = onClick),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, null, tint = c.onPrimaryContainer)
-                Text("  $label", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            }
-        }
+    val fill by animateColorAsState(if (open) c.primary else c.primaryContainer.copy(alpha = 0.92f), tween(180), label = "panelFill")
+    val ink by animateColorAsState(if (open) c.onPrimary else c.onPrimaryContainer, tween(180), label = "panelInk")
+    Row(
+        modifier
+            .fillMaxHeight()
+            .pressable(RoundedCornerShape(22.dp), fill, pressedScale = 0.95f, onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = ink)
+        Text("  $label", color = ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }
 
@@ -553,6 +577,15 @@ private fun SidePanel(state: PlayerUiState, modifier: Modifier, startOnQueue: Bo
                 QueueScreen(state, onClose = {}, embedded = true)
             }
         }
+    }
+}
+
+/** Up next and Lyrics, as a pair; tapping the open one closes it. */
+@Composable
+private fun PanelButtons(panel: String?, onPanel: (String?) -> Unit) {
+    Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", panel == "queue", Modifier.weight(1f)) { onPanel(if (panel == "queue") null else "queue") }
+        PanelButton(Icons.Rounded.Lyrics, "Lyrics", "lyrics", panel == "lyrics", Modifier.weight(1f)) { onPanel(if (panel == "lyrics") null else "lyrics") }
     }
 }
 
