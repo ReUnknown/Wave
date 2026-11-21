@@ -10,7 +10,7 @@ object Changelog {
             "A − and + in Lyrics to fix any song that's still off, remembered for that song",
             "New Lyrics settings: word by word or line by line, lift or lift & glow, size, alignment, blur, and timing for every song",
             "Tapping the mini player now grows it into the player",
-            "Swiping the mini player down no longer leaves an empty frame behind",
+            "Swiping the mini player down no longer leaves an empty frame behind, and a short swipe always springs back",
             "Tablets: Up next and Lyrics take the right side and the controls move over the cover, nothing overlaps",
             "Legacy's bottom bar is frosted too, and full-art albums get a whisper of blur under the status bar",
         )),

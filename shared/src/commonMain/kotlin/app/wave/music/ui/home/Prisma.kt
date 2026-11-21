@@ -359,31 +359,33 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
     val song = app.wave.music.ui.components.rememberArtColorScheme(now.artworkUrl)
     // Swipe it down to close the song: it follows your finger, and past a point it drops away
     // and playback stops. Not far enough, it springs back.
-    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
+    // Followed directly while dragging (no queued updates that could cancel the spring back).
+    var dragPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     val closeAt = with(density) { 56.dp.toPx() }
-    LaunchedEffect(now.videoId) { drag.snapTo(0f) }
+    LaunchedEffect(now.videoId) { dragPx = 0f }
     Row(
         modifier
             .fillMaxWidth()
             .height(PrismaDockSongHeight)
             .graphicsLayer {
-                translationY = drag.value
-                alpha = 1f - (drag.value / (closeAt * 2.2f)).coerceIn(0f, 0.9f)
+                translationY = dragPx
+                alpha = 1f - (dragPx / (closeAt * 2.2f)).coerceIn(0f, 0.9f)
             }
             .draggable(
-                androidx.compose.foundation.gestures.rememberDraggableState { d -> scope.launch { drag.snapTo((drag.value + d).coerceAtLeast(0f)) } },
+                androidx.compose.foundation.gestures.rememberDraggableState { d -> dragPx = (dragPx + d).coerceAtLeast(0f) },
                 androidx.compose.foundation.gestures.Orientation.Vertical,
                 onDragStopped = { velocity ->
-                    if (drag.value > closeAt || velocity > 1800f) {
+                    if (dragPx > closeAt || velocity > 1800f) {
                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
-                        drag.animateTo(closeAt * 1.6f, tween(140))
+                        androidx.compose.animation.core.animate(dragPx, closeAt * 1.6f, animationSpec = tween(140)) { v, _ -> dragPx = v }
                         onSwipedAway()
                         app.wave.music.playback.PlayerConnection.reset()
                     } else {
-                        drag.animateTo(0f, app.wave.music.ui.components.WaveMotion.bouncy())
+                        // Not far enough: it springs back home.
+                        androidx.compose.animation.core.animate(dragPx, 0f, animationSpec = app.wave.music.ui.components.WaveMotion.bouncy()) { v, _ -> dragPx = v }
                     }
                 },
             )
