@@ -127,48 +127,6 @@ private fun BigVolume(ink: Color, accent: Color, onAccent: Color) {
     }
 }
 
-/** A slim volume line with a knob, for the computer player bar. */
-@Composable
-fun SlimVolume(color: Color, modifier: Modifier = Modifier) {
-    val level = WaveSettings.state.collectAsState().value.appVolume
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .pressable(androidx.compose.foundation.shape.CircleShape, pressedScale = 0.86f) {
-                    // Click the speaker to mute, again to bring it back.
-                    PlayerConnection.setVolume(if (level > 0f) 0f else 0.7f, done = true)
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                when {
-                    level == 0f -> Icons.AutoMirrored.Rounded.VolumeOff
-                    level < 0.5f -> Icons.AutoMirrored.Rounded.VolumeDown
-                    else -> Icons.AutoMirrored.Rounded.VolumeUp
-                },
-                if (level == 0f) "Unmute" else "Mute",
-                tint = color,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        Box(
-            Modifier
-                .padding(start = 6.dp)
-                .width(104.dp)
-                .height(28.dp)
-                .semantics { contentDescription = "Wave volume ${(level * 100).toInt()}%" }
-                .volumeInput()
-                .drawBehind {
-                    val cy = size.height / 2
-                    val track = 4.dp.toPx()
-                    drawLine(color.copy(alpha = 0.25f), Offset(0f, cy), Offset(size.width, cy), track, StrokeCap.Round)
-                    drawLine(color, Offset(0f, cy), Offset(size.width * level, cy), track, StrokeCap.Round)
-                    drawCircle(color, 6.dp.toPx(), Offset(size.width * level, cy))
-                },
-        )
-    }
-}
 
 /** Tap, drag or scroll the mouse wheel over it to set Wave's volume. */
 private fun Modifier.volumeInput(): Modifier = this

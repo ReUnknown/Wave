@@ -23,8 +23,6 @@ interface Platform {
     val dataDir: File
     /** A computer (Googlebook/ChromeOS, Windows, macOS, Linux): dropdown menus, shortcuts, no swipes. */
     val isComputer: Boolean
-    /** The computer app (Windows, macOS, Linux), where Wave sets its own interface size. */
-    val scalesInterface: Boolean get() = false
     /** A hardware keyboard is attached. */
     val hasKeyboard: Boolean
     /** This version of Wave, e.g. "1.0.0". */
@@ -49,9 +47,6 @@ interface Platform {
     /** The phone's battery saver is on. */
     val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
 
-    /** A mini player that stays on top of other windows (Windows). */
-    val hasMiniPlayer: Boolean get() = false
-    fun openMiniPlayer() {}
 }
 
 object WavePlatform {
@@ -60,7 +55,6 @@ object WavePlatform {
 
 /** The window's size in dp, like Android's configuration (also on computers, where it's the window). */
 class WindowDp(val screenWidthDp: Int, val screenHeightDp: Int) {
-    val smallestScreenWidthDp: Int get() = minOf(screenWidthDp, screenHeightDp)
 }
 
 @Composable

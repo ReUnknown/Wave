@@ -115,13 +115,6 @@ fun WaveApp(
                 } else {
                     // A guest's "sign out" is signing in.
                     HomeScreen(session = current, onSignOut = { if (current.guest) signingIn = true else scope.launch { signOutAndForget() } })
-                    // Computers: Wave here is no longer updated; WaveMini is the desktop app now.
-                    if (app.wave.music.ui.components.DesktopSunset.applies) {
-                        androidx.compose.foundation.layout.Box(
-                            androidx.compose.ui.Modifier.fillMaxSize().padding(top = app.wave.music.platform.topInset() + 8.dp),
-                            contentAlignment = androidx.compose.ui.Alignment.TopCenter,
-                        ) { app.wave.music.ui.components.DesktopSunsetBanner() }
-                    }
                 }
             }
           }

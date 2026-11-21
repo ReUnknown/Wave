@@ -238,8 +238,6 @@ fun NowPlayingScreen(
                     },
                 ),
         ) {
-            val artHeight = maxHeight * 0.62f
-            val artPx = with(LocalDensity.current) { artHeight.toPx() }
             // Art fills the top and blurs progressively; a mirrored, fully blurred copy continues it
             // under the controls, so there's no edge where the picture ends.
             val topBlur = rememberBackdrop()

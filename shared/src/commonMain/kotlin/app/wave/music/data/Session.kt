@@ -125,7 +125,6 @@ object SessionRepository {
     private val _signInRequested = MutableStateFlow(false)
     /** Something asked to sign in (a guest tapping "Sign in with Google" anywhere in Wave). */
     val signInRequested: StateFlow<Boolean> = _signInRequested.asStateFlow()
-    fun requestSignIn() { _signInRequested.value = true }
     fun signInHandled() { _signInRequested.value = false }
 
     /** Signed in to nothing (a guest, or the preview). */

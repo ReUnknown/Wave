@@ -5,6 +5,12 @@ object Changelog {
     class Version(val version: String, val title: String, val notes: List<String>)
 
     val versions = listOf(
+        Version("2.0.0-alpha.14", "Lighter and tablet-ready", listOf(
+            "Uses less battery: nothing redraws between lyric lines, motion is held to 60 fps, and the player checks in less while paused",
+            "No more listening to the beat in the background (nothing used it any more)",
+            "Tablets: a centered dock, Prisma's header beside the songs on album and artist pages, library tiles in one row",
+            "The old computer layouts are gone, for a smaller, simpler app",
+        )),
         Version("2.0.0-alpha.13", "Smoother all over", listOf(
             "A new update screen: a peek in About, then the full list of changes and one button to download and install",
             "Back swipes follow your finger, and pages slide and settle more naturally",

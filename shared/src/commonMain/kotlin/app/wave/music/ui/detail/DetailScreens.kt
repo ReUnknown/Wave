@@ -321,25 +321,7 @@ private fun <T> PageFrame(
                         val config = currentWindowDp()
                         // Tablets get the side-by-side layout below (the cover and buttons beside the
                         // songs), which suits a touch screen better than the computer's table.
-                        if (app.wave.music.ui.components.LocalShell.current && app.wave.music.ui.components.LocalDesktop.current) {
-                            // Computers and tablets (design board 2): the art glows behind a header with
-                            // the cover beside the title, then the songs as a table.
-                            BlurredImage(
-                                info.art?.atSize(ArtSize.BLUR),
-                                Modifier.fillMaxWidth().height(480.dp).clipToBounds().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f },
-                                radius = 96.dp,
-                                fadeBottom = 0.55f,
-                            )
-                            Box(Modifier.fillMaxWidth().height(480.dp).background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.3f), 1f to c.background)))
-                            LazyColumn(
-                                Modifier.widthIn(max = 1180.dp).fillMaxSize(),
-                                contentPadding = PaddingValues(top = statusTop + 72.dp, bottom = 48.dp, start = 12.dp, end = 12.dp),
-                            ) {
-                                item { ShellHeader(info) }
-                                if (table) item { TableHeader() }
-                                content(load.value)
-                            }
-                        } else if (config.screenWidthDp >= 600 && (config.screenWidthDp > config.screenHeightDp || app.wave.music.ui.components.LocalShell.current)) {
+                        if (config.screenWidthDp >= 600 && (config.screenWidthDp > config.screenHeightDp || app.wave.music.ui.components.LocalShell.current)) {
                             // Side by side on wide screens, over the art blurred across the window.
                             BlurredImage(info.art?.atSize(ArtSize.BLUR), Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
                             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.55f), 1f to c.background.copy(alpha = 0.88f))))
@@ -348,7 +330,8 @@ private fun <T> PageFrame(
                             BoxWithConstraints(Modifier.fillMaxSize()) {
                                 val side = (maxWidth * 0.34f).coerceIn(320.dp, 500.dp)
                                 Row(Modifier.fillMaxSize()) {
-                                    SideHero(info, Modifier.width(side).fillMaxHeight())
+                                    val sideMenu = LocalItemMenu.current
+                                    SideHero(info, Modifier.width(side).fillMaxHeight()) { info.item?.let { sideMenu.open(MenuTarget.Collection(it, onItsPage = true)) } }
                                     Box(Modifier.weight(1f).fillMaxHeight()) {
                                         LazyColumn(
                                             Modifier.widthIn(max = 1100.dp).fillMaxSize(),
@@ -419,119 +402,59 @@ private fun <T> PageFrame(
     }
 }
 
-/** Play and shuffle (or the page's own two actions) as a connected pair. */
-@Composable
-private fun HeroButtons(info: HeaderInfo) {
-    val c = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Row(
-            Modifier
-                .weight(1f)
-                .fillMaxSize()
-                .pressable(RoundedCornerShape(28.dp, 10.dp, 10.dp, 28.dp), c.primary, pressedScale = 0.95f, onClick = info.onPrimary),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(info.primary.second, null, tint = c.onPrimary)
-            Text("  ${info.primary.first}", color = c.onPrimary, fontWeight = FontWeight.Bold)
-        }
-        Row(
-            Modifier
-                .weight(1f)
-                .fillMaxSize()
-                .pressable(
-                    if (info.extra != null) RoundedCornerShape(10.dp) else RoundedCornerShape(10.dp, 28.dp, 28.dp, 10.dp),
-                    c.onBackground.copy(alpha = 0.12f),
-                    pressedScale = 0.95f,
-                    onClick = info.onSecondary,
-                ),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(info.secondary.second, null, tint = c.onBackground)
-            Text("  ${info.secondary.first}", color = c.onBackground, fontWeight = FontWeight.SemiBold)
-        }
-        info.extra?.invoke()
-    }
-}
 
-/** Big-screen page header: the cover beside eyebrow, a large title, details and actions. */
-@Composable
-private fun ShellHeader(info: HeaderInfo) {
-    val c = MaterialTheme.colorScheme
-    Row(
-        Modifier.padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
-    ) {
-        AsyncImage(
-            model = info.art?.atSize(ArtSize.CARD),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(232.dp)
-                .shadow(28.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp)),
-        )
-        Column(Modifier.weight(1f)) {
-            Text(info.eyebrow, style = MaterialTheme.typography.labelSmall, color = c.primary)
-            Text(info.title, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, color = c.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            info.subtitle?.let { Text(it, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            Spacer(Modifier.height(18.dp))
-            Box(Modifier.widthIn(max = 440.dp)) { HeroButtons(info) }
-        }
-    }
-}
 
-/** "#  TITLE  TIME" over a page's songs on big screens. */
-@Composable
-private fun TableHeader() {
-    val c = MaterialTheme.colorScheme
-    Column {
-        Row(Modifier.fillMaxWidth().height(36.dp).padding(start = 20.dp, end = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("#", Modifier.width(32.dp), style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
-            Text("TITLE", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
-            Text("TIME", style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
-        }
-        Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(1.dp).background(c.outlineVariant.copy(alpha = 0.5f)))
-        Spacer(Modifier.height(6.dp))
-    }
-}
 
 /** Wide screens: the page's cover, title and actions in a column beside its songs. */
 @Composable
-private fun SideHero(info: HeaderInfo, modifier: Modifier) {
+private fun SideHero(info: HeaderInfo, modifier: Modifier, onAdd: () -> Unit = {}) {
+    // Tablets: Prisma's header beside the songs. The cover (round for an artist), the title in
+    // Prisma's type, and the same play row as on phones.
     val c = MaterialTheme.colorScheme
+    val corner = app.wave.music.platform.PrismaLook.corner(32.dp)
     Column(
         modifier
             .topBarPadding()
-            .padding(start = 32.dp, end = 24.dp, top = 84.dp, bottom = 24.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current),
-        verticalArrangement = Arrangement.Top,
+            .padding(start = 32.dp, end = 24.dp, top = 76.dp, bottom = 24.dp + app.wave.music.ui.components.LocalMiniPlayerSpace.current),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        BoxWithConstraints(Modifier.weight(1f, fill = false)) {
-            // The cover fills the column's width (as tall as the window allows).
-            val side = minOf(maxWidth, maxHeight, 460.dp)
+        BoxWithConstraints(Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+            val side = minOf(maxWidth, maxHeight, 420.dp)
+            val shape = if (info.artist) CircleShape else RoundedCornerShape(corner)
             AsyncImage(
-                model = info.art?.atSize(ArtSize.CARD),
+                model = info.art?.atSize(ArtSize.FULL),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(side)
-                    .shadow(24.dp, RoundedCornerShape(36.dp))
-                    .clip(RoundedCornerShape(36.dp)),
+                modifier = Modifier.size(side).shadow(28.dp, shape).clip(shape),
             )
         }
-        Spacer(Modifier.height(20.dp))
-        Text(info.eyebrow, style = MaterialTheme.typography.labelSmall, color = c.primary)
-        Text(info.title, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.ExtraBold, color = c.onBackground, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        info.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-        Spacer(Modifier.height(16.dp))
-        Box(Modifier.widthIn(max = 460.dp)) { HeroButtons(info) }
+        Text(
+            if (info.artist && !app.wave.music.platform.PrismaLook.legacy) info.title.uppercase() else info.title,
+            Modifier.padding(top = 20.dp),
+            color = c.onBackground,
+            style = androidx.compose.ui.text.TextStyle(
+                fontFamily = app.wave.music.platform.prismaDisplayFont,
+                fontSize = if (info.artist) 40.sp else 30.sp,
+                fontWeight = if (info.artist) FontWeight.Black else FontWeight.Bold,
+                letterSpacing = (if (info.artist) -1.2 else -0.4).sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                lineHeight = if (info.artist) 42.sp else 34.sp,
+            ),
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        info.subtitle?.let { Text(it, Modifier.padding(top = 4.dp), color = if (info.artist) c.onBackground.copy(alpha = 0.7f) else c.primary, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 16.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        info.meta?.let { Text(it, Modifier.padding(top = 2.dp), color = c.onBackground.copy(alpha = 0.6f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp)) }
+        if (info.artist) {
+            Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                RoundButton(info.secondary.second, info.secondary.first, onClick = info.onSecondary)
+                Box(
+                    Modifier.size(76.dp).pressable(CircleShape, c.primary, pressedScale = 0.92f, onClick = info.onPrimary),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Rounded.PlayArrow, info.primary.first, tint = c.onPrimary, modifier = Modifier.size(40.dp)) }
+                info.followCompact?.invoke() ?: Spacer(Modifier.size(52.dp))
+            }
+        } else CollectionButtons(info, onAdd)
     }
 }
 

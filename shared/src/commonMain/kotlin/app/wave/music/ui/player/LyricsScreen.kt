@@ -125,18 +125,22 @@ private class Cascade {
     private val steps = ArrayList<Step>()
     /** Bumped every frame while a step is moving, so the lines redraw (only redraw). */
     var clock by mutableLongStateOf(0L)
+    /** Bumped on each new step, to start the frame loop again. */
+    var version by androidx.compose.runtime.mutableIntStateOf(0)
 
     fun push(delta: Float, now: Long) {
-        steps.removeAll { (now - it.startNanos) > 2_000_000_000L }
+        steps.removeAll { (now - it.startNanos) > 1_200_000_000L }
         steps += Step(delta, now)
         clock = now
+        version++
     }
 
     val moving get() = steps.isNotEmpty()
 
     fun tick(now: Long) {
         clock = now
-        steps.removeAll { (now - it.startNanos) > 2_000_000_000L }
+        // A step has settled well before 1.2 s; dropping it then ends the frame loop.
+        steps.removeAll { (now - it.startNanos) > 1_200_000_000L }
     }
 
     /** How far a line [distance] lines below the sung one still is from home. */
@@ -227,10 +231,9 @@ fun LyricsScreen(
         }
     }
     val cascade = remember(song.videoId) { Cascade() }
-    LaunchedEffect(cascade) {
-        while (true) {
-            androidx.compose.runtime.withFrameNanos { now -> if (cascade.moving) cascade.tick(now) }
-        }
+    // Frames only while lines are actually moving; between lines nothing redraws at all.
+    LaunchedEffect(cascade, cascade.version) {
+        while (cascade.moving) androidx.compose.runtime.withFrameNanos { now -> cascade.tick(now) }
     }
 
     val lyrics = (ui as? LyricsUi.Ready)?.lyrics

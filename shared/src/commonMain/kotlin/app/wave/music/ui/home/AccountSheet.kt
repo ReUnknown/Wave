@@ -140,56 +140,9 @@ private fun Tile(icon: ImageVector, label: String, modifier: Modifier, onClick: 
 
 
 
-/** Computers: the account as a dropdown under your avatar, instead of a panel sliding up. */
-@Composable
-fun AccountMenu(
-    session: Session,
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    onOpen: (Destination) -> Unit,
-    onSettings: () -> Unit,
-    onSignOut: () -> Unit,
-    /** Off when the sidebar already lists your library. */
-    library: Boolean = true,
-) {
-    val c = MaterialTheme.colorScheme
-    androidx.compose.material3.DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(20.dp),
-        containerColor = c.surfaceContainerHigh,
-        modifier = Modifier.widthIn(min = 260.dp),
-    ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Text(session.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.onSurface)
-            Text(accountLine(session), fontSize = 13.sp, color = c.onSurfaceVariant)
-        }
-        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
-        if (library && !session.guest) {
-            MenuRow(Icons.Rounded.LibraryMusic, "Playlists") { onOpen(Destination.Playlists) }
-            MenuRow(Icons.Rounded.Album, "Albums & artists") { onOpen(Destination.Saved) }
-            MenuRow(Icons.Rounded.History, "History") { onOpen(Destination.History) }
-            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp), color = c.outlineVariant)
-        }
-        MenuRow(Icons.Rounded.Settings, "Settings", onSettings)
-        if (session.guest) {
-            MenuRow(Icons.Rounded.AccountCircle, "Sign in with Google", onSignOut)
-        } else {
-            MenuRow(Icons.AutoMirrored.Rounded.Logout, "Sign out", onSignOut)
-        }
-    }
-}
 
 private fun accountLine(session: Session) = when {
     session.guest -> "Not signed in. Likes stay on this device."
     else -> session.email ?: "Signed in with Google"
 }
 
-@Composable
-private fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
-    androidx.compose.material3.DropdownMenuItem(
-        text = { Text(label, fontSize = 15.sp) },
-        leadingIcon = { Icon(icon, null) },
-        onClick = onClick,
-    )
-}

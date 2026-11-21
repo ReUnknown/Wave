@@ -53,7 +53,7 @@ class Crossfader(
             duration == C.TIME_UNSET || duration < overlap * 2 + 10_000
         ) {
             disarm()
-            return if (overlap <= 0 || !main.isPlaying) 1_000 else 250
+            return if (overlap <= 0) 3_000 else if (!main.isPlaying) 1_000 else 250
         }
         val start = duration - overlap
         val position = main.currentPosition

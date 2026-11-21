@@ -313,7 +313,8 @@ class WaveService : MediaSessionService() {
                     watchedPosition = player.currentPosition
                     watchedDuration = player.duration
                 }
-                delay(500)
+                // Only worth watching closely while something plays.
+                delay(if (player.isPlaying) 500 else 3_000)
             }
         }
 

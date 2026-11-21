@@ -81,7 +81,7 @@ fun WavyProgress(
         if (fps > 0) {
             // Timed steps instead of every frame: the window only redraws this often.
             while (true) {
-                kotlinx.coroutines.delay(1000L / fps)
+                kotlinx.coroutines.delay((1000L / fps - 8).coerceAtLeast(0))
                 withFrameMillis { phase.floatValue = ((it - start) % 1400L) / 1400f }
             }
         }

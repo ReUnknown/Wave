@@ -129,12 +129,14 @@ fun WheelRow(
  * gentle wave; computers cap it, since nobody can tell 30 from 144 on something that slow.
  */
 object FrameBudget {
-    @Volatile var ambientFps = 0
+    @Volatile var ambientFps = 60
 }
 
 /** The next frame for ambient motion: every frame, or paced to [FrameBudget.ambientFps]. */
 suspend fun ambientFrame(): Long {
     val fps = FrameBudget.ambientFps
-    if (fps > 0) kotlinx.coroutines.delay(1000L / fps)
+    // Sleep a bit under one step, then take the next frame: 60 Hz screens keep every frame, faster
+    // screens are held to about [fps] instead of waking at 120 Hz.
+    if (fps > 0) kotlinx.coroutines.delay((1000L / fps - 8).coerceAtLeast(0))
     return androidx.compose.runtime.withFrameMillis { it }
 }

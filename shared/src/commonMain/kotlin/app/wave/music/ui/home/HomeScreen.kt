@@ -9,7 +9,6 @@ import app.wave.music.platform.topInset
 import app.wave.music.ui.components.WheelRow
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.FlowRow
-import app.wave.music.ui.player.PlayerBar
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.Orientation
@@ -195,8 +194,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
     var askSignOut by remember { mutableStateOf(false) }
     val desktop = app.wave.music.ui.components.LocalDesktop.current
-    var accountMenu by remember { mutableStateOf(false) }
-    var settingsDialog by remember { mutableStateOf(false) }
     val settings by WaveSettings.state.collectAsState()
     LaunchedEffect(session) { PlayerConnection.loadLikes() }
     LaunchedEffect(Unit) {
@@ -372,11 +369,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // sideways rows. Narrow ones (a computer window dragged small, phones, a Fold's cover screen)
     // get the phone layout, so nothing is ever squeezed.
     val conf = currentWindowDp()
-    val wideWindow = conf.screenWidthDp >= 840
     // Wave Prisma: tablets use the whole new interface (the dock, Prisma's pages and player),
     // sized for the bigger screen, instead of the old big-screen layout.
     val tabletShell = false
-    val desktopShell = desktop && wideWindow
+    // The computer layout was retired with the computer app.
+    val desktopShell = false
     val shell = desktopShell || tabletShell
     // Prisma's home, library, search and backgrounds: phones and tablets. Tablets keep their own
     // player bar along the bottom and the player docking beside the app.
@@ -386,11 +383,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val prismaHomeUi = prisma && !settings.legacyUi
     // Top search: the search bar stays pinned at the top while home and library scroll under it.
     val pinnedSearch = prismaHomeUi && (settings.topSearch || shell)
-    // Computers keep your library in a sidebar when there's room for it.
-    val sidebar = desktopShell && conf.screenWidthDp >= 1000
     // The player can sit beside the app: drag the player bar up to the left or right half (tablets,
     // and computers with room for both). Clicking it opens the player over everything.
-    val canDock = tabletShell || (desktopShell && conf.screenWidthDp >= 1100)
+    // Docking the player beside the app was for the old big-screen layout.
+    val canDock = false
     // Which side it docks on: -1 left, 1 right, 0 none (it opens full).
     var dockSide by rememberSaveable { mutableIntStateOf(0) }
     var playerFull by rememberSaveable { mutableStateOf(false) }
@@ -402,7 +398,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Opened by dropping the player bar on a side: it slides in from there instead of growing.
     var droppedIn by remember { mutableStateOf(false) }
     // Where the player bar is being dragged (tablets), to show where it can be dropped.
-    var dockGhost by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
     // Which panel the player should open to (from the player bar's Lyrics / Up next buttons).
     var playerPanel by remember { mutableStateOf<String?>(null) }
     val dockSpring = spring<Float>(dampingRatio = 0.86f, stiffness = 360f)
@@ -498,8 +493,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         val sideScheme = app.wave.music.ui.components.animateScheme(page?.scheme ?: c)
         val sideBackground = sideScheme.background
         BoxWithConstraints(Modifier.fillMaxSize().background(sideBackground)) {
-        val windowPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
-        val windowHeightPx = constraints.maxHeight.toFloat()
         // With the player docked, the app reflows into the rest of the window. It reaches a little
         // under the player's rounded edge, so the corners show the app, not an empty gap.
         val tuck = with(LocalDensity.current) { 32.dp.toPx() }
@@ -541,22 +534,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         val clearStart by androidx.compose.animation.core.animateDpAsState(if (docked && dockSide < 0) 44.dp else 0.dp, tween(260, easing = WaveMotion.Emphasized), label = "clearStart")
         val clearEnd by androidx.compose.animation.core.animateDpAsState(if (docked && dockSide > 0) 44.dp else 0.dp, tween(260, easing = WaveMotion.Emphasized), label = "clearEnd")
         Row(Modifier.fillMaxSize().padding(start = clearStart, end = clearEnd)) {
-        // Computers only: tablets keep the library in the account panel, like phones.
-        if (sidebar) {
-          MaterialTheme(colorScheme = sideScheme) {
-            Sidebar(
-                current = stack.lastOrNull(),
-                playlists = myPlaylists,
-                onHome = {
-                    showSearch = false
-                    while (stack.isNotEmpty()) pop()
-                },
-                onOpen = { dest -> if (stack.lastOrNull() != dest) push(dest) },
-                onNewPlaylist = { createPlaylist = true },
-                onPlaylist = openItem,
-            )
-          }
-        }
         Box(Modifier.weight(1f).fillMaxHeight()) {
             // Home (feed + frosted header) stops drawing while a page, search or the player fully
             // covers it, and is drawn again the moment a back swipe could reveal it.
@@ -782,23 +759,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     val avatar = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .clickable { if (desktopShell) accountMenu = true else askSignOut = true }
+                        .clickable { askSignOut = true }
                     Box {
                         if (session.photoUrl != null) {
                             AsyncImage(session.photoUrl, "Your Google account", avatar, contentScale = ContentScale.Crop)
                         } else {
                             Icon(Icons.Rounded.AccountCircle, "Your Google account", avatar, tint = c.onBackground)
                         }
-                        AccountMenu(
-                            session = session,
-                            expanded = accountMenu,
-                            onDismiss = { accountMenu = false },
-                            onOpen = { accountMenu = false; push(it) },
-                            onSettings = { accountMenu = false; settingsDialog = true },
-                            // The sidebar already has your library.
-                            library = !sidebar,
-                            onSignOut = { accountMenu = false; onSignOut() },
-                        )
                     }
                 }
                 }
@@ -962,40 +929,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
         }
         }
-        // Big screens: the player lives in a bar across the bottom until you open it. The player
-        // grows out of the bar and folds back into it (or slides in from the side it was dropped on).
-        if (shell) {
-            FadeVisibility(
-                visible = !showPlayer && player.current != null,
-                enter = if (droppedIn) slideInVertically(tween(320, easing = WaveMotion.EmphasizedDecelerate)) { it } + fadeIn(tween(200)) else EnterTransition.None,
-                exit = if (droppedIn) fadeOut(tween(140)) else ExitTransition.None,
-            ) {
-                PlayerBar(
-                    player,
-                    onOpen = { openPlayer(null) },
-                    onLyrics = { openPlayer("lyrics") },
-                    onQueue = { openPlayer("queue") },
-                    modifier = if (droppedIn) Modifier else Modifier.sharedContainer("player", this, RoundedCornerShape(0.dp)),
-                    lifted = dockGhost != null,
-                    onDockDrag = if (canDock) ({ dockGhost = it }) else null,
-                    onDockEnd = { dropped ->
-                        val side = if (dropped) dockTarget(dockGhost, windowPx, windowHeightPx, tuck * 4) else 0
-                        dockGhost = null
-                        if (side != 0) {
-                            dockSide = side
-                            playerFull = false
-                            playerPanel = null
-                            droppedIn = true
-                            showPlayer = true
-                        }
-                    },
-                )
-            }
-        }
         }
 
-        // Dragging the player bar (tablets): the two halves it can be dropped on.
-        DockTargets(dockGhost, dockTarget(dockGhost, windowPx, windowHeightPx, tuck * 4), player.current)
 
         AnimatedVisibility(
             visible = showPlayer && player.current != null,
@@ -1043,31 +978,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     else -> 112.dp
                 }),
         )
-        // The divider between the app and the docked player. Drag it to pick a size; drag it most of
-        // the way across and let go for the full window.
-        if (docked) {
-            var raw by remember { mutableFloatStateOf(split) }
-            var wantsFull by remember { mutableStateOf(false) }
-            DockDivider(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset {
-                        val edge = if (dockSide < 0) playerWidth.value else 1f - playerWidth.value
-                        IntOffset((edge * windowPx).roundToInt() - 14.dp.roundToPx(), 0)
-                    },
-                wantsFull = wantsFull,
-                onDragStart = { raw = split },
-                onDrag = { dx ->
-                    raw = (raw - dockSide * dx / windowPx).coerceIn(0.2f, 1f)
-                    wantsFull = raw > 0.78f
-                    if (!wantsFull) split = DockSizes.minBy { kotlin.math.abs(it - raw) }
-                },
-                onDragEnd = {
-                    if (wantsFull) playerFull = true
-                    wantsFull = false
-                },
-            )
-        }
         }
     }
     }
@@ -1093,7 +1003,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     )
     }
 
-    if (settingsDialog) app.wave.music.ui.settings.SettingsDialog(onDismiss = { settingsDialog = false })
 
     if (askSignOut) {
         AccountSheet(
@@ -1123,103 +1032,9 @@ private fun FadeVisibility(
 ) = AnimatedVisibility(visible, modifier, enter, exit, content = content)
 
 /** The sizes the docked player can take (its share of the window). */
-private val DockSizes = listOf(0.38f, 0.5f, 0.62f)
 
-/** The handle between the app and the docked player (tablets and computers). */
-@Composable
-private fun DockDivider(modifier: Modifier, wantsFull: Boolean, onDragStart: () -> Unit, onDrag: (Float) -> Unit, onDragEnd: () -> Unit) {
-    val state = rememberDraggableState(onDrag)
-    val grow by animateFloatAsState(if (wantsFull) 1f else 0f, WaveMotion.bouncy(), label = "dividerFull")
-    Box(
-        modifier
-            .width(28.dp)
-            .fillMaxHeight()
-            .draggable(
-                state,
-                Orientation.Horizontal,
-                onDragStarted = { onDragStart() },
-                onDragStopped = { onDragEnd() },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            Modifier
-                .graphicsLayer { scaleY = 1f + grow * 0.6f }
-                .width(6.dp)
-                .height(64.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.55f + grow * 0.4f)),
-        )
-    }
-}
 
-/** Which half a dragged player bar would dock to: -1 left, 1 right, 0 (still near the bottom) none. */
-private fun dockTarget(at: androidx.compose.ui.geometry.Offset?, width: Float, height: Float, barZone: Float): Int = when {
-    at == null || at.y > height - barZone -> 0
-    at.x < width / 2 -> -1
-    else -> 1
-}
 
-/** While the player bar is dragged: a card of the song under your finger, and the halves to drop it on. */
-@Composable
-private fun DockTargets(at: androidx.compose.ui.geometry.Offset?, target: Int, song: app.wave.music.playback.NowPlaying?) {
-    var last by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    if (at != null) last = at
-    FadeVisibility(at != null, enter = fadeIn(tween(160)), exit = fadeOut(tween(200)), modifier = Modifier.fillMaxSize()) {
-        val c = MaterialTheme.colorScheme
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))) {
-            Row(
-                Modifier
-                    .fillMaxSize()
-                    .topBarPadding()
-                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 140.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                listOf(-1, 1).forEach { side ->
-                    val on = target == side
-                    val glow by animateFloatAsState(if (on) 1f else 0f, tween(160), label = "dockZone")
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .graphicsLayer { val k = 1f - 0.02f * (1f - glow); scaleX = k; scaleY = k }
-                            .clip(RoundedCornerShape(36.dp))
-                            .background(Color.White.copy(alpha = 0.06f + glow * 0.12f))
-                            .border(2.dp, Color.White.copy(alpha = 0.18f + glow * 0.5f), RoundedCornerShape(36.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            if (side < 0) "Play on the left" else "Play on the right",
-                            color = Color.White.copy(alpha = 0.6f + glow * 0.4f),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                        )
-                    }
-                }
-            }
-            if (song != null) {
-                Row(
-                    Modifier
-                        .offset { IntOffset(last.x.roundToInt() - 160.dp.roundToPx(), last.y.roundToInt() - 38.dp.roundToPx()) }
-                        .width(320.dp)
-                        .height(76.dp)
-                        .shadow(24.dp, RoundedCornerShape(26.dp))
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(c.surfaceContainerHigh)
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AsyncImage(song.artworkUrl?.atSize(ArtSize.THUMB), null, Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)), contentScale = ContentScale.Crop)
-                    Column(Modifier.weight(1f)) {
-                        Text(song.title, color = c.onSurface, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(song.artist, color = c.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        }
-    }
-}
 
 /** A new Wave release: a small pill above the mini player to download and install it. */
 @Composable
@@ -1282,7 +1097,6 @@ private fun Hero(hero: HeroContent?, jump: List<YTItem> = emptyList(), onJump: (
     // Tall on phones; on short landscape screens it leaves room to see what's below.
     val config = currentWindowDp()
     val heightDp = if (config.screenHeightDp < 600) (config.screenHeightDp * 0.8f).dp.coerceAtLeast(300.dp) else 580.dp
-    val heightPx = with(LocalDensity.current) { heightDp.toPx() }
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()

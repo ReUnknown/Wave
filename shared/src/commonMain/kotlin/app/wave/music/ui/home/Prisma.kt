@@ -234,9 +234,9 @@ fun PrismaTabBar(
         .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape)
     Column(
         modifier
-            .fillMaxWidth()
             // Tablets: a comfortable dock in the middle instead of one stretched edge to edge.
             .widthIn(max = 640.dp)
+            .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -614,14 +614,17 @@ fun PrismaLibrary(
             return@LazyColumn
         }
         item {
+            // Two by two on phones, one row of four on tablets.
+            val tiles: List<@Composable (Modifier) -> Unit> = listOf(
+                { m -> LibraryTile(Icons.Rounded.Favorite, "Liked songs", c.primary, c.onPrimary, m) { onOpen(Destination.Playlist("LM")) } },
+                { m -> LibraryTile(Icons.Rounded.LibraryMusic, "Playlists", c.secondaryContainer, c.onSecondaryContainer, m) { onOpen(Destination.Playlists) } },
+                { m -> LibraryTile(Icons.Rounded.Album, "Albums & artists", c.tertiaryContainer, c.onTertiaryContainer, m) { onOpen(Destination.Saved) } },
+                { m -> LibraryTile(Icons.Rounded.History, "History", c.surfaceContainerHighest, c.onSurface, m) { onOpen(Destination.History) } },
+            )
+            val perRow = if (app.wave.music.platform.currentWindowDp().screenWidthDp >= 600) 4 else 2
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LibraryTile(Icons.Rounded.Favorite, "Liked songs", c.primary, c.onPrimary, Modifier.weight(1f)) { onOpen(Destination.Playlist("LM")) }
-                    LibraryTile(Icons.Rounded.LibraryMusic, "Playlists", c.secondaryContainer, c.onSecondaryContainer, Modifier.weight(1f)) { onOpen(Destination.Playlists) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LibraryTile(Icons.Rounded.Album, "Albums & artists", c.tertiaryContainer, c.onTertiaryContainer, Modifier.weight(1f)) { onOpen(Destination.Saved) }
-                    LibraryTile(Icons.Rounded.History, "History", c.surfaceContainerHighest, c.onSurface, Modifier.weight(1f)) { onOpen(Destination.History) }
+                tiles.chunked(perRow).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { row.forEach { tile -> tile(Modifier.weight(1f)) } }
                 }
             }
         }

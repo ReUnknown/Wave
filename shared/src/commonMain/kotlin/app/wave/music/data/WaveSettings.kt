@@ -13,7 +13,7 @@ data class Settings(
     /** The whole app takes on the colors of what's playing (off: your Pixel's colors). */
     val matchSongColors: Boolean = true,
     /** Shapes, waves and lyrics react to the beat. */
-    val moveWithMusic: Boolean = true,
+    val moveWithMusic: Boolean = false,
     val audioQuality: AudioQuality = AudioQuality.AUTO,
     val skipSilence: Boolean = false,
     /** When the queue runs out, keep going with songs like the last one. */
@@ -127,7 +127,8 @@ object WaveSettings {
         val p = Stores.prefs("settings").data.first()
         _state.value = Settings(
             matchSongColors = p[matchColors] ?: true,
-            moveWithMusic = p[move] ?: true,
+            // Prisma has no beat-reactive motion, so the audio isn't analysed at all (saves CPU).
+            moveWithMusic = false,
             audioQuality = p[quality]?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: AudioQuality.AUTO,
             skipSilence = p[silence] ?: false,
             autoplay = p[auto] ?: true,
