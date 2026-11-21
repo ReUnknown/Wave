@@ -1,5 +1,9 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -72,6 +76,8 @@ fun SettingsContent() {
         scope.launch { WaveSettings.update(block) }
     }
     Column {
+    // Phones: try Wave Prisma, the 2.0 beta.
+    if (!platform.isComputer) PrismaBetaBanner()
     // Computers: say plainly that this app has stopped getting updates, and where to go.
     if (app.wave.music.ui.components.DesktopSunset.applies) {
         Column(
@@ -358,5 +364,57 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 ) { SettingsContent() }
             }
         }
+    }
+}
+
+
+/**
+ * Wave Prisma, the 2.0 beta: what it is, and one button that downloads it and installs it over
+ * this Wave (it keeps your account and settings). Only shown when a beta is out.
+ */
+@Composable
+private fun PrismaBetaBanner() {
+    val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val update by Updater.state.collectAsState()
+    var beta by remember { mutableStateOf<Updater.Release?>(null) }
+    LaunchedEffect(Unit) { beta = Updater.findBeta() }
+    val found = beta ?: return
+    Column(
+        Modifier
+            .padding(top = 12.dp)
+            .fillMaxWidth()
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(listOf(c.primaryContainer, c.tertiaryContainer)),
+                RoundedCornerShape(28.dp),
+            )
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            app.wave.music.ui.components.WaveMark(c.onPrimaryContainer, size = 34.dp)
+            Column {
+                Text("BETA", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = c.onPrimaryContainer.copy(alpha = 0.7f))
+                Text("Try Wave Prisma", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = c.onPrimaryContainer)
+            }
+        }
+        Text(
+            "Wave 2.0, early: a new home and bottom bar, frosted glass, a new player and lyrics, light mode, and lots to customize, Legacy look included. It installs over this Wave and keeps your account and settings. Going back to 1.x means reinstalling.",
+            fontSize = 14.sp, lineHeight = 19.sp, color = c.onPrimaryContainer.copy(alpha = 0.85f),
+        )
+        val state = update
+        val (label, action) = when {
+            state is Updater.State.Downloading && state.release.version == found.version -> "Downloading ${(state.progress * 100).toInt()}%" to null
+            state is Updater.State.Ready && state.release.version == found.version -> "Install Wave ${found.version}" to { Updater.install(state.file) }
+            else -> "Get the beta" to { scope.launch { Updater.download(found) }; Unit }
+        }
+        Box(
+            Modifier
+                .height(46.dp)
+                .background(if (action != null) c.primary else c.primary.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
+                .then(if (action != null) Modifier.clickable { action() } else Modifier)
+                .padding(horizontal = 22.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text(label, color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
     }
 }

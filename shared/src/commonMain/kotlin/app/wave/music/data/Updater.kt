@@ -64,9 +64,10 @@ object Updater {
                 http.newCall(request).execute().use { response ->
                     check(response.isSuccessful) { "HTTP ${response.code}" }
                     val list = JSONArray(requireNotNull(response.body).string())
-                    // Newest release (betas included) with an installer for this platform attached.
+                    // Newest finished release with an installer for this platform attached. Betas (Wave
+                    // Prisma, 2.0) aren't offered as updates: Settings has a banner for trying them.
                     (0 until list.length()).map { list.getJSONObject(it) }
-                        .filterNot { it.optBoolean("draft") }
+                        .filterNot { it.optBoolean("draft") || it.optBoolean("prerelease") }
                         .mapNotNull(::toRelease)
                         .maxWithOrNull { a, b -> compareVersions(a.version, b.version) }
                 }
@@ -109,6 +110,25 @@ object Updater {
     }
 
     /** Downloads the release's installer (with progress), then hands it to the system. */
+    /** The newest beta (Wave Prisma) with an APK, for the banner in Settings; null if none or offline. */
+    suspend fun findBeta(): Release? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/releases?per_page=10")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            http.newCall(request).execute().use { response ->
+                check(response.isSuccessful) { "HTTP ${response.code}" }
+                val list = JSONArray(requireNotNull(response.body).string())
+                (0 until list.length()).map { list.getJSONObject(it) }
+                    .filter { !it.optBoolean("draft") && it.optBoolean("prerelease") }
+                    .mapNotNull(::toRelease)
+                    .filter { compareVersions(it.version, WavePlatform.current.appVersion) > 0 }
+                    .maxWithOrNull { a, b -> compareVersions(a.version, b.version) }
+            }
+        }.getOrNull()
+    }
+
     suspend fun download(release: Release) {
         _state.value = State.Downloading(release, 0f)
         val dir = Stores.file("updates").apply { mkdirs() }
