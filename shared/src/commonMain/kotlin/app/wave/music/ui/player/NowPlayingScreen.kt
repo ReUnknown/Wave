@@ -320,7 +320,9 @@ fun NowPlayingScreen(
                     .fillMaxWidth(),
             ) {
                 Controls(state, song, position, inner.padding(horizontal = 20.dp))
-                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner, glass = trayGlass)
+                // Live radio has no Up next or lyrics, just room above the gesture bar.
+                if (app.wave.music.data.isRadioId(song.videoId)) Spacer(Modifier.navigationBarsPadding().height(24.dp))
+                else Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner, glass = trayGlass)
             }
         }
         }
@@ -361,7 +363,7 @@ private fun Header(
             )
             Spacer(Modifier.width(8.dp))
         }
-        GlassCircle(Icons.Rounded.MoreVert, "More options", Modifier.menuAnchor(Color.Black.copy(alpha = 0.32f), Color.White)) {
+        if (!app.wave.music.data.isRadioId(song.videoId)) GlassCircle(Icons.Rounded.MoreVert, "More options", Modifier.menuAnchor(Color.Black.copy(alpha = 0.32f), Color.White)) {
             menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl, album = song.album, nowPlaying = true))
         }
     }
@@ -395,6 +397,8 @@ private fun WideNowPlaying(
     // song alone is the default view.
     val c = MaterialTheme.colorScheme
     var panel by rememberSaveable { mutableStateOf((openTo ?: app.wave.music.ui.home.RenderStart.openTo)?.takeIf { it == "queue" || it == "lyrics" }) }
+    // A station has no Up next or lyrics to show.
+    LaunchedEffect(song.videoId) { if (app.wave.music.data.isRadioId(song.videoId)) panel = null }
     Box(Modifier.fillMaxSize()) {
         Crossfade(song.artworkUrl?.atSize(ArtSize.BLUR), Modifier.fillMaxSize(), animationSpec = tween(320), label = "wideBackdrop") { art ->
             BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.3f; scaleY = 1.3f }, radius = 96.dp)
@@ -435,7 +439,7 @@ private fun WideNowPlaying(
                             verticalArrangement = Arrangement.spacedBy(if (roomy) 22.dp else 10.dp, Alignment.CenterVertically),
                         ) {
                             Controls(state, song, position, dense = !roomy, airy = roomy)
-                            PanelButtons(panel) { panel = it }
+                            if (!app.wave.music.data.isRadioId(song.videoId)) PanelButtons(panel) { panel = it }
                             // Room enough on a tablet: volume and speed right here, no pull handle.
                             if (roomy) PlaybackExtras(state.speed, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
                             else ExtrasDrawer(state)
@@ -602,6 +606,7 @@ private fun Controls(
 ) {
     val c = MaterialTheme.colorScheme
     val haptics = LocalHapticFeedback.current
+    if (app.wave.music.data.isRadioId(song.videoId)) return LiveControls(state, song, modifier, dense, airy)
     Column(modifier) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             // The title slides the way you're going: next comes in from the right, back from the left.
@@ -745,6 +750,57 @@ private fun Controls(
                 on = state.repeatMode != RepeatMode.OFF,
                 modifier = Modifier.weight(1f),
             ) { PlayerConnection.cycleRepeat() }
+        }
+    }
+}
+
+/**
+ * Live radio's controls: the station, a LIVE tag, a wave that moves while it plays, and one big
+ * round button that stops it or tunes back in. No seeking, skipping or pausing: it's live.
+ */
+@Composable
+private fun LiveControls(state: PlayerUiState, song: NowPlaying, modifier: Modifier, dense: Boolean, airy: Boolean) {
+    val c = MaterialTheme.colorScheme
+    Column(modifier) {
+        Text(song.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, shadow = titleShadow()), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            app.wave.music.ui.radio.LivePill()
+            Text(song.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 15.sp, fontWeight = FontWeight.Medium, shadow = titleShadow()), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(if (airy) 28.dp else if (dense) 10.dp else 18.dp))
+        // Always full: there's no "how far along" in live radio, just a wave that moves while it plays.
+        WavyProgress(
+            progress = { 1f },
+            playing = state.isPlaying && !app.wave.music.platform.PrismaLook.calm,
+            energy = { if (WaveSettings.state.value.moveWithMusic && !app.wave.music.platform.PrismaLook.calm) BeatBus.level.value else -1f },
+            color = c.onBackground.copy(alpha = if (state.isPlaying) 0.9f else 0.35f),
+            trackColor = c.onBackground.copy(alpha = 0.2f),
+            stroke = 4.dp,
+            amplitude = if (state.isPlaying) 3.5.dp else 0.dp,
+            wavelength = 24.dp,
+            showThumb = false,
+            onSeek = {},
+            modifier = Modifier.fillMaxWidth().height(32.dp),
+        )
+        Row(
+            Modifier.padding(top = if (airy) 22.dp else if (dense) 8.dp else 14.dp, bottom = if (dense) 4.dp else 12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(Modifier.semantics { contentDescription = if (state.isPlaying) "Stop" else "Listen live" }) {
+                app.wave.music.ui.radio.LiveButton(state, if (dense) 68.dp else 84.dp)
+            }
+            Column(Modifier.weight(1f)) {
+                val busy = state.isBuffering && !state.isPlaying
+                Text(
+                    when { state.isPlaying -> "Playing live"; busy -> "Tuning in…"; else -> "Stopped" },
+                    color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Text(
+                    if (state.isPlaying) "Stop any time. Playing again picks up where the station is now." else "Tap play to hear what's on right now.",
+                    color = c.onBackground.copy(alpha = 0.6f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 13.sp, lineHeight = 17.sp),
+                )
+            }
         }
     }
 }

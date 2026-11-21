@@ -1,5 +1,10 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
@@ -133,7 +138,8 @@ enum class SettingsSection(val id: String, val title: String, val summary: Strin
     About("about", "About", "Version, updates, what's new, credits", Icons.Rounded.Info),
     Credits("credits", "Attribution", "", Icons.Rounded.Favorite),
     WhatsNew("whatsnew", "What's new", "", Icons.Rounded.NewReleases),
-    Update("update", "Update", "", Icons.Rounded.SystemUpdate);
+    Update("update", "Update", "", Icons.Rounded.SystemUpdate),
+    HomeRowsPage("homerows", "Home rows", "", Icons.Rounded.Home);
 
     companion object {
         fun of(id: String) = entries.firstOrNull { it.id == id } ?: Customize
@@ -263,6 +269,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
     if (section == SettingsSection.Credits) return CreditsPage(onBack)
     if (section == SettingsSection.WhatsNew) return WhatsNewPage(onBack)
     if (section == SettingsSection.Update) return UpdatePage(onBack)
+    if (section == SettingsSection.HomeRowsPage) return HomeRowsEditor(onBack)
     SettingsPageFrame(section.title, onBack) {
         when (section) {
             SettingsSection.Customize -> {
@@ -274,6 +281,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                     Choice(Icons.Rounded.RoundedCorner, "Corners", "How round cards, menus and the bar are", listOf(0 to "Rounded", 1 to "Squircle", 2 to "Sharp"), settings.cornerStyle) { v -> change { it.copy(cornerStyle = v) } }
                 }
                 item { Toggle(Icons.Rounded.ViewCompact, "Denser home", "Smaller cards, so you see more at once", settings.denseHome) { on -> change { it.copy(denseHome = on) } } }
+                item { NavRow(Icons.Rounded.Home, "Home rows", "Add, remove and reorder what's on your home") { open(SettingsSection.HomeRowsPage) } }
                 item { GroupLabel("Getting around") }
                 item {
                     Choice(Icons.Rounded.Explore, "Navigation", "The bar at the bottom, or a search bar at the top that also opens your library", listOf(false to "Bottom bar", true to "Top search"), settings.topSearch) { v -> change { it.copy(topSearch = v) } }
@@ -384,7 +392,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 }
                 item { Toggle(Icons.Rounded.SelfImprovement, "Calm motion", "Fewer moving things, like the wavy progress line", settings.calmMotion) { on -> change { it.copy(calmMotion = on) } } }
             }
-            SettingsSection.About, SettingsSection.Credits, SettingsSection.WhatsNew, SettingsSection.Update -> Unit
+            SettingsSection.About, SettingsSection.Credits, SettingsSection.WhatsNew, SettingsSection.Update, SettingsSection.HomeRowsPage -> Unit
         }
     }
 }
@@ -694,6 +702,86 @@ private fun Tag(text: String, fill: androidx.compose.ui.graphics.Color, ink: and
     Box(Modifier.clip(CircleShape).background(fill).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Text(text, color = ink, style = body(11.sp, FontWeight.Bold))
     }
+}
+
+/** Settings › Customize › Home rows: which rows show on home, in what order. */
+@Composable
+private fun HomeRowsEditor(onBack: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val settings by WaveSettings.state.collectAsState()
+    val rows = app.wave.music.data.HomeRows.parse(settings.homeRows)
+    val hidden = settings.hiddenSections.split("\n").filter { it.isNotBlank() }.toSet()
+    val ytRows = remember { app.wave.music.data.HomeRepository.lastSectionTitles }
+    fun save(next: List<Pair<String, Boolean>>) {
+        scope.launch { WaveSettings.update { it.copy(homeRows = app.wave.music.data.HomeRows.write(next)) } }
+    }
+    val icons = mapOf(
+        "picks" to Icons.Rounded.AutoAwesome,
+        "recent" to Icons.Rounded.History,
+        "playlists" to Icons.AutoMirrored.Rounded.QueueMusic,
+        "feed" to Icons.Rounded.MusicNote,
+        "radio" to Icons.Rounded.Radio,
+    )
+    val about = mapOf(
+        "picks" to "Big cards picked from what you play",
+        "recent" to "What you played lately",
+        "playlists" to "Playlists you made or saved",
+        "feed" to "Mixes and rows YouTube Music makes for you",
+        "radio" to "Live stations like the music you play",
+    )
+    SettingsPageFrame("Home rows", onBack) {
+        item {
+            Text(
+                "Turn rows on or off, and move them up or down. Radio right after YouTube Music sits a few rows in.",
+                Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp),
+                color = c.onBackground.copy(alpha = 0.65f), style = body(14.sp).copy(lineHeight = 19.sp),
+            )
+        }
+        rows.forEachIndexed { i, (key, on) ->
+            item(key = "row-$key") {
+                Row(
+                    Modifier.animateItem().fillMaxWidth().clickable { save(rows.toMutableList().also { it[i] = key to !on }) }.padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(Modifier.graphicsLayer { alpha = if (on) 1f else 0.45f }) { Tile(icons[key] ?: Icons.Rounded.Home) }
+                    Column(Modifier.weight(1f).graphicsLayer { alpha = if (on) 1f else 0.55f }) {
+                        Text(app.wave.music.data.HomeRows.names[key].orEmpty(), color = c.onBackground, style = display(17.sp, FontWeight.SemiBold))
+                        Text(about[key].orEmpty(), color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp))
+                    }
+                    MoveButton(Icons.Rounded.KeyboardArrowUp, "Move up", i > 0) { save(rows.toMutableList().also { java.util.Collections.swap(it, i, i - 1) }) }
+                    MoveButton(Icons.Rounded.KeyboardArrowDown, "Move down", i < rows.lastIndex) { save(rows.toMutableList().also { java.util.Collections.swap(it, i, i + 1) }) }
+                    Switch(checked = on, onCheckedChange = { v -> save(rows.toMutableList().also { it[i] = key to v }) })
+                }
+            }
+        }
+        if (ytRows.isNotEmpty() && rows.any { it.first == "feed" && it.second }) {
+            item { GroupLabel("From YouTube Music") }
+            ytRows.forEach { title ->
+                item(key = "yt-$title") {
+                    Toggle(Icons.Rounded.MusicNote, title, if (title in hidden) "Hidden from your home" else "On your home", title !in hidden) { show ->
+                        val next = if (show) hidden - title else hidden + title
+                        scope.launch { WaveSettings.update { it.copy(hiddenSections = next.joinToString("\n")) } }
+                    }
+                }
+            }
+        }
+        item {
+            ActionRow(Icons.Rounded.Restore, "Reset home", "Every row back on, in the order Wave starts with") {
+                scope.launch { WaveSettings.update { it.copy(homeRows = app.wave.music.data.HomeRows.DEFAULT, hiddenSections = "") } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoveButton(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Box(
+        Modifier.size(36.dp).clip(CircleShape).background(c.onBackground.copy(alpha = if (enabled) 0.08f else 0.03f)).clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, Modifier.size(22.dp), tint = c.onBackground.copy(alpha = if (enabled) 0.85f else 0.25f)) }
 }
 
 @Composable

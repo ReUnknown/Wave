@@ -38,6 +38,9 @@ object HomeRepository {
         cached = null
     }
 
+    /** The names of the YouTube Music rows on your home last time it loaded (for Settings › Home rows). */
+    val lastSectionTitles: List<String> get() = cached?.second?.sections?.map { it.title }?.distinct().orEmpty()
+
     /**
      * Home, as fast as possible: a recent cached feed right away; otherwise the first page as soon
      * as it arrives (with history fetched alongside), then again once the extra pages are in.

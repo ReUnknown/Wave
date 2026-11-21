@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.widthIn
@@ -197,6 +199,7 @@ fun PrismaSearch(
     onAvatar: () -> Unit,
     onPlay: (YTItem, Boolean) -> Unit,
     onOpen: (YTItem) -> Unit,
+    onRadio: (String) -> Unit = {},
     bottomPadding: Dp,
 ) {
     val back = predictiveBack(onBack = onClose)
@@ -337,6 +340,9 @@ fun PrismaSearch(
                     }
                 } }
                 val bigTop = (found as? Found.Ready)?.groups?.firstOrNull()?.items?.firstOrNull()?.takeIf { filter == SearchTab.Top && confidentMatch(submitted.orEmpty(), it) }
+                // Searching for radio: a big way in to live radio, on top.
+                val radioQuery = submitted.orEmpty().let { q -> Regex("\\b(radio|fm|am|station|stations|live)\\b", RegexOption.IGNORE_CASE).containsMatchIn(q) }
+                if (radioQuery) item(key = "radio-go") { RadioShortcut(submitted.orEmpty(), big = true) { onRadio(radioSearchText(submitted.orEmpty())) } }
                 // Filters on top, or right under the big top result when there is one.
                 if (bigTop == null) filterRow()
                 when (val f = found) {
@@ -368,6 +374,8 @@ fun PrismaSearch(
                     }
                     Found.Idle -> Unit
                 }
+                // Not about radio: a small way to find stations for it, at the end.
+                if (!radioQuery && found is Found.Ready) item(key = "radio-go") { RadioShortcut(submitted.orEmpty(), big = false) { onRadio(submitted.orEmpty()) } }
                 }
             }
         }
@@ -446,6 +454,41 @@ fun PrismaSearch(
 private fun RowIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Box(Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, label, tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), modifier = Modifier.size(22.dp))
+    }
+}
+
+private fun radioSearchText(q: String) = q.replace(Regex("\\b(radio|stations?|live)\\b", RegexOption.IGNORE_CASE), "").trim().replace(Regex("\\s+"), " ")
+
+/** Takes you to Radio: big when you searched for radio, a small row otherwise. */
+@Composable
+private fun RadioShortcut(query: String, big: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val rest = radioSearchText(query)
+    if (big) {
+        Row(
+            Modifier
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)))
+                .background(c.primaryContainer)
+                .clickable(onClick = onClick)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(Modifier.size(52.dp).clip(CircleShape).background(c.primary), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Radio, null, tint = c.onPrimary, modifier = Modifier.size(28.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(if (rest.isBlank()) "Live radio" else "Radio for \"$rest\"", color = c.onPrimaryContainer, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 20.sp, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Real stations, playing right now", color = c.onPrimaryContainer.copy(alpha = 0.75f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp))
+            }
+            Icon(Icons.Rounded.ChevronRight, null, tint = c.onPrimaryContainer)
+        }
+    } else {
+        TextRow("Find radio stations for \"$query\"", Icons.Rounded.Radio, onClick = onClick) {
+            Icon(Icons.Rounded.ChevronRight, null, tint = c.onBackground.copy(alpha = 0.5f), modifier = Modifier.padding(end = 10.dp))
+        }
     }
 }
 

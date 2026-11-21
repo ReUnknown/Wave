@@ -179,6 +179,19 @@ object Updater {
      * Compares versions like "1.0.0", "1.0.0-beta" and "1.0.0-beta.2": numbers first; for the same
      * numbers a final release beats a pre-release, and pre-releases compare part by part.
      */
+    /** The notes GitHub has for [version], or null (offline, or no such release). */
+    suspend fun notesFor(version: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/releases/tags/v$version")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            http.newCall(request).execute().use { r ->
+                if (!r.isSuccessful) null else JSONObject(requireNotNull(r.body).string()).optString("body").takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+    }
+
     /** One published version, for What's new: everything GitHub has, newest first. */
     class Notes(val version: String, val title: String, val body: String, val beta: Boolean, val date: String, val pageUrl: String)
 

@@ -99,7 +99,36 @@ data class Settings(
     val updatePopupShownFor: String = "",
     /** The update whose banner in Settings you closed. */
     val updateBannerClosedFor: String = "",
+    /** Home's rows in order, each on (1) or off (0): see HomeRows. */
+    val homeRows: String = HomeRows.DEFAULT,
+    /** YouTube Music rows on home you've hidden, by name. */
+    val hiddenSections: String = "",
+    /** The version whose "What's new" was last shown (after updating, the new one's notes show once). */
+    val lastSeenVersion: String = "",
 )
+
+/** Home's rows: which ones show, in what order. */
+object HomeRows {
+    const val DEFAULT = "picks:1,recent:1,playlists:1,feed:1,radio:1"
+    val names = mapOf(
+        "picks" to "Top picks for you",
+        "recent" to "Recently played",
+        "playlists" to "Your playlists",
+        "feed" to "From YouTube Music",
+        "radio" to "Radio for you",
+    )
+
+    /** Every row in order, with whether it's on (new rows Wave adds later show up at the end). */
+    fun parse(value: String): List<Pair<String, Boolean>> {
+        val listed = value.split(",").mapNotNull { part ->
+            val (key, on) = part.split(":").let { it.getOrNull(0).orEmpty() to (it.getOrNull(1) != "0") }
+            key.takeIf { it in names }?.let { it to on }
+        }.distinctBy { it.first }
+        return listed + names.keys.filter { k -> listed.none { it.first == k } }.map { it to true }
+    }
+
+    fun write(rows: List<Pair<String, Boolean>>): String = rows.joinToString(",") { "${it.first}:${if (it.second) 1 else 0}" }
+}
 
 
 /** App settings, readable anywhere in the process (UI and playback service). */
@@ -124,6 +153,9 @@ object WaveSettings {
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
     private val seenV2Key = booleanPreferencesKey("seen_v2")
+    private val homeRowsKey = stringPreferencesKey("home_rows")
+    private val hiddenSectionsKey = stringPreferencesKey("hidden_sections")
+    private val lastSeenKey = stringPreferencesKey("last_seen_version")
     private val popupShownKey = stringPreferencesKey("update_popup_shown_for")
     private val bannerClosedKey = stringPreferencesKey("update_banner_closed_for")
     private val setupCompletedKey = booleanPreferencesKey("setup_completed")
@@ -191,6 +223,9 @@ object WaveSettings {
                 fromV1 || finishedBefore
             },
             seenV2 = p[seenV2Key] ?: false,
+            homeRows = p[homeRowsKey] ?: HomeRows.DEFAULT,
+            hiddenSections = p[hiddenSectionsKey] ?: "",
+            lastSeenVersion = p[lastSeenKey] ?: if (p[matchColors] != null) "earlier" else "",
             updatePopupShownFor = p[popupShownKey] ?: "",
             updateBannerClosedFor = p[bannerClosedKey] ?: "",
             lyricsWords = p[lyWordsKey] ?: true,
@@ -246,6 +281,9 @@ object WaveSettings {
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
             it[seenV2Key] = next.seenV2
+            it[homeRowsKey] = next.homeRows
+            it[hiddenSectionsKey] = next.hiddenSections
+            it[lastSeenKey] = next.lastSeenVersion
             it[popupShownKey] = next.updatePopupShownFor
             it[bannerClosedKey] = next.updateBannerClosedFor
             it[setupCompletedKey] = next.setupDone

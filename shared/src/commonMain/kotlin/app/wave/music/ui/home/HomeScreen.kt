@@ -229,6 +229,22 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     LaunchedEffect(Unit) { app.wave.music.ui.components.Shortcuts.openSearch.collect { showSearch = true } }
     val player by PlayerConnection.state.collectAsState()
     val playedHere by app.wave.music.data.RecentPlays.songs.collectAsState()
+    // Settings › Customize › Home rows.
+    val looks by WaveSettings.state.collectAsState()
+    val homeRows = remember(looks.homeRows) { app.wave.music.data.HomeRows.parse(looks.homeRows).filter { it.second }.map { it.first } }
+    val hiddenSections = remember(looks.hiddenSections) { looks.hiddenSections.split("\n").filter { it.isNotBlank() }.toSet() }
+    // Radio for you: stations picked from what you listen to (your home's rows and what you played).
+    var stations by remember { mutableStateOf<List<app.wave.music.data.Station>>(emptyList()) }
+    val feedTitles = (ui as? HomeUi.Ready)?.feed?.sections?.map { it.title }.orEmpty()
+    LaunchedEffect(feedTitles.size > 0, "radio" in homeRows) {
+        if ("radio" !in homeRows || stations.isNotEmpty()) return@LaunchedEffect
+        val words = feedTitles + playedHere.take(20).flatMap { s -> listOf(s.title) + s.artists.map { a -> a.name } }
+        stations = runCatching {
+            val tags = app.wave.music.data.RadioRepository.tasteTags(words)
+            (if (tags.isEmpty()) emptyList() else app.wave.music.data.RadioRepository.forTags(tags, 5))
+                .ifEmpty { app.wave.music.data.RadioRepository.popular(null, 12) }.take(12)
+        }.getOrDefault(emptyList())
+    }
     val resume by remember { ResumeStore.observe() }.collectAsState(null)
 
     LaunchedEffect(session, attempt) {
@@ -626,6 +642,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
+                        rows = homeRows,
+                        hiddenSections = hiddenSections,
+                        stations = stations,
+                        onRadio = { push(Destination.Radio()) },
                         topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
                   } else if (legacyHome) {
@@ -642,6 +662,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
                         topBar = {},
                         showPicks = false,
+                        rows = homeRows,
+                        hiddenSections = hiddenSections,
+                        stations = stations,
+                        onRadio = { push(Destination.Radio()) },
                     )
                   } else {
                     item {
@@ -821,6 +845,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     onAvatar = { showSearch = false; push(Destination.Settings) },
                     onPlay = playItem,
                     onOpen = openItem,
+                    onRadio = { q -> push(Destination.Radio(q)) },
                     bottomPadding = 150.dp + PrismaBarHeight,
                 ) else SearchScreen(
                     onClose = { showSearch = false },
@@ -1067,6 +1092,24 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             onSeeIt = { seen(); showPlayer = false; push(Destination.SettingsPage("update")) },
             onLater = { seen() },
         )
+    }
+    // Just updated: what's in this version, once (fresh installs skip it).
+    var justUpdatedNotes by remember { mutableStateOf<String?>(null) }
+    val thisVersion = app.wave.music.platform.WavePlatform.current.appVersion
+    LaunchedEffect(settings.setupDone, settings.seenV2, settings.lastSeenVersion) {
+        if (!settings.setupDone || !settings.seenV2 || settings.lastSeenVersion == thisVersion) return@LaunchedEffect
+        if (settings.lastSeenVersion.isEmpty()) {
+            WaveSettings.update { it.copy(lastSeenVersion = thisVersion) }
+            return@LaunchedEffect
+        }
+        justUpdatedNotes = Updater.notesFor(thisVersion)
+        if (justUpdatedNotes == null) WaveSettings.update { it.copy(lastSeenVersion = thisVersion) }
+    }
+    justUpdatedNotes?.let { notes ->
+        if (!touring && (readyRelease == null || settings.updatePopupShownFor == readyRelease.version)) {
+            fun seen() { justUpdatedNotes = null; scope.launch { WaveSettings.update { it.copy(lastSeenVersion = thisVersion) } } }
+            JustUpdatedPopup(thisVersion, notes, onAll = { seen(); showPlayer = false; push(Destination.SettingsPage("whatsnew")) }, onDone = { seen() })
+        }
     }
     if (touring) AppTour(
         playing = player.current != null,

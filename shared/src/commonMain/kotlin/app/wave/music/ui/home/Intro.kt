@@ -448,3 +448,58 @@ fun UpdatePopup(version: String, notes: String, onSeeIt: () -> Unit, onLater: ()
         }
     }
 }
+
+
+/** Just updated: what's new in this version, shown once. */
+@Composable
+fun JustUpdatedPopup(version: String, notes: String, onAll: () -> Unit, onDone: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val lines = remember(notes) {
+        notes.lines().map { it.trim() }.filter { it.startsWith("- ") || it.startsWith("* ") }
+            .map { it.drop(2).replace("**", "").replace("__", "") }.take(6)
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onDone() },
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            Modifier
+                .navigationBarsPadding()
+                .padding(16.dp)
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(c.surfaceContainerHigh)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .padding(24.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                FloatingWaveMark(c.primary, 44.dp)
+                Column {
+                    Text("WHAT'S NEW", color = c.primary, style = TextStyle(fontFamily = prismaTextFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp))
+                    Text("You're on Wave $version", color = c.onSurface, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 22.sp, fontWeight = FontWeight.Bold))
+                }
+            }
+            if (lines.isEmpty()) Text(notes.lines().firstOrNull { it.isNotBlank() && !it.trim().startsWith("#") }.orEmpty(), Modifier.padding(top = 10.dp), color = c.onSurface.copy(alpha = 0.8f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp, lineHeight = 19.sp), maxLines = 4)
+            lines.forEach { line ->
+                Text("•  $line", Modifier.padding(top = 8.dp), color = c.onSurface.copy(alpha = 0.8f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp, lineHeight = 19.sp), maxLines = 3)
+            }
+            Row(Modifier.padding(top = 20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "All notes",
+                    Modifier.clip(CircleShape).clickable(onClick = onAll).padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = c.onSurface.copy(alpha = 0.7f),
+                    style = TextStyle(fontFamily = prismaTextFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.height(50.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = onDone).padding(horizontal = 28.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Nice", color = c.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)) }
+            }
+        }
+    }
+}

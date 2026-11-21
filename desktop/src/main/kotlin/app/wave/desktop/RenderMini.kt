@@ -83,8 +83,14 @@ object RenderApp {
         val w = args.getOrNull(1)?.toIntOrNull() ?: 1120
         val h = args.getOrNull(2)?.toIntOrNull() ?: 740
         PlayerConnection.backend = if (mode == "home") idleBackend() else fakeBackend()
+        if (mode.startsWith("live")) {
+            val st = runBlocking { app.wave.music.data.RadioRepository.find("jazz").first() }
+            val now = NowPlaying(st.mediaId, st.name, st.about.ifBlank { "Live radio" }, st.favicon)
+            (PlayerConnection.state as? MutableStateFlow<PlayerUiState>)?.value = PlayerUiState(current = now, isPlaying = true, queue = listOf(now), index = 0)
+        }
         when (mode) {
             "topsearch" -> app.wave.music.data.WaveSettings.preview { it.copy(topSearch = true) }
+            "radiofirst" -> app.wave.music.data.WaveSettings.preview { it.copy(homeRows = "radio:1,picks:0,recent:1,playlists:1,feed:1") }
             "split" -> app.wave.music.data.WaveSettings.preview { it.copy(separateMiniPlayer = true) }
             "legacy" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
             "search" -> app.wave.music.data.WaveSettings.preview { it.copy(startTab = 2) }
@@ -108,10 +114,11 @@ object RenderApp {
         }
         if (mode == "openingflat") app.wave.music.data.WaveSettings.preview { it.copy(blurLevel = 0) }
         if (mode == "openinglegacy") app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
-        app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu", "lightplayer")
+        app.wave.music.ui.home.RenderStart.player = mode in setOf("live", "livewide", "player", "queue", "lyrics", "menu", "lightplayer")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
         if (mode == "settings") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Settings
         if (mode.startsWith("page-")) app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.SettingsPage(mode.removePrefix("page-"))
+        if (mode == "radio") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Radio()
         if (mode == "artist") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Artist("UClYV6hHlupm_S_ObS1W-DYw")
         if (mode == "album") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Album("MPREb_rzLvLCYSi3J")
         if (mode == "menu") {

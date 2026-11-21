@@ -389,6 +389,7 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
     val density = androidx.compose.ui.platform.LocalDensity.current
     val closeAt = with(density) { 56.dp.toPx() }
     LaunchedEffect(now.videoId) { dragPx = 0f }
+    val live = app.wave.music.data.isRadioId(now.videoId)
     Row(
         modifier
             .tourTarget("song")
@@ -421,7 +422,14 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
         AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(14.dp))).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
             Text(now.title, color = c.onSurface, style = body(15.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(now.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (live) app.wave.music.ui.radio.LivePill(Modifier.padding(top = 2.dp))
+            else Text(now.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        // Live radio: nothing to skip, one round button that stops and rejoins live.
+        if (live) {
+            val state by app.wave.music.playback.PlayerConnection.state.collectAsState()
+            app.wave.music.ui.radio.LiveButton(state, 46.dp, fill = song.primary, ink = song.onPrimary)
+            return@Row
         }
         // Customize: previous and next beside play, or just play.
         val skip = app.wave.music.data.WaveSettings.state.collectAsState().value.dockSkip
@@ -498,61 +506,101 @@ fun LazyListScope.prismaHome(
     topBar: @Composable () -> Unit,
     /** Legacy puts 1.0's big banner on top instead, so it leaves these out. */
     showPicks: Boolean = true,
+    /** Settings › Customize › Home: the rows that show, in order. */
+    rows: List<String> = app.wave.music.data.HomeRows.parse(app.wave.music.data.HomeRows.DEFAULT).filter { it.second }.map { it.first },
+    /** YouTube Music rows hidden by name. */
+    hiddenSections: Set<String> = emptySet(),
+    /** Radio for you. */
+    stations: List<app.wave.music.data.Station> = emptyList(),
+    onRadio: () -> Unit = {},
 ) {
     item(key = "top") { topBar() }
-    val picks = if (showPicks) picksFrom(feed, recent) else emptyList()
-    if (picks.isNotEmpty()) {
-        item(key = "picks-h") { PrismaSectionTitle("Top picks for you", first = true) }
-        item(key = "picks") {
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(picks, key = { "pick" + it.id }) { pick ->
-                    PickCard(pick, onClick = { if (it is SongItem) playItem(it, false) else openItem(it) }, onPlay = { playItem(pick, false) })
+    val playlistsShown = playlists.withoutLiked()
+    // Radio for you right after the YouTube rows: it slots in after the third, not at the very end.
+    val radioInFeed = rows.indexOf("radio").let { it > 0 && rows[it - 1] == "feed" }
+    var first = true
+    fun title(text: String, label: String? = null): @Composable () -> Unit {
+        val isFirst = first
+        first = false
+        return { PrismaSectionTitle(text, label, first = isFirst) }
+    }
+    val radioRow: LazyListScope.() -> Unit = {
+        if (stations.isNotEmpty()) {
+            val t = title("Radio for you")
+            item(key = "radio-h") { t() }
+            item(key = "radio") {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(stations, key = { "st" + it.uuid }) { st -> app.wave.music.ui.radio.StationCard(st, squareSize()) { app.wave.music.ui.radio.playStation(st) } }
+                    item(key = "radio-all") { app.wave.music.ui.radio.RadioMoreCard(squareSize(), onRadio) }
                 }
             }
         }
     }
-
-    if (recent.isNotEmpty()) {
-        item(key = "recent-h") { PrismaSectionTitle("Recently played") }
-        item(key = "recent") {
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(recent, key = { "r" + it.id }) { song -> SquareCard(song) { playItem(song, false) } }
-            }
-        }
-    }
-
-    val playlists = playlists.withoutLiked()
-    if (!guest && playlists.isNotEmpty()) {
-        item(key = "mine-h") { PrismaSectionTitle("Your playlists") }
-        item(key = "mine") {
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(playlists, key = { "p" + it.id }) { list -> SquareCard(list, onClick = openItem) }
-            }
-        }
-    }
-
-    feed.sections.forEachIndexed { index, section ->
-        val songs = section.items.filterIsInstance<SongItem>()
-        item(key = "s-h-$index") { PrismaSectionTitle(section.title, section.label) }
-        if (songs.size == section.items.size && songs.size >= 4) {
-            // Song mixes: columns of four rows you swipe through.
-            item(key = "s-$index") {
-                val columns = songs.chunked(4)
-                LazyRow(contentPadding = PaddingValues(horizontal = 8.dp)) {
-                    items(columns.size) { col ->
-                        Column(Modifier.width(if (app.wave.music.platform.PrismaLook.dense) 280.dp else 312.dp)) {
-                            columns[col].forEachIndexed { row, song ->
-                                SongLine(song) { playSongs(section.title, songs, col * 4 + row) }
+    rows.forEach { key ->
+        when (key) {
+            "picks" -> {
+                val picks = if (showPicks) picksFrom(feed, recent) else emptyList()
+                if (picks.isNotEmpty()) {
+                    val t = title("Top picks for you")
+                    item(key = "picks-h") { t() }
+                    item(key = "picks") {
+                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(picks, key = { "pick" + it.id }) { pick ->
+                                PickCard(pick, onClick = { if (it is SongItem) playItem(it, false) else openItem(it) }, onPlay = { playItem(pick, false) })
                             }
                         }
                     }
                 }
             }
-        } else {
-            item(key = "s-$index") {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(section.items, key = { "s$index" + it.id }) { entry -> SquareCard(entry, onClick = openItem) }
+            "recent" -> if (recent.isNotEmpty()) {
+                val t = title("Recently played")
+                item(key = "recent-h") { t() }
+                item(key = "recent") {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(recent, key = { "r" + it.id }) { song -> SquareCard(song) { playItem(song, false) } }
+                    }
                 }
+            }
+            "playlists" -> if (!guest && playlistsShown.isNotEmpty()) {
+                val t = title("Your playlists")
+                item(key = "mine-h") { t() }
+                item(key = "mine") {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(playlistsShown, key = { "p" + it.id }) { list -> SquareCard(list, onClick = openItem) }
+                    }
+                }
+            }
+            "radio" -> if (!radioInFeed) radioRow()
+            "feed" -> {
+                val shown = feed.sections.withIndex().filter { it.value.title !in hiddenSections }
+                shown.forEachIndexed { n, (index, section) ->
+                    if (radioInFeed && n == 3) radioRow()
+                    val songs = section.items.filterIsInstance<SongItem>()
+                    val t = title(section.title, section.label)
+                    item(key = "s-h-$index") { t() }
+                    if (songs.size == section.items.size && songs.size >= 4) {
+                        // Song mixes: columns of four rows you swipe through.
+                        item(key = "s-$index") {
+                            val columns = songs.chunked(4)
+                            LazyRow(contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                items(columns.size) { col ->
+                                    Column(Modifier.width(if (app.wave.music.platform.PrismaLook.dense) 280.dp else 312.dp)) {
+                                        columns[col].forEachIndexed { row, song ->
+                                            SongLine(song) { playSongs(section.title, songs, col * 4 + row) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        item(key = "s-$index") {
+                            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(section.items, key = { "s$index" + it.id }) { entry -> SquareCard(entry, onClick = openItem) }
+                            }
+                        }
+                    }
+                }
+                if (radioInFeed && shown.size <= 3) radioRow()
             }
         }
     }

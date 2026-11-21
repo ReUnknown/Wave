@@ -189,9 +189,14 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             ) { shown ->
                 Column {
                     Text(shown.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(shown.artist, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (app.wave.music.data.isRadioId(shown.videoId)) app.wave.music.ui.radio.LivePill(Modifier.padding(top = 2.dp))
+                    else Text(shown.artist, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+            // Live radio: one round button that stops, and plays live again.
+            if (app.wave.music.data.isRadioId(song.videoId)) {
+                app.wave.music.ui.radio.LiveButton(state, 52.dp)
+            } else
             // Connected group: previous · pause · next
             Row(Modifier.height(52.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(26.dp, 8.dp, 8.dp, 26.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {

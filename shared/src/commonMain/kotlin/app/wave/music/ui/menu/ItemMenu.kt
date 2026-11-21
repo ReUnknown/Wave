@@ -244,7 +244,7 @@ fun ItemMenuHost(
                             }
                         }
                         OptionGroup {
-                            Option(Icons.Rounded.Sensors, "Start radio") { choose { actions.playItem(song, false) } }
+                            Option(Icons.Rounded.Sensors, "Start a mix") { choose { actions.playItem(song, false) } }
                             // Named straight away from what the song already says; the links behind
                             // them are almost always known by now, and otherwise followed once they are.
                             val artistName = song.artists.firstOrNull { it.id != null }?.name
@@ -285,7 +285,7 @@ fun ItemMenuHost(
                         QuickRow {
                             if (item is ArtistItem) {
                                 QuickAction(Icons.Rounded.Shuffle, "Shuffle") { choose { actions.playItem(item, true) } }
-                                QuickAction(Icons.Rounded.Sensors, "Radio") { choose { actions.playItem(item, false) } }
+                                QuickAction(Icons.Rounded.Sensors, "Mix") { choose { actions.playItem(item, false) } }
                                 QuickAction(Icons.Rounded.Share, "Share") { choose { share(item.title, item.shareLink) } }
                             } else {
                                 QuickAction(Icons.Rounded.PlayArrow, "Play", on = true) { choose { actions.playItem(item, false) } }

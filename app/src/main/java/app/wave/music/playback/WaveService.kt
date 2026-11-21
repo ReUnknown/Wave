@@ -189,7 +189,13 @@ class WaveService : MediaSessionService() {
         val resolving = ResolvingDataSource.Factory(cached, ::resolve)
         val sources = DefaultMediaSourceFactory(
             resolving,
-            ExtractorsFactory { arrayOf(MatroskaExtractor(), FragmentedMp4Extractor(), Mp4Extractor()) },
+            // Songs come as WebM or MP4; live radio streams as MP3, AAC or Ogg.
+            ExtractorsFactory {
+                arrayOf(
+                    MatroskaExtractor(), FragmentedMp4Extractor(), Mp4Extractor(),
+                    androidx.media3.extractor.mp3.Mp3Extractor(), androidx.media3.extractor.ts.AdtsExtractor(), androidx.media3.extractor.ogg.OggExtractor(),
+                )
+            },
         )
         val musicAttributes = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
 
@@ -394,6 +400,8 @@ class WaveService : MediaSessionService() {
         reportJob?.cancel()
         val id = item?.mediaId ?: return
         reportJob = scope.launch(Dispatchers.Main) {
+            // Radio isn't a YouTube song: nothing to count or remember.
+            if (app.wave.music.data.isRadioId(id)) return@launch
             var heard = 0
             while (heard < 4_000) {
                 delay(500)
@@ -461,6 +469,17 @@ class WaveService : MediaSessionService() {
 
     /** Turns a song id into a playable YouTube audio URL, just before ExoPlayer reads it. */
     private fun resolve(spec: DataSpec): DataSpec {
+        // Live radio: play the station's stream as it is, and never save it (it never ends).
+        val radioId = (spec.key ?: spec.uri.toString()).takeIf { app.wave.music.data.isRadioId(it) }
+        if (radioId != null) {
+            val url = app.wave.music.data.RadioRepository.streamFor(radioId.removePrefix("radio:"))
+                ?: throw java.io.IOException("This station isn't on air right now")
+            return spec.buildUpon()
+                .setUri(url)
+                .setKey(null)
+                .setFlags(spec.flags or DataSpec.FLAG_DONT_CACHE_IF_LENGTH_UNKNOWN)
+                .build()
+        }
         val videoId = spec.key ?: spec.uri.toString()
         val cache = cache(this)
         // Only skip resolving when everything asked for is already saved. A partly saved song
