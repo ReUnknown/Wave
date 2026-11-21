@@ -99,8 +99,12 @@ object Updater {
 
     private fun toRelease(o: JSONObject): Release? {
         val assets = o.optJSONArray("assets") ?: return null
-        val apk = (0 until assets.length()).map { assets.getJSONObject(it) }
-            .firstOrNull { it.optString("name").endsWith(WavePlatform.current.updateAssetSuffix) } ?: return null
+        // The APK itself, or (betas) a .zip holding it: Wave 1.0 to 1.2.0 only look for .apk files,
+        // so betas ship zipped to keep those versions on 1.x.
+        val all = (0 until assets.length()).map { assets.getJSONObject(it) }
+        val apk = all.firstOrNull { it.optString("name").endsWith(WavePlatform.current.updateAssetSuffix) }
+            ?: all.firstOrNull { WavePlatform.current.updateAssetSuffix == ".apk" && it.optString("name").startsWith("Wave-") && it.optString("name").endsWith(".zip") }
+            ?: return null
         return Release(
             version = o.optString("tag_name").removePrefix("v"),
             notes = o.optString("body"),
@@ -133,14 +137,17 @@ object Updater {
         _state.value = State.Downloading(release, 0f)
         val dir = Stores.file("updates").apply { mkdirs() }
         val file = File(dir, "Wave-${release.version}${WavePlatform.current.updateAssetSuffix}")
+        // Zipped (betas): downloaded next to it, then the APK inside is taken out.
+        val zipped = release.apkUrl.endsWith(".zip")
+        val target = if (zipped) File(dir, "Wave-${release.version}.zip") else file
         val ok = withContext(Dispatchers.IO) {
             runCatching {
-                dir.listFiles()?.forEach { if (it != file) it.delete() }
+                dir.listFiles()?.forEach { if (it != file && it != target) it.delete() }
                 http.newCall(Request.Builder().url(release.apkUrl).build()).execute().use { response ->
                     check(response.isSuccessful) { "HTTP ${response.code}" }
                     val body = requireNotNull(response.body)
                     val total = body.contentLength().takeIf { it > 0 } ?: -1L
-                    file.outputStream().use { out ->
+                    target.outputStream().use { out ->
                         body.byteStream().use { input ->
                             val buffer = ByteArray(64 * 1024)
                             var done = 0L
@@ -160,6 +167,21 @@ object Updater {
                             }
                         }
                     }
+                }
+                if (zipped) {
+                    java.util.zip.ZipInputStream(target.inputStream().buffered()).use { zip ->
+                        var found = false
+                        while (true) {
+                            val entry = zip.nextEntry ?: break
+                            if (!entry.isDirectory && entry.name.endsWith(".apk")) {
+                                file.outputStream().use { zip.copyTo(it) }
+                                found = true
+                                break
+                            }
+                        }
+                        check(found) { "No APK in the zip" }
+                    }
+                    target.delete()
                 }
             }.isSuccess
         }
