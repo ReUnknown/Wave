@@ -409,7 +409,7 @@ private fun ArtistPageMini(artist: ArtistItem, onBack: () -> Unit, onOpen: (Page
     Column(Modifier.fillMaxSize().padding(horizontal = 6.dp)) {
         PageHeader(artist.thumbnail, artist.title, page?.subscriberCountText, round = true, onBack = onBack) {
             PillButton(Icons.Rounded.Shuffle, "Shuffle", true) { scope.launch { QueueBuilder.forItem(page?.artist ?: artist, shuffle = true).onSuccess { PlayerConnection.play(it) } } }
-            PillButton(Icons.Rounded.Radio, "Radio", false) { scope.launch { QueueBuilder.forItem(page?.artist ?: artist).onSuccess { PlayerConnection.play(it) } } }
+            PillButton(Icons.Rounded.Radio, "Mix", false) { scope.launch { QueueBuilder.forItem(page?.artist ?: artist).onSuccess { PlayerConnection.play(it) } } }
         }
         val loaded = page
         if (loaded == null) return Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator(Modifier.size(48.dp)) }

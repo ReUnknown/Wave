@@ -90,6 +90,49 @@ object RadioRepository {
         })
     }
 
+    /** Popular stations for each genre in [tags], taking turns so no one genre fills the row. */
+    suspend fun forTags(tags: List<String>, perTag: Int = 6): List<Station> = withContext(Dispatchers.IO) {
+        val lists = tags.map { tag -> search(mapOf("tag" to tag, "limit" to (perTag * 2).toString())).take(perTag) }
+        buildList {
+            for (i in 0 until perTag) lists.forEach { l -> l.getOrNull(i)?.let { if (none { s -> s.uuid == it.uuid }) add(it) } }
+        }
+    }
+
+    /**
+     * The genres someone's into, from the words around their music (home's section and playlist
+     * names, songs and artists they played), as Radio Browser tags, most-mentioned first.
+     */
+    fun tasteTags(words: List<String>, max: Int = 3): List<String> {
+        val genres = linkedMapOf(
+            "hiphop" to listOf("hip hop", "hip-hop", "hiphop", "rap", "trap", "drill"),
+            "pop" to listOf("pop", "hits", "top 40", "chart"),
+            "rnb" to listOf("r&b", "rnb", "r & b", "neo soul"),
+            "rock" to listOf("rock", "alternative", "grunge", "punk"),
+            "country" to listOf("country", "americana", "bluegrass"),
+            "jazz" to listOf("jazz", "swing", "bossa"),
+            "classical" to listOf("classical", "orchestra", "piano", "symphony"),
+            "chillout" to listOf("chill", "lofi", "lo-fi", "relax", "sleep", "study", "ambient"),
+            "electronic" to listOf("electronic", "edm", "dance", "house", "techno", "phonk", "trance", "dubstep"),
+            "latin" to listOf("latin", "reggaeton", "salsa", "bachata", "cumbia"),
+            "kpop" to listOf("k-pop", "kpop"),
+            "indie" to listOf("indie"),
+            "metal" to listOf("metal"),
+            "soul" to listOf("soul", "motown", "funk"),
+            "christian" to listOf("christian", "worship", "gospel", "praise"),
+            "80s" to listOf("80s", "'80s", "eighties"),
+            "90s" to listOf("90s", "'90s", "nineties"),
+            "oldies" to listOf("oldies", "throwback", "classics", "golden"),
+            "reggae" to listOf("reggae", "dancehall"),
+            "afrobeats" to listOf("afrobeat", "afro", "amapiano"),
+        )
+        val text = words.joinToString(" | ") { it.lowercase() }
+        return genres.map { (tag, keys) -> tag to keys.sumOf { k -> Regex("(?<![a-z])" + Regex.escape(k) + "(?![a-z])").findAll(text).count() } }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(max)
+            .map { it.first }
+    }
+
     /** Stations whose name, or genre, matches [query]. */
     suspend fun find(query: String, limit: Int = 40): List<Station> = withContext(Dispatchers.IO) {
         val q = query.trim().replace(Regex("(?i)\\bradio\\b"), "").trim().ifBlank { return@withContext popular(limit = limit) }
@@ -103,6 +146,11 @@ object RadioRepository {
      * Radio Browser asks apps to do. Runs on the player's loading thread.
      */
     fun streamFor(uuid: String): String? {
+        // Known already (from the list you tapped it in): play at once, and count the listen on the side.
+        byId[uuid]?.streamUrl?.let { known ->
+            Thread { get("$API/url/$uuid".toHttpUrl()) }.start()
+            return known
+        }
         val body = get("$API/url/$uuid".toHttpUrl())
         val url = runCatching { JSONObject(body ?: "").optString("url") }.getOrNull()
         return url?.takeIf { it.startsWith("https://") } ?: byId[uuid]?.streamUrl

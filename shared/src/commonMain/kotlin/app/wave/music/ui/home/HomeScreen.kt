@@ -1,5 +1,9 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import dev.chrisbanes.haze.hazeSource
+import app.wave.music.ui.components.HazeTopBlur
 import androidx.compose.material.icons.rounded.Radio
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
@@ -236,9 +240,23 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     var forward by remember { mutableStateOf(true) }
     // Popular stations near you, for the Radio row on home.
     var stations by remember { mutableStateOf<List<app.wave.music.data.Station>>(emptyList()) }
-    LaunchedEffect(Unit) {
+    // Radio for you: the genres in your home and what you play, turned into stations. Nothing to
+    // go on yet (or nothing matches): what's popular near you.
+    val feedForRadio = (ui as? HomeUi.Ready)?.feed
+    LaunchedEffect(feedForRadio != null) {
+        if (feedForRadio == null) return@LaunchedEffect
+        val words = buildList {
+            feedForRadio.sections.forEach { section ->
+                add(section.title)
+                section.label?.let { add(it) }
+                section.items.forEach { add(it.title) }
+            }
+            playedHere.take(30).forEach { song -> add(song.title); add(song.artists.joinToString(" ") { it.name }) }
+        }
+        val tags = app.wave.music.data.RadioRepository.tasteTags(words)
         val country = java.util.Locale.getDefault().country
-        stations = app.wave.music.data.RadioRepository.popular(country.ifBlank { null }, 15)
+        stations = (if (tags.isNotEmpty()) app.wave.music.data.RadioRepository.forTags(tags) else emptyList())
+            .ifEmpty { app.wave.music.data.RadioRepository.popular(country.ifBlank { null }, 15) }
             .ifEmpty { app.wave.music.data.RadioRepository.popular(limit = 15) }
     }
     fun push(dest: Destination) {
@@ -448,6 +466,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         // What darkens (dark mode) or lightens (light mode) a busy picture under text.
         val scrim = if (c.background.luminance() < 0.5f) Color.Black else Color.White
         val backdrop = rememberBackdrop()
+    val backdropHaze = dev.chrisbanes.haze.rememberHazeState()
         val listState = rememberLazyListState()
         val greetingAlpha by remember {
             derivedStateOf {
@@ -549,7 +568,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .backdropSource(backdrop),
+                        .backdropSource(backdrop)
+                    .hazeSource(backdropHaze),
                     contentPadding = PaddingValues(bottom = 140.dp),
                 ) {
                     item {
@@ -577,17 +597,18 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             }
                         }
                     }
-                    // Live radio: popular stations near you, and the way into Radio.
-                    if (stations.isNotEmpty()) {
-                        item(key = "radio-h") { SectionHeader("Live", "Radio") }
+                    // Live radio picked for you, a little way down home, and the way into Radio.
+                    val radioRow: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = { if (stations.isNotEmpty()) {
+                        item(key = "radio-h") { SectionHeader("Live", "Radio for you") }
                         item(key = "radio") {
                             WheelRow {
                                 items(stations, key = { "st" + it.uuid }) { st -> app.wave.music.ui.radio.StationCard(st) { app.wave.music.ui.radio.playStation(st) } }
                                 item(key = "radio-all") { RadioMoreCard { push(Destination.Radio()) } }
                             }
                         }
-                    }
+                    } }
                     state.feed.sections.forEachIndexed { index, section ->
+                        if (index == 3) radioRow()
                         item(key = "header-$index") { SectionHeader(section.label, section.title) }
                         item(key = "row-$index") {
                             SectionRow(
@@ -606,6 +627,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             )
                         }
                     }
+                    if (state.feed.sections.size <= 3) radioRow()
                 }
             }
             }
@@ -622,9 +644,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 currentWindowDp().screenHeightDp < 600 -> 150.dp
                 else -> 230.dp
             }
-            ProgressiveBackdropBlur(
-                backdrop = backdrop,
-                modifier = Modifier
+            HazeTopBlur(backdropHaze, Modifier
                     .fillMaxWidth()
                     .height(statusTop + headerBand),
             )
@@ -912,6 +932,36 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     )
 
     if (settingsDialog) app.wave.music.ui.settings.SettingsDialog(onDismiss = { settingsDialog = false })
+
+    // Just updated: what's new in this version, once.
+    var whatsNew by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        WaveSettings.load()
+        val current = app.wave.music.platform.WavePlatform.current.appVersion
+        val last = WaveSettings.state.value.lastSeenVersion
+        if (last == current) return@LaunchedEffect
+        if (last.isNotEmpty()) whatsNew = Updater.notesFor(current)
+        WaveSettings.update { it.copy(lastSeenVersion = current) }
+    }
+    whatsNew?.let { notes ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { whatsNew = null },
+            icon = { app.wave.music.ui.components.WaveMark(MaterialTheme.colorScheme.primary, size = 36.dp) },
+            title = { Text("What's new in Wave ${app.wave.music.platform.WavePlatform.current.appVersion}") },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    notes.lines().map { it.trim() }.filter { it.isNotBlank() }.forEach { line ->
+                        when {
+                            line.startsWith("#") -> Text(line.trimStart('#').trim(), Modifier.padding(top = 10.dp, bottom = 2.dp), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                            line.startsWith("- ") || line.startsWith("* ") -> Text("•  " + line.drop(2).replace("**", ""), Modifier.padding(top = 4.dp), fontSize = 14.sp, lineHeight = 19.sp)
+                            else -> Text(line.replace("**", ""), Modifier.padding(top = 4.dp), fontSize = 14.sp, lineHeight = 19.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { whatsNew = null }) { Text("Got it") } },
+        )
+    }
 
     if (askSignOut) {
         AccountSheet(

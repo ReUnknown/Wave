@@ -200,6 +200,8 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     PlayerConnection.previous()
                 }
+                if (live) app.wave.music.ui.radio.LiveButton(state, 52.dp)
+                else {
                 // Paused, the middle button rounds out; the icon morphs between pause and play.
                 val corner by animateDpAsState(if (state.isPlaying) 8.dp else 18.dp, WaveMotion.bouncy(), label = "miniPlayShape")
                 Box(
@@ -208,11 +210,12 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
                         .fillMaxHeight()
                         .pressable(RoundedCornerShape(corner), MaterialTheme.colorScheme.primary, pressedScale = 0.88f) {
                             haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
-                            if (live) app.wave.music.ui.radio.toggleLive(state) else PlayerConnection.togglePlay()
+                            PlayerConnection.togglePlay()
                         }
                         .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
                     contentAlignment = Alignment.Center,
-                ) { if (live) app.wave.music.ui.radio.StopPlayIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary, 26.dp) else PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary) }
+                ) { PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary) }
+                }
                 if (!live) GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(8.dp, 26.dp, 26.dp, 8.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     PlayerConnection.next()

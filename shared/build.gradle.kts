@@ -35,6 +35,7 @@ kotlin {
             api(libs.cmp.material3)
             api(libs.cmp.material.icons)
             api(libs.coil.compose)
+            api(libs.haze)
             api(libs.coil.network)
             api(libs.androidx.graphics.shapes)
             api(libs.datastore.preferences.core)

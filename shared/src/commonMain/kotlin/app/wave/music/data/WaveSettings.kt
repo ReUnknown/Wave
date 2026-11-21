@@ -28,6 +28,8 @@ data class Settings(
     val checkUpdates: Boolean = true,
     /** Also offer betas (Wave 2.0) as updates. */
     val betaUpdates: Boolean = false,
+    /** The version whose "What's new" was last shown (after updating, the new one's notes show once). */
+    val lastSeenVersion: String = "",
     /** Computers: the player opens beside the app (half the window) instead of filling it. */
     val splitPlayer: Boolean = false,
     /** Wave's own volume (0..1), separate from the device's, like YouTube's volume slider. */
@@ -53,6 +55,7 @@ object WaveSettings {
     private val lowPower = booleanPreferencesKey("low_power_playback")
     private val updates = booleanPreferencesKey("check_updates")
     private val betaKey = booleanPreferencesKey("beta_updates")
+    private val lastSeenKey = androidx.datastore.preferences.core.stringPreferencesKey("last_seen_version")
     private val split = booleanPreferencesKey("split_player")
     private val volume = androidx.datastore.preferences.core.floatPreferencesKey("app_volume")
     private val scale = androidx.datastore.preferences.core.floatPreferencesKey("ui_scale")
@@ -77,6 +80,8 @@ object WaveSettings {
             lowPowerPlayback = p[lowPower] ?: true,
             checkUpdates = p[updates] ?: true,
             betaUpdates = p[betaKey] ?: false,
+            // Already using Wave from before this was tracked: count it as an update.
+            lastSeenVersion = p[lastSeenKey] ?: if (p[matchColors] != null) "earlier" else "",
             splitPlayer = p[split] ?: false,
             appVolume = p[volume] ?: 1f,
             uiScale = p[scale] ?: 0.9f,
@@ -100,6 +105,7 @@ object WaveSettings {
             it[lowPower] = next.lowPowerPlayback
             it[updates] = next.checkUpdates
             it[betaKey] = next.betaUpdates
+            it[lastSeenKey] = next.lastSeenVersion
             it[split] = next.splitPlayer
             it[volume] = next.appVolume
             it[scale] = next.uiScale

@@ -251,3 +251,30 @@ fun StopPlayIcon(playing: Boolean, tint: androidx.compose.ui.graphics.Color, siz
         Icon(if (on) Icons.Rounded.Stop else Icons.Rounded.PlayArrow, if (on) "Stop" else "Listen live", tint = tint, modifier = Modifier.size(size))
     }
 }
+
+
+/**
+ * Live radio's round stop / play button. It answers the moment you tap: stopping is instant, and
+ * starting shows a spinner straight away until the station is back on.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun LiveButton(state: app.wave.music.playback.PlayerUiState, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    var starting by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isPlaying, state.current?.videoId) { if (state.isPlaying) starting = false }
+    LaunchedEffect(starting) { if (starting) { delay(12_000); starting = false } }
+    val busy = starting || (state.isBuffering && !state.isPlaying)
+    Box(
+        modifier.size(size).pressable(CircleShape, c.primary, pressedScale = 0.88f) {
+            if (!state.isPlaying) starting = true
+            toggleLive(state)
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.animation.Crossfade(busy, label = "liveBusy") { b ->
+            if (b) LoadingIndicator(Modifier.size(size * 0.62f), color = c.onPrimary)
+            else StopPlayIcon(state.isPlaying, c.onPrimary, size * 0.5f)
+        }
+    }
+}

@@ -1,5 +1,7 @@
 package app.wave.music.ui.detail
 
+import dev.chrisbanes.haze.hazeSource
+import app.wave.music.ui.components.HazeTopBlur
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
 import kotlinx.coroutines.launch
@@ -252,6 +254,7 @@ private fun <T> PageFrame(
         val c = MaterialTheme.colorScheme
         app.wave.music.ui.components.ReportPageLook(c, art)
         val backdrop = rememberBackdrop()
+    val backdropHaze = dev.chrisbanes.haze.rememberHazeState()
         val statusTop = topInset()
         Box(
             Modifier
@@ -262,7 +265,8 @@ private fun <T> PageFrame(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .backdropSource(backdrop),
+                    .backdropSource(backdrop)
+                    .hazeSource(backdropHaze),
             ) {
                 AnimatedContent(
                     targetState = load,
@@ -328,7 +332,7 @@ private fun <T> PageFrame(
                 }
                 }
             }
-            ProgressiveBackdropBlur(backdrop, Modifier.fillMaxWidth().height(statusTop + 96.dp))
+            HazeTopBlur(backdropHaze, Modifier.fillMaxWidth().height(statusTop + 96.dp))
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -563,7 +567,7 @@ private fun ArtistScreen(browseId: String, actions: PageActions) {
                 subtitle = p.monthlyListenerCount ?: p.subscriberCountText,
                 primary = "Shuffle" to Icons.Rounded.Shuffle,
                 onPrimary = { actions.playItem(p.artist, true) },
-                secondary = "Radio" to Icons.Rounded.Sensors,
+                secondary = "Mix" to Icons.Rounded.Sensors,
                 onSecondary = { actions.playItem(p.artist, false) },
                 extra = { FollowButton(p.artist.channelId ?: browseId, p.isSubscribed, p.artist.title) },
             )

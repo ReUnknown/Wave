@@ -819,6 +819,10 @@ private fun LiveControls(state: PlayerUiState, song: NowPlaying, modifier: Modif
             modifier = Modifier.padding(top = 18.dp).fillMaxWidth().height(32.dp),
         )
         val corner by animateDpAsState(if (state.isPlaying) 30.dp else 46.dp, WaveMotion.bouncy(), label = "liveShape")
+        // Answers at once: stopping is instant, starting shows a spinner until the station's back.
+        var starting by remember { mutableStateOf(false) }
+        LaunchedEffect(state.isPlaying) { if (state.isPlaying) starting = false }
+        LaunchedEffect(starting) { if (starting) { kotlinx.coroutines.delay(12_000); starting = false } }
         Box(
             Modifier
                 .padding(top = 18.dp)
@@ -826,13 +830,17 @@ private fun LiveControls(state: PlayerUiState, song: NowPlaying, modifier: Modif
                 .height(92.dp)
                 .pressable(RoundedCornerShape(corner), c.primary, pressedScale = 0.95f) {
                     haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                    if (!state.isPlaying) starting = true
                     app.wave.music.ui.radio.toggleLive(state)
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                app.wave.music.ui.radio.StopPlayIcon(state.isPlaying, c.onPrimary, 40.dp)
-                Text(if (state.isPlaying) "  Stop" else "  Listen live", color = c.onPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            androidx.compose.animation.Crossfade(starting || (state.isBuffering && !state.isPlaying), label = "liveBig") { busy ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(32.dp), color = c.onPrimary, strokeWidth = 3.dp)
+                    else app.wave.music.ui.radio.StopPlayIcon(state.isPlaying, c.onPrimary, 40.dp)
+                    Text(if (busy) "  Tuning in" else if (state.isPlaying) "  Stop" else "  Listen live", color = c.onPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

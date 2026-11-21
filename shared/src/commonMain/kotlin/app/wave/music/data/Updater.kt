@@ -41,6 +41,19 @@ object Updater {
     val state: StateFlow<State> = _state.asStateFlow()
     private val http by lazy { OkHttpClient() }
 
+    /** The release notes for [version] (the one you just updated to), or null when offline. */
+    suspend fun notesFor(version: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/releases/tags/v$version")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            http.newCall(request).execute().use { r ->
+                if (!r.isSuccessful) null else JSONObject(requireNotNull(r.body).string()).optString("body").takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+    }
+
     /** The daily check (skipped if it ran in the last day, unless [force]). */
     private val store get() = Stores.prefs("updates")
     private val lastCheck = longPreferencesKey("last_check")

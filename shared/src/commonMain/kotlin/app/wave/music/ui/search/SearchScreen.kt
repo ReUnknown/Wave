@@ -1,5 +1,7 @@
 package app.wave.music.ui.search
 
+import dev.chrisbanes.haze.hazeSource
+import app.wave.music.ui.components.HazeTopBlur
 import androidx.compose.material.icons.rounded.Radio
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
@@ -204,6 +206,7 @@ fun SearchScreen(
         if (showingResults) app.wave.music.ui.components.ReportPageLook(c, topResult?.thumbnail)
         val statusTop = topInset()
         val backdrop = rememberBackdrop()
+    val backdropHaze = dev.chrisbanes.haze.rememberHazeState()
         Box(
             Modifier
                 .backGesture(back)
@@ -212,7 +215,8 @@ fun SearchScreen(
                 .background(c.background),
         ) {
             // Everything under the header records into the backdrop the header blurs.
-            Box(Modifier.fillMaxSize().backdropSource(backdrop)) {
+            Box(Modifier.fillMaxSize().backdropSource(backdrop)
+                    .hazeSource(backdropHaze)) {
             if (!showingResults && ambientArt != null) {
                 BlurredImage(
                     ambientArt.atSize(ArtSize.BLUR),
@@ -337,9 +341,7 @@ fun SearchScreen(
             }
 
             // Frosted header: real progressive blur behind the search field and filter chips.
-            ProgressiveBackdropBlur(
-                backdrop = backdrop,
-                modifier = Modifier
+            HazeTopBlur(backdropHaze, Modifier
                     .fillMaxWidth()
                     .height(statusTop + if (showingResults) 132.dp else 80.dp),
             )
