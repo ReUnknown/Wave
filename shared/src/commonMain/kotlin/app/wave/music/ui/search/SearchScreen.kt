@@ -1,5 +1,6 @@
 package app.wave.music.ui.search
 
+import androidx.compose.material.icons.rounded.Radio
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
 import androidx.compose.ui.graphics.luminance
@@ -134,6 +135,8 @@ fun SearchScreen(
     ambientArt: String? = null,
     /** The shared container the search field morphs from (home's search bar). */
     fieldModifier: Modifier = Modifier,
+    /** Opens Radio, searching stations for these words. */
+    onRadio: (String) -> Unit = {},
 ) {
     val back = predictiveBack(onBack = onClose)
     val scope = rememberCoroutineScope()
@@ -293,6 +296,9 @@ fun SearchScreen(
                         }
                         Results.Failed -> item { Label("Search didn't go through. Check your connection.") }
                         is Results.Ready -> {
+                            // Live radio: a way straight to stations for the same words (front and
+                            // center when you searched for radio).
+                            item(key = "to-radio") { RadioShortcut(submitted.orEmpty()) { onRadio(submitted.orEmpty()) } }
                             val mine = if (tab == SearchTab.Top || tab == SearchTab.Playlists) LibraryRepository.search(submitted.orEmpty()) else emptyList()
                             if (r.groups.isEmpty() && mine.isEmpty()) item { Label("No music found for \"$submitted\"") }
                             // Your own matching playlists go right under the top result.
@@ -553,4 +559,41 @@ private fun isStrongMatch(query: String, item: YTItem): Boolean {
     if (typed.joinToString("").length < 3) return false
     val name = words(item.title + " " + (subtitle(item) ?: ""))
     return typed.all { t -> name.any { it.startsWith(t) } }
+}
+
+
+/** Search's way into live radio: a slim row, or a bigger card when the search was for radio. */
+@Composable
+private fun RadioShortcut(query: String, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val radioSearch = Regex("(?i)\\b(radio|fm|am|station)\\b").containsMatchIn(query)
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = if (radioSearch) 8.dp else 4.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(if (radioSearch) 24.dp else 18.dp))
+            .background(if (radioSearch) c.primaryContainer else c.surfaceContainerHigh.copy(alpha = 0.7f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = if (radioSearch) 16.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(androidx.compose.material.icons.Icons.Rounded.Radio, null, tint = if (radioSearch) c.onPrimaryContainer else c.primary)
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (radioSearch) "Live radio stations" else "Radio stations",
+                color = if (radioSearch) c.onPrimaryContainer else c.onSurface,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (radioSearch) 17.sp else 15.sp,
+            )
+            Text(
+                "Find stations for \u201c$query\u201d, live",
+                color = (if (radioSearch) c.onPrimaryContainer else c.onSurfaceVariant).copy(alpha = 0.8f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = if (radioSearch) c.onPrimaryContainer else c.onSurfaceVariant)
+    }
 }

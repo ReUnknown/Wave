@@ -26,6 +26,8 @@ data class Settings(
     val lowPowerPlayback: Boolean = true,
     /** Look for a new version of Wave on GitHub once a day. */
     val checkUpdates: Boolean = true,
+    /** Also offer betas (Wave 2.0) as updates. */
+    val betaUpdates: Boolean = false,
     /** Computers: the player opens beside the app (half the window) instead of filling it. */
     val splitPlayer: Boolean = false,
     /** Wave's own volume (0..1), separate from the device's, like YouTube's volume slider. */
@@ -50,6 +52,7 @@ object WaveSettings {
     private val crossfade = androidx.datastore.preferences.core.intPreferencesKey("crossfade_seconds")
     private val lowPower = booleanPreferencesKey("low_power_playback")
     private val updates = booleanPreferencesKey("check_updates")
+    private val betaKey = booleanPreferencesKey("beta_updates")
     private val split = booleanPreferencesKey("split_player")
     private val volume = androidx.datastore.preferences.core.floatPreferencesKey("app_volume")
     private val scale = androidx.datastore.preferences.core.floatPreferencesKey("ui_scale")
@@ -73,6 +76,7 @@ object WaveSettings {
             crossfadeSeconds = p[crossfade] ?: 0,
             lowPowerPlayback = p[lowPower] ?: true,
             checkUpdates = p[updates] ?: true,
+            betaUpdates = p[betaKey] ?: false,
             splitPlayer = p[split] ?: false,
             appVolume = p[volume] ?: 1f,
             uiScale = p[scale] ?: 0.9f,
@@ -95,6 +99,7 @@ object WaveSettings {
             it[crossfade] = next.crossfadeSeconds
             it[lowPower] = next.lowPowerPlayback
             it[updates] = next.checkUpdates
+            it[betaKey] = next.betaUpdates
             it[split] = next.splitPlayer
             it[volume] = next.appVolume
             it[scale] = next.uiScale

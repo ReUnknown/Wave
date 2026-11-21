@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.material.icons.rounded.Radio
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
 import app.wave.music.ui.components.WheelRow
@@ -233,6 +234,13 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val stack = remember { mutableStateListOf<Destination>() }
     // Which way pages move: deeper slides in from the right, back slides in from the left.
     var forward by remember { mutableStateOf(true) }
+    // Popular stations near you, for the Radio row on home.
+    var stations by remember { mutableStateOf<List<app.wave.music.data.Station>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        val country = java.util.Locale.getDefault().country
+        stations = app.wave.music.data.RadioRepository.popular(country.ifBlank { null }, 15)
+            .ifEmpty { app.wave.music.data.RadioRepository.popular(limit = 15) }
+    }
     fun push(dest: Destination) {
         forward = true
         stack.add(dest)
@@ -569,6 +577,16 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             }
                         }
                     }
+                    // Live radio: popular stations near you, and the way into Radio.
+                    if (stations.isNotEmpty()) {
+                        item(key = "radio-h") { SectionHeader("Live", "Radio") }
+                        item(key = "radio") {
+                            WheelRow {
+                                items(stations, key = { "st" + it.uuid }) { st -> app.wave.music.ui.radio.StationCard(st) { app.wave.music.ui.radio.playStation(st) } }
+                                item(key = "radio-all") { RadioMoreCard { push(Destination.Radio()) } }
+                            }
+                        }
+                    }
                     state.feed.sections.forEachIndexed { index, section ->
                         item(key = "header-$index") { SectionHeader(section.label, section.title) }
                         item(key = "row-$index") {
@@ -709,6 +727,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     onOpen = openItem,
                     ambientArt = player.current?.artworkUrl ?: hero?.art,
                     fieldModifier = Modifier.sharedContainer("search", this, CircleShape),
+                    onRadio = { q -> push(Destination.Radio(q)) },
                 )
             }
 
@@ -1393,5 +1412,25 @@ private fun NewPlaylistTile(onClick: () -> Unit) {
         }
         Text("New playlist", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall, color = c.onBackground)
         Text("Make your own mix", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant)
+    }
+}
+
+
+/** The last card in the Radio row: more stations, and searching them. */
+@Composable
+private fun RadioMoreCard(onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.width(132.dp).clickable(onClick = onClick)) {
+        Box(
+            Modifier.size(132.dp).clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.Radio, null, tint = c.primary, modifier = Modifier.size(36.dp))
+                Text("See all", Modifier.padding(top = 6.dp), color = c.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            }
+        }
+        Text("All stations", Modifier.padding(top = 8.dp), color = c.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
+        Text("Search by name or genre", color = c.onSurfaceVariant, fontSize = 12.sp, maxLines = 1)
     }
 }

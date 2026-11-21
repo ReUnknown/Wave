@@ -160,6 +160,14 @@ fun PlayerBar(
 
             // Controls and progress.
             Column(Modifier.widthIn(min = 360.dp, max = 560.dp).weight(1.2f), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Live radio: just stop and play, and a LIVE tag where the progress line goes.
+                if (app.wave.music.data.isRadioId(state.current?.videoId)) {
+                    Box(
+                        Modifier.width(76.dp).height(44.dp).pressable(RoundedCornerShape(22.dp), MaterialTheme.colorScheme.primary, pressedScale = 0.9f) { app.wave.music.ui.radio.toggleLive(state) },
+                        contentAlignment = Alignment.Center,
+                    ) { app.wave.music.ui.radio.StopPlayIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary) }
+                    app.wave.music.ui.radio.LivePill(Modifier.padding(top = 6.dp))
+                } else Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     BarIcon(Icons.Rounded.Shuffle, if (state.shuffle) "Shuffle on" else "Shuffle off", tint = if (state.shuffle) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.75f)) {
                         PlayerConnection.toggleShuffle()
@@ -203,6 +211,7 @@ fun PlayerBar(
                         modifier = Modifier.weight(1f).height(18.dp),
                     )
                     BarTime(position, state.durationMs)
+                }
                 }
             }
 

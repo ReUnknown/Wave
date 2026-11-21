@@ -67,7 +67,7 @@ object Updater {
                     // Newest finished release with an installer for this platform attached. Betas (Wave
                     // Prisma, 2.0) aren't offered as updates: Settings has a banner for trying them.
                     (0 until list.length()).map { list.getJSONObject(it) }
-                        .filterNot { it.optBoolean("draft") || it.optBoolean("prerelease") }
+                        .filterNot { it.optBoolean("draft") || (it.optBoolean("prerelease") && !WaveSettings.state.value.betaUpdates) }
                         .mapNotNull(::toRelease)
                         .maxWithOrNull { a, b -> compareVersions(a.version, b.version) }
                 }

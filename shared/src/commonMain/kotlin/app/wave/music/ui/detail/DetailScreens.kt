@@ -122,6 +122,8 @@ sealed interface Destination {
     data object History : Destination { override val id = "history" }
     data object Playlists : Destination { override val id = "playlists" }
     data object Saved : Destination { override val id = "saved" }
+    /** Live radio: popular stations, or ones matching [query]. */
+    data class Radio(val query: String = "") : Destination { override val id = "radio" }
 
     companion object {
         fun of(item: YTItem): Destination? = when (item) {
@@ -210,6 +212,7 @@ fun DetailScreen(
         Destination.History -> HistoryScreen(actions)
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
+        is Destination.Radio -> app.wave.music.ui.radio.RadioScreen(destination.query, actions)
     }
     }
 }

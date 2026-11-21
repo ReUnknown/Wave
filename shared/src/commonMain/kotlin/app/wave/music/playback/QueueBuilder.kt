@@ -90,6 +90,14 @@ object QueueBuilder {
     )
 
     /** "Play all" on a home section of songs. */
+    /** A live radio station: one never-ending item, nothing to shuffle or queue after it. */
+    fun forStation(station: app.wave.music.data.Station): PlayRequest = PlayRequest(
+        items = listOf(NowPlaying(station.mediaId, station.name, station.about.ifBlank { "Live radio" }, station.favicon)),
+        startIndex = 0,
+        context = PlaybackContext("radio-${station.uuid}", station.name, station.favicon, null, isCollection = false),
+        shuffle = false,
+    )
+
     fun forSongs(sectionTitle: String, songs: List<SongItem>, shuffle: Boolean): PlayRequest = PlayRequest(
         items = songs.map { it.toQueueItem() },
         startIndex = if (shuffle) songs.indices.random() else 0,

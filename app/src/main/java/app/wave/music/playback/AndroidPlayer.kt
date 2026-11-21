@@ -235,6 +235,8 @@ object AndroidPlayer : PlayerBackend {
         if (upcomingOrder(c).size > 1) return
         val last = fullOrder(c).lastOrNull() ?: return
         val seed = c.getMediaItemAt(last).mediaId
+        // A radio station never ends, so there's nothing to keep going after.
+        if (app.wave.music.data.isRadioId(seed)) return
         if (autoplayFrom == seed) return
         autoplayFrom = seed
         scope.launch {
@@ -259,6 +261,7 @@ object AndroidPlayer : PlayerBackend {
 
     /** Fetch lyrics for this song and the next one ahead of time, so the lyrics view opens instantly. */
     private fun prefetchLyrics() {
+        if (app.wave.music.data.isRadioId(controller?.currentMediaItem?.mediaId)) return
         val c = controller ?: return
         val upcoming = listOfNotNull(c.currentMediaItem, c.nextMediaItemIndex.takeIf { it >= 0 }?.let { c.getMediaItemAt(it) })
         upcoming.forEach { item ->

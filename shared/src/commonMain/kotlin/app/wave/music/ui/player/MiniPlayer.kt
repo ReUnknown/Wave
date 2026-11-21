@@ -189,12 +189,14 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
             ) { shown ->
                 Column {
                     Text(shown.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(shown.artist, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (app.wave.music.data.isRadioId(shown.videoId)) app.wave.music.ui.radio.LivePill(Modifier.padding(top = 3.dp))
+                    else Text(shown.artist, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            // Connected group: previous · pause · next
+            // Connected group: previous · pause · next (live radio: just stop and play).
+            val live = app.wave.music.data.isRadioId(state.current?.videoId)
             Row(Modifier.height(52.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(26.dp, 8.dp, 8.dp, 26.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
+                if (!live) GroupButton(Icons.Rounded.SkipPrevious, "Previous song", RoundedCornerShape(26.dp, 8.dp, 8.dp, 26.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     PlayerConnection.previous()
                 }
@@ -206,12 +208,12 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
                         .fillMaxHeight()
                         .pressable(RoundedCornerShape(corner), MaterialTheme.colorScheme.primary, pressedScale = 0.88f) {
                             haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
-                            PlayerConnection.togglePlay()
+                            if (live) app.wave.music.ui.radio.toggleLive(state) else PlayerConnection.togglePlay()
                         }
                         .semantics { contentDescription = if (state.isPlaying) "Pause" else "Play" },
                     contentAlignment = Alignment.Center,
-                ) { PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary) }
-                GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(8.dp, 26.dp, 26.dp, 8.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
+                ) { if (live) app.wave.music.ui.radio.StopPlayIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary, 26.dp) else PlayPauseIcon(state.isPlaying, MaterialTheme.colorScheme.onPrimary) }
+                if (!live) GroupButton(Icons.Rounded.SkipNext, "Next song", RoundedCornerShape(8.dp, 26.dp, 26.dp, 8.dp), Color.White.copy(alpha = 0.16f), Color.White, 40) {
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     PlayerConnection.next()
                 }
@@ -228,7 +230,8 @@ fun MiniPlayer(state: PlayerUiState, onOpen: () -> Unit, modifier: Modifier = Mo
                 }
             }
         }
-        WavyProgress(
+        // Live radio has no length, so no progress line.
+        if (!app.wave.music.data.isRadioId(state.current?.videoId)) WavyProgress(
             progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
             playing = state.isPlaying,
             energy = { if (WaveSettings.state.value.moveWithMusic) BeatBus.level.value else -1f },

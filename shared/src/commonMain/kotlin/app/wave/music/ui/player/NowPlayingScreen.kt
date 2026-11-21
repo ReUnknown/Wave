@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.material.icons.rounded.Radio
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
 import androidx.compose.material.icons.rounded.CloseFullscreen
@@ -292,8 +293,13 @@ fun NowPlayingScreen(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
             ) {
-                Controls(state, song, position, inner.padding(horizontal = 20.dp))
-                Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner)
+                if (app.wave.music.data.isRadioId(song.videoId)) {
+                    LiveControls(state, song, inner.padding(horizontal = 20.dp))
+                    LiveTray(song, inner)
+                } else {
+                    Controls(state, song, position, inner.padding(horizontal = 20.dp))
+                    Tray(state, showQueue, showLyrics, onQueue = { showQueue = true }, onLyrics = { showLyrics = true }, modifier = inner)
+                }
             }
         }
         }
@@ -339,7 +345,8 @@ private fun Header(
             )
             Spacer(Modifier.width(8.dp))
         }
-        GlassCircle(Icons.Rounded.MoreVert, "More options") {
+        // Live radio: no song actions (playlists, artist, sharing) apply to a station.
+        if (!app.wave.music.data.isRadioId(song.videoId)) GlassCircle(Icons.Rounded.MoreVert, "More options") {
             menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl, album = song.album, nowPlaying = true))
         }
     }
@@ -389,16 +396,23 @@ private fun WideNowPlaying(
                             Cover(song, minOf(maxWidth, maxHeight))
                         }
                         Column(Modifier.widthIn(max = 560.dp).padding(top = 20.dp)) {
-                            Controls(state, song, position)
-                            ExtrasDrawer(state, Modifier.padding(top = 6.dp))
+                            if (app.wave.music.data.isRadioId(song.videoId)) LiveControls(state, song)
+                            else {
+                                Controls(state, song, position)
+                                ExtrasDrawer(state, Modifier.padding(top = 6.dp))
+                            }
                         }
                     }
-                    SidePanel(state, Modifier.weight(1f).fillMaxHeight(), startOnQueue = openTo == "queue")
+                    // Live radio has no queue or lyrics: the station's details sit there instead.
+                    if (app.wave.music.data.isRadioId(song.videoId)) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { LiveTray(song, Modifier.widthIn(max = 420.dp)) }
+                    else SidePanel(state, Modifier.weight(1f).fillMaxHeight(), startOnQueue = openTo == "queue")
                 } else {
                     BoxWithConstraints(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
                         Cover(song, minOf(maxWidth, maxHeight))
                     }
-                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                    if (app.wave.music.data.isRadioId(song.videoId)) Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                        LiveControls(state, song)
+                    } else Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
                         Controls(state, song, position, dense = true)
                         Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", showQueue, Modifier.weight(1f), onQueue)
@@ -774,6 +788,78 @@ private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: 
         Icon(icon, null, tint = ink)
         AnimatedContent(label, transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(90)) using SizeTransform(clip = false) }, label = "modeLabel") {
             Text("  $it", color = ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+    }
+}
+
+
+/**
+ * Live radio in the player: the station and a LIVE tag, a gently moving line instead of a progress
+ * bar, and one big stop / play button. No skipping, seeking or modes: it's a real broadcast.
+ */
+@Composable
+private fun LiveControls(state: PlayerUiState, song: NowPlaying, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val haptics = LocalHapticFeedback.current
+    Column(modifier) {
+        Text(song.title, color = c.onBackground, fontSize = 30.sp, lineHeight = 35.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            app.wave.music.ui.radio.LivePill()
+            Text(song.artist, color = c.onBackground.copy(alpha = 0.7f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        // On air: the line keeps moving while it plays (there's nothing to seek).
+        WavyProgress(
+            progress = { 1f },
+            playing = state.isPlaying,
+            color = c.onBackground,
+            trackColor = c.onBackground.copy(alpha = 0.25f),
+            stroke = 5.dp,
+            amplitude = 4.dp,
+            wavelength = 24.dp,
+            modifier = Modifier.padding(top = 18.dp).fillMaxWidth().height(32.dp),
+        )
+        val corner by animateDpAsState(if (state.isPlaying) 30.dp else 46.dp, WaveMotion.bouncy(), label = "liveShape")
+        Box(
+            Modifier
+                .padding(top = 18.dp)
+                .fillMaxWidth()
+                .height(92.dp)
+                .pressable(RoundedCornerShape(corner), c.primary, pressedScale = 0.95f) {
+                    haptics.performHapticFeedback(if (state.isPlaying) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                    app.wave.music.ui.radio.toggleLive(state)
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                app.wave.music.ui.radio.StopPlayIcon(state.isPlaying, c.onPrimary, 40.dp)
+                Text(if (state.isPlaying) "  Stop" else "  Listen live", color = c.onPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/** Under live radio: what you're listening to, instead of Up next and Lyrics. */
+@Composable
+private fun LiveTray(song: NowPlaying, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(c.primaryContainer.copy(alpha = 0.92f))
+            .navigationBarsPadding()
+            .padding(horizontal = 22.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(Icons.Rounded.Radio, null, tint = c.onPrimaryContainer)
+        Column(Modifier.weight(1f)) {
+            Text("Live radio", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(
+                listOf(song.artist, "Radio Browser").filter { it.isNotBlank() }.joinToString(" · "),
+                color = c.onPrimaryContainer.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

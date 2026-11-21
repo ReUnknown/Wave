@@ -1,5 +1,6 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -240,6 +241,12 @@ fun SettingsContent() {
         Divider()
         Toggle(Icons.Rounded.Autorenew, "Update automatically", "Wave looks for a new version once a day", settings.checkUpdates) { on ->
             change { it.copy(checkUpdates = on) }
+        }
+        Divider()
+        // The beta channel: Wave 2.0 betas come in as updates too.
+        Toggle(Icons.Rounded.Science, "Beta updates", "Get Wave 2.0 betas as updates. Early, with rough edges; going back means reinstalling", settings.betaUpdates) { on ->
+            change { it.copy(betaUpdates = on) }
+            scope.launch { Updater.check(force = true) }
         }
     }
     }
