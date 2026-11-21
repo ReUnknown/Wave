@@ -313,8 +313,9 @@ class WaveService : MediaSessionService() {
                     watchedPosition = player.currentPosition
                     watchedDuration = player.duration
                 }
-                // Only worth watching closely while something plays.
-                delay(if (player.isPlaying) 500 else 3_000)
+                // Every half second, playing or not: between songs the player isn't "playing" for a
+                // moment, and a stale position then made a normal song change look like a cut-off.
+                delay(500)
             }
         }
 

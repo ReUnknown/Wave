@@ -95,6 +95,11 @@ object RenderApp {
             "legacybar" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = false) }
         }
         if (mode.startsWith("opening")) app.wave.music.ui.home.RenderStart.openAfterMs = 6000
+        if (mode.startsWith("intro")) {
+            app.wave.music.ui.home.RenderStart.intro = true
+            app.wave.music.data.WaveSettings.preview { it.copy(setupDone = true, seenV2 = false) }
+        }
+        if (mode == "tour") app.wave.music.ui.home.Tour.requested = true
         if (mode == "openingflat") app.wave.music.data.WaveSettings.preview { it.copy(blurLevel = 0) }
         if (mode == "openinglegacy") app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu", "lightplayer")
@@ -134,7 +139,8 @@ object RenderApp {
             File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
             println("done"); kotlin.system.exitProcess(0)
         }
-        for (i in 1..150) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
+        val frames = if (mode == "intromid") 21 else 150
+        for (i in 1..frames) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
         File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         println("done")
         kotlin.system.exitProcess(0)

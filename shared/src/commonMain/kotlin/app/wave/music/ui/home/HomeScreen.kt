@@ -1038,6 +1038,31 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
 
 
+    // Wave 2.0's welcome for people coming from 1.x (once), and the tour (from there, setup or Settings).
+    var touring by remember { mutableStateOf(false) }
+    LaunchedEffect(Tour.requested) {
+        if (Tour.requested) {
+            Tour.requested = false
+            showSearch = false
+            showPlayer = false
+            while (stack.isNotEmpty()) pop()
+            tab = 0
+            touring = true
+        }
+    }
+    if (settings.setupDone && !settings.seenV2 && !shell && (!app.wave.music.platform.WavePlatform.current.isComputer || RenderStart.intro)) {
+        MigrationIntro { tour ->
+            scope.launch { WaveSettings.update { it.copy(seenV2 = true) } }
+            touring = tour
+        }
+    }
+    if (touring) AppTour(
+        playing = player.current != null,
+        topSearch = settings.topSearch,
+        oneRow = !settings.legacyUi && settings.dockOneRow && currentWindowDp().screenWidthDp >= 840,
+        onDone = { touring = false },
+    )
+
     if (askSignOut) {
         AccountSheet(
             session = session,
@@ -1469,6 +1494,7 @@ object RenderStart {
     var player = false; var openTo: String? = null; var menu: MenuTarget? = null; var page: Destination? = null
     /** Renders only: open the player after this many ms, and note the frame time it happened. */
     var openAfterMs = 0L
+    var intro = false
     @Volatile var openedAtNanos = 0L
 }
 

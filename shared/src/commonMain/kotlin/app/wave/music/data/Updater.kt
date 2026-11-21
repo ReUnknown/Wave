@@ -157,6 +157,36 @@ object Updater {
      * Compares versions like "1.0.0", "1.0.0-beta" and "1.0.0-beta.2": numbers first; for the same
      * numbers a final release beats a pre-release, and pre-releases compare part by part.
      */
+    /** One published version, for What's new: everything GitHub has, newest first. */
+    class Notes(val version: String, val title: String, val body: String, val beta: Boolean, val date: String, val pageUrl: String)
+
+    /** Every release on GitHub (newer than this one too), newest first; empty when offline. */
+    suspend fun allNotes(): List<Notes> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/releases?per_page=50")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            http.newCall(request).execute().use { response ->
+                check(response.isSuccessful) { "HTTP ${response.code}" }
+                val list = JSONArray(requireNotNull(response.body).string())
+                (0 until list.length()).map { list.getJSONObject(it) }
+                    .filterNot { it.optBoolean("draft") }
+                    .map {
+                        Notes(
+                            version = it.optString("tag_name").removePrefix("v"),
+                            title = it.optString("name").ifBlank { it.optString("tag_name") },
+                            body = it.optString("body"),
+                            beta = it.optBoolean("prerelease"),
+                            date = it.optString("published_at").take(10),
+                            pageUrl = it.optString("html_url"),
+                        )
+                    }
+                    .sortedWith { a, b -> compareVersions(b.version, a.version) }
+            }
+        }.getOrDefault(emptyList())
+    }
+
     fun compareVersions(a: String, b: String): Int {
         fun split(v: String) = v.trim().removePrefix("v").split('-', limit = 2).let { it[0] to it.getOrNull(1) }
         val (na, pa) = split(a)

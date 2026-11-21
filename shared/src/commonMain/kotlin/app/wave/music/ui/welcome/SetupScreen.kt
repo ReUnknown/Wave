@@ -1,5 +1,10 @@
 package app.wave.music.ui.welcome
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -93,7 +98,12 @@ fun SetupScreen(session: Session?, onSignIn: () -> Unit, onGuest: () -> Unit, in
         forward = if (to > step) 1 else -1
         step = to.coerceIn(0, STEPS - 1)
     }
-    val finish = { change { it.copy(setupDone = true) } }
+    // Finishing: Wave is set up (and new to 2.0 already, so no "welcome to 2.0"), tour if wanted.
+    var tourAfter by rememberSaveable { mutableStateOf(true) }
+    val finish = {
+        change { it.copy(setupDone = true, seenV2 = true) }
+        if (tourAfter) app.wave.music.ui.home.Tour.requested = true
+    }
 
     Box(
         Modifier
@@ -145,9 +155,11 @@ fun SetupScreen(session: Session?, onSignIn: () -> Unit, onGuest: () -> Unit, in
                             if (!settings.topSearch) SwitchRow("Mini player on its own", "Float it above the bar instead of joining it", settings.separateMiniPlayer) { on -> change { it.copy(separateMiniPlayer = on) } }
                         }
                         else -> {
-                            Heading("Make it yours", "A couple of looks you can change later.")
+                            Heading("Make it yours", "A few looks you can change any time.")
+                            ThemePicker(settings.theme) { v -> change { it.copy(theme = v) } }
                             SwitchRow("Match song colors", "Wave takes on the colors of what's playing", settings.matchSongColors) { on -> change { it.copy(matchSongColors = on) } }
                             SwitchRow("AMOLED black", "Pure black backgrounds in dark mode", settings.amoled) { on -> change { it.copy(amoled = on) } }
+                            SwitchRow("Show me around", "A quick tour of Wave once you're in", tourAfter) { on -> tourAfter = on }
                         }
                     }
                     Spacer(Modifier.height(24.dp))
@@ -178,19 +190,78 @@ fun SetupScreen(session: Session?, onSignIn: () -> Unit, onGuest: () -> Unit, in
 
 @Composable
 private fun ColumnScope.Welcome() {
+    // The Wave mark floating over slow rings of color, and the words coming in one after another.
     val c = MaterialTheme.colorScheme
-    Spacer(Modifier.height(72.dp))
-    Box(
-        Modifier.align(Alignment.CenterHorizontally).size(132.dp).clip(RoundedCornerShape(44.dp)).background(c.primaryContainer),
-        contentAlignment = Alignment.Center,
-    ) { WaveMark(c.onPrimaryContainer, size = 76.dp) }
-    Text("Welcome to Wave", Modifier.fillMaxWidth().padding(top = 32.dp), color = c.onBackground, style = display(36.sp).copy(textAlign = TextAlign.Center))
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "welcome")
+    val ring by t.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(2600, easing = androidx.compose.animation.core.LinearEasing)), label = "ring")
+    val lift by t.animateFloat(-1f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(2000, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "lift")
+    val show = remember { List(3) { androidx.compose.animation.core.Animatable(0f) } }
+    LaunchedEffect(Unit) {
+        show.forEachIndexed { i, a ->
+            launch {
+                kotlinx.coroutines.delay(120L + i * 140L)
+                a.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 220f))
+            }
+        }
+    }
+    Spacer(Modifier.height(56.dp))
+    Box(Modifier.align(Alignment.CenterHorizontally).size(220.dp).graphicsLayer { alpha = show[0].value; scaleX = 0.85f + 0.15f * show[0].value; scaleY = 0.85f + 0.15f * show[0].value }, contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            repeat(3) { i ->
+                val p = (ring + i / 3f) % 1f
+                drawCircle(c.primary.copy(alpha = (1f - p) * 0.28f), radius = size.minDimension / 2f * (0.42f + p * 0.58f))
+            }
+        }
+        Box(
+            Modifier.size(128.dp).graphicsLayer { translationY = lift * 6.dp.toPx() }.clip(RoundedCornerShape(42.dp)).background(c.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) { WaveMark(c.onPrimaryContainer, size = 74.dp) }
+    }
     Text(
-        "YouTube Music, simple and beautiful. Let's set it up the way you like it.",
-        Modifier.fillMaxWidth().padding(top = 10.dp, start = 12.dp, end = 12.dp),
+        "Welcome to Wave",
+        Modifier.fillMaxWidth().padding(top = 24.dp).graphicsLayer { alpha = show[1].value; translationY = (1f - show[1].value) * 20.dp.toPx() },
+        color = c.onBackground,
+        style = display(36.sp).copy(textAlign = TextAlign.Center),
+    )
+    Text(
+        "YouTube Music, simple and beautiful. A few quick choices and you're in.",
+        Modifier.fillMaxWidth().padding(top = 10.dp, start = 12.dp, end = 12.dp).graphicsLayer { alpha = show[2].value; translationY = (1f - show[2].value) * 20.dp.toPx() },
         color = c.onBackground.copy(alpha = 0.7f),
         style = body(16.sp).copy(textAlign = TextAlign.Center, lineHeight = 22.sp),
     )
+}
+
+/** System, light or dark, as three little previews. */
+@Composable
+private fun ThemePicker(selected: Int, onPick: (Int) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(Modifier.padding(bottom = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(0 to "System", 1 to "Light", 2 to "Dark").forEach { (value, label) ->
+            val on = value == selected
+            val line by animateColorAsState(if (on) c.primary else Color.Transparent, tween(180), label = "themeLine")
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(c.surfaceContainerHigh)
+                    .border(2.dp, line, RoundedCornerShape(22.dp))
+                    .clickable { onPick(value) }
+                    .padding(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(14.dp)).background(
+                        when (value) {
+                            1 -> androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFF7F2EE), Color(0xFFE8DFD8)))
+                            2 -> androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF1E1B1A), Color(0xFF0E0D0C)))
+                            else -> androidx.compose.ui.graphics.Brush.horizontalGradient(0.5f to Color(0xFFF7F2EE), 0.5f to Color(0xFF1E1B1A))
+                        },
+                    ),
+                )
+                Text(label, Modifier.padding(top = 8.dp), color = c.onSurface, style = body(14.sp, FontWeight.SemiBold))
+            }
+        }
+    }
 }
 
 @Composable

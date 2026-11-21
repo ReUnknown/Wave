@@ -93,6 +93,8 @@ data class Settings(
     val lyricsBlur: Boolean = true,
     /** Wave spots lyrics that are out of time with the song and lines them up by itself. */
     val lyricsAutoSync: Boolean = true,
+    /** Has seen Wave 2.0's welcome (people coming from 1.x get the transform and the tour once). */
+    val seenV2: Boolean = false,
 )
 
 
@@ -117,6 +119,7 @@ object WaveSettings {
     private val topSearchKey = booleanPreferencesKey("top_search")
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
+    private val seenV2Key = booleanPreferencesKey("seen_v2")
     private val lyWordsKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_words")
     private val lyMotionKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_motion")
     private val lySizeKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_size")
@@ -173,6 +176,7 @@ object WaveSettings {
             separateMiniPlayer = p[separateKey] ?: false,
             // Anyone already using Wave has effectively set it up.
             setupDone = p[setupKey] ?: (p[matchColors] != null),
+            seenV2 = p[seenV2Key] ?: false,
             lyricsWords = p[lyWordsKey] ?: true,
             lyricsMotion = p[lyMotionKey] ?: 1,
             lyricsSize = p[lySizeKey] ?: 1,
@@ -225,6 +229,7 @@ object WaveSettings {
             it[topSearchKey] = next.topSearch
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
+            it[seenV2Key] = next.seenV2
             it[lyWordsKey] = next.lyricsWords
             it[lyMotionKey] = next.lyricsMotion
             it[lySizeKey] = next.lyricsSize

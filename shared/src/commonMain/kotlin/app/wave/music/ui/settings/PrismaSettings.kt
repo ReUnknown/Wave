@@ -231,7 +231,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
             SettingsSection.Customize -> {
                 item { GroupLabel("Look") }
                 item {
-                    Choice(Icons.Rounded.AutoAwesome, "Style", "Modern is Prisma; Legacy is a modern take on Wave 1.0", listOf(false to "Modern", true to "Legacy"), settings.legacyUi) { v -> change { it.copy(legacyUi = v) } }
+                    Choice(Icons.Rounded.AutoAwesome, "Style", "Modern is Wave 2.0; Legacy is a modern take on Wave 1.0", listOf(false to "Modern", true to "Legacy"), settings.legacyUi) { v -> change { it.copy(legacyUi = v) } }
                 }
                 item {
                     Choice(Icons.Rounded.RoundedCorner, "Corners", "How round cards, menus and the bar are", listOf(0 to "Rounded", 1 to "Squircle", 2 to "Sharp"), settings.cornerStyle) { v -> change { it.copy(cornerStyle = v) } }
@@ -446,7 +446,7 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
                 // Just the Wave mark, white on the page (dark in light mode).
                 WaveMark(c.onBackground, size = 96.dp)
                 Text("Wave", Modifier.padding(top = 16.dp), color = c.onBackground, style = display(32.sp))
-                Text("Prisma ${WavePlatform.current.appVersion}", color = c.onBackground.copy(alpha = 0.65f), style = body(15.sp))
+                Text("Version ${WavePlatform.current.appVersion}", color = c.onBackground.copy(alpha = 0.65f), style = body(15.sp))
                 Row(
                     Modifier.padding(top = 14.dp).height(42.dp).pressable(CircleShape, c.onBackground.copy(alpha = 0.08f), pressedScale = 0.94f) { WavePlatform.current.openUrl(GITHUB) }.padding(horizontal = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -505,7 +505,10 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
         item { Box(Modifier.height(12.dp)) }
         item {
             Column(Modifier.fillMaxWidth()) {
-                NavRow(Icons.Rounded.NewReleases, "What's new", "Every version, newest first") { open(SettingsSection.WhatsNew) }
+                NavRow(Icons.Rounded.Explore, "Show me around", "The quick tour of Wave again") {
+                    app.wave.music.ui.home.Tour.requested = true
+                }
+                NavRow(Icons.Rounded.NewReleases, "What's new", "Every release, newest first, straight from GitHub") { open(SettingsSection.WhatsNew) }
                 NavRow(Icons.Rounded.Favorite, "Attribution", "What Wave is built on and inspired by") { open(SettingsSection.Credits) }
                 NavRow(Icons.Rounded.BugReport, "Report a bug", "Opens a new issue on GitHub", external = true) { WavePlatform.current.openUrl("$GITHUB/issues/new") }
             }
@@ -567,30 +570,69 @@ private fun CreditRow(credit: Credit) {
 
 @Composable
 private fun WhatsNewPage(onBack: () -> Unit) {
+    // Straight from GitHub: every release, newer ones you don't have yet included.
     val c = MaterialTheme.colorScheme
+    val current = WavePlatform.current.appVersion
+    var notes by remember { mutableStateOf<List<Updater.Notes>?>(null) }
+    LaunchedEffect(Unit) { notes = Updater.allNotes() }
     SettingsPageFrame("What's new", onBack) {
-        Changelog.versions.forEachIndexed { i, v ->
-            item(key = v.version) {
-                Column(
-                    Modifier
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(if (i == 0) c.primaryContainer else c.surfaceContainer)
-                        .padding(18.dp),
-                ) {
-                    val ink = if (i == 0) c.onPrimaryContainer else c.onSurface
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(v.version, Modifier.weight(1f), color = ink, style = display(19.sp))
-                        if (i == 0) Text("This version", color = ink.copy(alpha = 0.75f), style = body(12.sp, FontWeight.SemiBold))
+        val list = notes
+        when {
+            list == null -> item {
+                Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                }
+            }
+            list.isEmpty() -> item {
+                Text("Couldn't reach GitHub. Check your connection and try again.", Modifier.padding(20.dp), color = c.onBackground.copy(alpha = 0.7f), style = body(15.sp))
+            }
+            else -> list.forEachIndexed { i, v ->
+                val installed = Updater.compareVersions(v.version, current) == 0
+                val newer = Updater.compareVersions(v.version, current) > 0
+                item(key = v.version + i) {
+                    val appear = remember { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(Unit) {
+                        kotlinx.coroutines.delay((i * 40L).coerceAtMost(400L))
+                        appear.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 300f))
                     }
-                    Text(v.title, Modifier.padding(top = 2.dp), color = ink.copy(alpha = 0.8f), style = body(14.sp, FontWeight.Medium))
-                    v.notes.forEach { note ->
-                        Text("•  $note", Modifier.padding(top = 6.dp), color = ink.copy(alpha = 0.75f), style = body(13.sp).copy(lineHeight = 18.sp))
+                    Column(
+                        Modifier
+                            .graphicsLayer { alpha = appear.value; translationY = (1f - appear.value) * 16.dp.toPx() }
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(if (installed) c.primaryContainer else c.surfaceContainer)
+                            .clickable { WavePlatform.current.openUrl(v.pageUrl) }
+                            .padding(18.dp),
+                    ) {
+                        val ink = if (installed) c.onPrimaryContainer else c.onSurface
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(v.title, Modifier.weight(1f), color = ink, style = display(18.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            when {
+                                installed -> Tag("You have this", c.primary, c.onPrimary)
+                                newer -> Tag("New", c.tertiary, c.onTertiary)
+                                v.beta -> Tag("Beta", c.secondaryContainer, c.onSecondaryContainer)
+                            }
+                        }
+                        Text(v.date, Modifier.padding(top = 2.dp), color = ink.copy(alpha = 0.6f), style = body(12.sp))
+                        parseNotes(v.body).take(10).forEach { line ->
+                            when (line) {
+                                is NoteLine.Heading -> Text(line.text, Modifier.padding(top = 10.dp), color = ink, style = display(15.sp))
+                                is NoteLine.Bullet -> Text("•  ${line.text}", Modifier.padding(top = 5.dp), color = ink.copy(alpha = 0.8f), style = body(13.sp).copy(lineHeight = 18.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                is NoteLine.Plain -> Text(line.text, Modifier.padding(top = 5.dp), color = ink.copy(alpha = 0.75f), style = body(13.sp).copy(lineHeight = 18.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun Tag(text: String, fill: androidx.compose.ui.graphics.Color, ink: androidx.compose.ui.graphics.Color) {
+    Box(Modifier.clip(CircleShape).background(fill).padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Text(text, color = ink, style = body(11.sp, FontWeight.Bold))
     }
 }
 
