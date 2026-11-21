@@ -1,5 +1,9 @@
 package app.wave.music.ui.home
 
+import androidx.compose.runtime.LaunchedEffect
+import app.wave.music.ui.components.sharedContainer
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -224,6 +228,10 @@ fun PrismaTabBar(
     showTabs: Boolean = true,
     /** The mini player floats on its own above the tabs instead of joining them. */
     split: Boolean = false,
+    /** Big tablets: the mini player and the tabs side by side in one row. */
+    oneRow: Boolean = false,
+    /** For the player to grow out of the mini player (and fold back into it). */
+    visibility: androidx.compose.animation.AnimatedVisibilityScope? = null,
 ) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(32.dp))
@@ -232,6 +240,50 @@ fun PrismaTabBar(
         .clip(shape)
         .glass(haze, 30.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.6f))), c.surfaceContainer.copy(alpha = 0.97f))
         .border(1.dp, c.onSurface.copy(alpha = 0.1f), shape)
+    var lastSong by remember { mutableStateOf(now) }
+    if (now != null) lastSong = now
+    val songShape = RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(if (split || oneRow) 32.dp else 26.dp))
+    // The song: the player grows out of exactly this.
+    val song: @Composable (Modifier) -> Unit = { m ->
+        lastSong?.let { s ->
+            DockSong(s, playing, onOpenPlayer, loading, m.then(Modifier.sharedContainer("player", visibility, songShape)))
+        }
+    }
+    val enter = androidx.compose.animation.expandVertically(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) + androidx.compose.animation.fadeIn(tween(220))
+    val exit = androidx.compose.animation.shrinkVertically(tween(240)) + androidx.compose.animation.fadeOut(tween(160))
+    val tabsRow: @Composable (Modifier) -> Unit = { m -> DockTabs(tab, onTab, m) }
+
+    if (oneRow && showTabs) {
+        // Big tablets: one row, so the dock doesn't take two rows of height for no reason. The tabs
+        // come first, then a compact mini player.
+        Row(
+            modifier
+                .widthIn(max = 900.dp)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (split) {
+                Box(Modifier.width(420.dp).then(glass)) { tabsRow(Modifier.fillMaxWidth()) }
+                androidx.compose.animation.AnimatedVisibility(now != null, Modifier.widthIn(max = 440.dp).weight(1f, fill = false), enter = androidx.compose.animation.fadeIn(tween(220)), exit = androidx.compose.animation.fadeOut(tween(160))) {
+                    Box(Modifier.fillMaxWidth().then(glass)) { song(Modifier) }
+                }
+            } else {
+                Row(Modifier.then(glass), verticalAlignment = Alignment.CenterVertically) {
+                    tabsRow(Modifier.width(420.dp))
+                    androidx.compose.animation.AnimatedVisibility(now != null, enter = androidx.compose.animation.fadeIn(tween(220)) + androidx.compose.animation.expandHorizontally(), exit = androidx.compose.animation.fadeOut(tween(160)) + androidx.compose.animation.shrinkHorizontally()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.width(1.dp).height(36.dp).background(c.onSurface.copy(alpha = 0.1f)))
+                            Box(Modifier.width(400.dp)) { song(Modifier) }
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
     Column(
         modifier
             // Tablets: a comfortable dock in the middle instead of one stretched edge to edge.
@@ -242,55 +294,52 @@ fun PrismaTabBar(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // The song grows into the dock when something starts playing, and folds away when it stops.
-        var lastSong by remember { mutableStateOf(now) }
-        if (now != null) lastSong = now
-        androidx.compose.animation.AnimatedVisibility(
-            visible = split && now != null,
-            enter = androidx.compose.animation.expandVertically(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) + androidx.compose.animation.fadeIn(tween(220)),
-            exit = androidx.compose.animation.shrinkVertically(tween(240)) + androidx.compose.animation.fadeOut(tween(160)),
-        ) {
-            lastSong?.let { song -> Box(Modifier.fillMaxWidth().then(glass)) { DockSong(song, playing, onOpenPlayer, loading) } }
+        androidx.compose.animation.AnimatedVisibility(visible = split && now != null, enter = enter, exit = exit) {
+            Box(Modifier.fillMaxWidth().then(glass)) { song(Modifier) }
         }
         if (showTabs) Column(Modifier.fillMaxWidth().then(glass)) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = !split && now != null,
-                enter = androidx.compose.animation.expandVertically(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) + androidx.compose.animation.fadeIn(tween(220)),
-                exit = androidx.compose.animation.shrinkVertically(tween(240)) + androidx.compose.animation.fadeOut(tween(160)),
-            ) {
+            androidx.compose.animation.AnimatedVisibility(visible = !split && now != null, enter = enter, exit = exit) {
                 Column {
-                    lastSong?.let { song -> DockSong(song, playing, onOpenPlayer, loading) }
+                    song(Modifier)
                     Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(c.onSurface.copy(alpha = 0.08f)))
                 }
             }
+            tabsRow(Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/** Home, Library and Search: the open one grows into a filled shape with its name. */
+@Composable
+private fun DockTabs(tab: Int, onTab: (Int) -> Unit, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        modifier.height(PrismaBarHeight - 16.dp).padding(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val tabs = listOf(
+            Triple("Home", Icons.Rounded.Home, Icons.Outlined.Home),
+            Triple("Library", Icons.Rounded.LibraryMusic, Icons.Outlined.LibraryMusic),
+            Triple("Search", Icons.Rounded.Search, Icons.Rounded.Search),
+        )
+        tabs.forEachIndexed { i, (label, on, off) ->
+            val selected = i == tab
+            val weight by animateFloatAsState(if (selected) 1.8f else 1f, app.wave.music.ui.components.WaveMotion.bouncy(), label = "tabWeight")
+            val fill by animateColorAsState(if (selected) c.primary else Color.Transparent, tween(180), label = "tabFill")
+            val ink by animateColorAsState(if (selected) c.onPrimary else c.onSurface.copy(alpha = 0.75f), tween(180), label = "tabInk")
             Row(
-                Modifier.fillMaxWidth().height(PrismaBarHeight - 16.dp).padding(7.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                Modifier
+                    .weight(weight)
+                    .fillMaxHeight()
+                    .pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)), fill, pressedScale = 0.92f) { onTab(i) },
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val tabs = listOf(
-                    Triple("Home", Icons.Rounded.Home, Icons.Outlined.Home),
-                    Triple("Library", Icons.Rounded.LibraryMusic, Icons.Outlined.LibraryMusic),
-                    Triple("Search", Icons.Rounded.Search, Icons.Rounded.Search),
-                )
-                tabs.forEachIndexed { i, (label, on, off) ->
-                    val selected = i == tab
-                    val weight by animateFloatAsState(if (selected) 1.8f else 1f, app.wave.music.ui.components.WaveMotion.bouncy(), label = "tabWeight")
-                    val fill by animateColorAsState(if (selected) c.primary else Color.Transparent, tween(180), label = "tabFill")
-                    val ink by animateColorAsState(if (selected) c.onPrimary else c.onSurface.copy(alpha = 0.75f), tween(180), label = "tabInk")
-                    Row(
-                        Modifier
-                            .weight(weight)
-                            .fillMaxHeight()
-                            .pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)), fill, pressedScale = 0.92f) { onTab(i) },
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(if (selected) on else off, label, tint = ink, modifier = Modifier.size(26.dp))
-                        if (selected) {
-                            Spacer(Modifier.width(8.dp))
-                            Text(label, color = ink, style = display(16.sp, FontWeight.Bold), maxLines = 1)
-                        }
-                    }
+                Icon(if (selected) on else off, label, tint = ink, modifier = Modifier.size(26.dp))
+                if (selected) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, color = ink, style = display(16.sp, FontWeight.Bold), maxLines = 1)
                 }
             }
         }
@@ -300,13 +349,38 @@ fun PrismaTabBar(
 /** The mini player inside the dock: cover, song, and a play button in the song's color. */
 @Composable
 @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit, loading: Boolean = false) {
+private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, onOpen: () -> Unit, loading: Boolean = false, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
     val song = app.wave.music.ui.components.rememberArtColorScheme(now.artworkUrl)
+    // Swipe it down to close the song: it follows your finger, and past a point it drops away
+    // and playback stops. Not far enough, it springs back.
+    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val closeAt = with(density) { 56.dp.toPx() }
+    LaunchedEffect(now.videoId) { drag.snapTo(0f) }
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .height(PrismaDockSongHeight)
+            .graphicsLayer {
+                translationY = drag.value
+                alpha = 1f - (drag.value / (closeAt * 2.2f)).coerceIn(0f, 0.9f)
+            }
+            .draggable(
+                androidx.compose.foundation.gestures.rememberDraggableState { d -> scope.launch { drag.snapTo((drag.value + d).coerceAtLeast(0f)) } },
+                androidx.compose.foundation.gestures.Orientation.Vertical,
+                onDragStopped = { velocity ->
+                    if (drag.value > closeAt || velocity > 1800f) {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
+                        drag.animateTo(closeAt * 3f, tween(180))
+                        app.wave.music.playback.PlayerConnection.reset()
+                    } else {
+                        drag.animateTo(0f, app.wave.music.ui.components.WaveMotion.bouncy())
+                    }
+                },
+            )
             .clickable(onClick = onOpen)
             .padding(start = 10.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -637,7 +711,20 @@ fun PrismaLibrary(
         }
         if (recent.isNotEmpty()) {
             item { PrismaSectionTitle("Played lately", onClick = { onOpen(Destination.History) }) }
-            items(recent.take(8), key = { "lr" + it.id }) { song -> LibraryRow(song) { playItem(song, false) } }
+            // Tablets: two or three columns side by side (by width), so the space isn't wasted.
+            item(key = "lr-grid") {
+                val width = app.wave.music.platform.currentWindowDp().screenWidthDp
+                val columns = when { width >= 1100 -> 3; width >= 600 -> 2; else -> 1 }
+                val shown = recent.take(8 * columns)
+                Column {
+                    shown.chunked(columns).forEach { row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            row.forEach { song -> Box(Modifier.weight(1f)) { LibraryRow(song) { playItem(song, false) } } }
+                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            }
         }
     }
 }

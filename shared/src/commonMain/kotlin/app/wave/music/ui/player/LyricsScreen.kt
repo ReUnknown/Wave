@@ -264,8 +264,11 @@ fun LyricsScreen(
             listState.animateScrollToItem(active)
             return@LaunchedEffect
         }
+        // Hold every line where it is first, then move the list, in the same frame, so nothing
+        // flashes to its new spot for a frame before springing (the "reset" look).
+        val now = androidx.compose.runtime.withFrameNanos { it }
+        cascade.push(delta, now)
         listState.scrollBy(delta)
-        cascade.push(delta, androidx.compose.runtime.withFrameNanos { it })
     }
 
     BoxWithConstraints(

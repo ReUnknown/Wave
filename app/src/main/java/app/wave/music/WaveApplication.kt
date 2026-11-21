@@ -89,6 +89,21 @@ private class AndroidPlatform(private val app: Application) : Platform {
     }
     override val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = saver
 
+    // Mobile data, kept up to date as the phone changes networks.
+    private val meteredNow = kotlinx.coroutines.flow.MutableStateFlow(false).also { flow ->
+        val connectivity = app.getSystemService(android.net.ConnectivityManager::class.java)
+        flow.value = connectivity?.isActiveNetworkMetered == true
+        runCatching {
+            connectivity?.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
+                    flow.value = !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+                }
+                override fun onLost(network: android.net.Network) { flow.value = connectivity.isActiveNetworkMetered }
+            })
+        }
+    }
+    override val metered: kotlinx.coroutines.flow.StateFlow<Boolean> get() = meteredNow
+
     override fun installUpdate(file: File) {
         val uri = FileProvider.getUriForFile(app, "${app.packageName}.updates", file)
         app.startActivity(

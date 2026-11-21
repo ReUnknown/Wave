@@ -1,5 +1,9 @@
 package app.wave.music.ui.home
 
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.scaleIn
 import app.wave.music.ui.components.glass
@@ -213,6 +217,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Prisma: Home (0), Library (1) or Search (2), from the bottom bar.
     var tab by rememberSaveable { mutableIntStateOf(WaveSettings.state.value.startTab) }
     LaunchedEffect(showSearch) { if (showSearch) tab = 2 else if (tab == 2) tab = 0 }
+    // Back on Library goes home first, instead of closing Wave (pages, search and the player
+    // handle their own back before this).
+    androidx.compose.ui.backhandler.BackHandler(enabled = tab == 1 && !showSearch) { tab = 0 }
     // Ctrl+F or "/" on a keyboard opens search.
     LaunchedEffect(Unit) { app.wave.music.ui.components.Shortcuts.openSearch.collect { showSearch = true } }
     val player by PlayerConnection.state.collectAsState()
@@ -467,7 +474,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else (if (player.current != null || pendingSong != null) PrismaDockSongHeight + 28.dp else 20.dp) + (if (settings.topSearch) 0.dp else PrismaBarHeight),
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else if (!settings.legacyUi && settings.dockOneRow && conf.screenWidthDp >= 840 && !settings.topSearch) PrismaBarHeight + 20.dp else (if (player.current != null || pendingSong != null) PrismaDockSongHeight + 28.dp else 20.dp) + (if (settings.topSearch) 0.dp else PrismaBarHeight),
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -551,7 +558,21 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 },
                 label = "tab",
             ) { showLibrary ->
-            if (showLibrary) {
+            if (showLibrary && legacyHome) {
+                // Legacy: a library in Wave 1.0's style (1.0 never had one, so this is what it would have been).
+                LegacyLibrary(
+                    session = session,
+                    playlists = myPlaylists,
+                    recent = (playedHere + ((ui as? HomeUi.Ready)?.feed?.recent ?: emptyList())).distinctBy { it.id },
+                    topPadding = statusTop + 4.dp,
+                    bottomPadding = 150.dp + PrismaBarHeight,
+                    onOpen = { push(it) },
+                    openItem = openItem,
+                    playItem = playItem,
+                    onNewPlaylist = { createPlaylist = true },
+                    topBar = { PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }, search = { showSearch = true }, inLibrary = true, onLibrary = { tab = 0 }) },
+                )
+            } else if (showLibrary) {
                 PrismaLibrary(
                     session = session,
                     playlists = myPlaylists,
@@ -563,7 +584,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     playItem = playItem,
                     onSignIn = onSignOut,
                     onNewPlaylist = { createPlaylist = true },
-                    topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { askSignOut = true }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
+                    topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                 )
             } else
             // Loading, failure and the feed fade into each other instead of snapping.
@@ -600,7 +621,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         playItem = playItem,
                         openItem = openItem,
                         playSongs = { title, songs, index -> QueueBuilder.forSongs(title, songs, false).let { r -> PlayerConnection.play(app.wave.music.playback.PlayRequest(r.items, index, r.context, false)) } },
-                        topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { askSignOut = true }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
+                        topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
                   } else if (legacyHome) {
                     // Legacy: 1.0's greeting header and big banner on top, then Prisma's sections
@@ -727,7 +748,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 // Legacy (phones): the modern search bar, opening your library too.
                 if (legacyHome) PrismaTopBar(
                     session = session,
-                    onAvatar = { askSignOut = true },
+                    onAvatar = { push(Destination.Settings) },
                     search = { showSearch = true },
                     inLibrary = tab == 1,
                     onLibrary = { tab = if (tab == 1) 0 else 1 },
@@ -759,7 +780,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     val avatar = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .clickable { askSignOut = true }
+                        .clickable { push(Destination.Settings) }
                     Box {
                         if (session.photoUrl != null) {
                             AsyncImage(session.photoUrl, "Your Google account", avatar, contentScale = ContentScale.Crop)
@@ -879,6 +900,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     .padding(bottom = when {
                         legacyMini && tabsShown -> PrismaBarHeight - 8.dp
                         legacyMini -> 0.dp
+                        barVisible && settings.dockOneRow && conf.screenWidthDp >= 840 && tabsShown -> PrismaBarHeight - 8.dp
                         barVisible -> (if (tabsShown) PrismaBarHeight - 8.dp else 0.dp) + (if (dockSong != null) PrismaDockSongHeight + (if (songOnItsOwn) 8.dp else 0.dp) else 0.dp)
                         else -> 0.dp
                     }),
@@ -903,7 +925,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     }
                 }
             }
-            if (barVisible) {
+            // Big tablets: the mini player beside the tabs, in one row (Customize).
+            val oneRow = !legacyMini && settings.dockOneRow && conf.screenWidthDp >= 840 && tabsShown
+            // Kept in an AnimatedVisibility so the player can grow out of the mini player and fold back.
+            androidx.compose.animation.AnimatedVisibility(visible = barVisible, enter = EnterTransition.None, exit = ExitTransition.None, modifier = Modifier.align(Alignment.BottomCenter)) {
                 PrismaTabBar(
                     tab = tab,
                     onTab = { t ->
@@ -916,7 +941,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             tab = t
                         }
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter),
                     haze = if (settings.legacyUi) null else barHaze,
                     now = if (legacyMini) null else dockSong,
                     playing = player.isPlaying,
@@ -924,6 +948,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     onOpenPlayer = { openPlayer(null) },
                     showTabs = tabsShown,
                     split = songOnItsOwn,
+                    oneRow = oneRow,
+                    visibility = this,
                 )
             }
         }
@@ -1440,4 +1466,90 @@ private fun pendingFor(item: YTItem): app.wave.music.playback.NowPlaying = when 
     is com.metrolist.innertube.models.AlbumItem -> app.wave.music.playback.NowPlaying(item.id, item.title, item.artists?.joinToString { it.name } ?: "Album", item.thumbnail)
     is com.metrolist.innertube.models.PlaylistItem -> app.wave.music.playback.NowPlaying(item.id, item.title, item.author?.name ?: "Playlist", item.thumbnail)
     else -> app.wave.music.playback.NowPlaying(item.id, item.title, "", item.thumbnail)
+}
+
+
+/** Legacy's library: 1.0's big headline, its rounded tiles, and its sideways rows of cards. */
+@Composable
+private fun LegacyLibrary(
+    session: Session,
+    playlists: List<com.metrolist.innertube.models.PlaylistItem>,
+    recent: List<SongItem>,
+    topPadding: androidx.compose.ui.unit.Dp,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    onOpen: (Destination) -> Unit,
+    openItem: (YTItem) -> Unit,
+    playItem: (YTItem, Boolean) -> Unit,
+    onNewPlaylist: () -> Unit,
+    topBar: @Composable () -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding)) {
+        item { topBar() }
+        item {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp)) {
+                Text("Your library", color = c.onBackground, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
+                Text(if (session.guest) "Likes stay on this phone" else session.name, color = c.onSurfaceVariant, fontSize = 15.sp)
+            }
+        }
+        // Liked songs: 1.0's big song-colored card.
+        item {
+            Row(
+                Modifier
+                    .padding(start = 16.dp, end = 16.dp, top = 18.dp)
+                    .fillMaxWidth()
+                    .height(88.dp)
+                    .pressable(RoundedCornerShape(28.dp), c.primary, pressedScale = 0.97f) { onOpen(Destination.Playlist("LM")) }
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.Favorite, null, tint = c.onPrimary, modifier = Modifier.size(32.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Liked songs", color = c.onPrimary, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Everything you've liked", color = c.onPrimary.copy(alpha = 0.8f), fontSize = 13.sp)
+                }
+                Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = c.onPrimary)
+            }
+        }
+        // The account panel's tiles, as 1.0 had them.
+        item {
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple(androidx.compose.material.icons.Icons.Rounded.LibraryMusic, "Playlists", Destination.Playlists),
+                    Triple(androidx.compose.material.icons.Icons.Rounded.Album, "Albums & artists", Destination.Saved),
+                    Triple(androidx.compose.material.icons.Icons.Rounded.History, "History", Destination.History),
+                ).forEach { (icon, label, dest) ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .height(100.dp)
+                            .pressable(RoundedCornerShape(24.dp), c.surfaceContainerHighest, pressedScale = 0.95f) { onOpen(dest) }
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Icon(icon, null, tint = c.primary)
+                        Text(label, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 15.sp, color = c.onSurface, maxLines = 2)
+                    }
+                }
+            }
+        }
+        if (!session.guest) {
+            item { SectionHeader("Your library", "Your playlists") }
+            item {
+                WheelRow {
+                    item { NewPlaylistTile(onNewPlaylist) }
+                    items(playlists.filterNot { it.id == "LM" || it.id == "VLLM" }, key = { "lp" + it.id }) { ItemCard(it, onClick = openItem) }
+                }
+            }
+        }
+        if (recent.isNotEmpty()) {
+            item { SectionHeader("Your recent spins", "Played lately") }
+            item {
+                WheelRow {
+                    items(recent.take(16), key = { "lr" + it.id }) { song -> ItemCard(song) { playItem(it, false) } }
+                }
+            }
+        }
+    }
 }

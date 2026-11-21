@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.DataSaverOn
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Explore
@@ -216,6 +217,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
     fun change(block: (Settings) -> Settings) {
         scope.launch { WaveSettings.update(block) }
     }
+    val bigScreen = app.wave.music.platform.currentWindowDp().screenWidthDp >= 840
     if (section == SettingsSection.About) return AboutPage(onBack, open)
     if (section == SettingsSection.Credits) return CreditsPage(onBack)
     if (section == SettingsSection.WhatsNew) return WhatsNewPage(onBack)
@@ -245,6 +247,9 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                         if (settings.topSearch) "Always on its own with the top search" else "Floats above the bar instead of joining it",
                         settings.separateMiniPlayer || settings.topSearch,
                     ) { on -> change { it.copy(separateMiniPlayer = on) } }
+                }
+                if (bigScreen) item {
+                    Toggle(Icons.Rounded.ViewCompact, "Mini player beside the tabs", "Big screens: one row at the bottom instead of two", settings.dockOneRow) { on -> change { it.copy(dockOneRow = on) } }
                 }
                 item { Toggle(Icons.Rounded.SkipNext, "Previous and next in the mini player", "Off leaves just the play button", settings.dockSkip) { on -> change { it.copy(dockSkip = on) } } }
                 item {
@@ -335,18 +340,14 @@ private fun LazyListScope.storagePage(settings: Settings, change: ((Settings) ->
         var usage by remember { mutableStateOf(0L to 0L) }
         LaunchedEffect(refresh) { usage = withContext(Dispatchers.IO) { WavePlatform.current.storageUsage() } }
         Column {
-            GroupLabel("Saved songs")
-            UsageBar(Icons.Rounded.MusicNote, "Songs you've played", usage.first, settings.songCacheMb)
-            Choice(Icons.Rounded.Storage, "Room for songs", "Wave keeps songs you play so they start instantly next time (applies when Wave restarts)", listOf(256 to "256 MB", 512 to "512 MB", 1024 to "1 GB", 2048 to "2 GB"), settings.songCacheMb) { v -> change { it.copy(songCacheMb = v) } }
-            ActionRow(Icons.Rounded.DeleteForever, "Clear saved songs", "They'll download again when you play them") {
-                scope.launch { withContext(Dispatchers.IO) { WavePlatform.current.clearSongCache() }; refresh++ }
+            GroupLabel("Space")
+            UsageBar(Icons.Rounded.Storage, "Saved songs and covers", usage.first + usage.second, settings.storageMb)
+            StoragePool(settings.storageMb) { v -> change { it.copy(storageMb = v) } }
+            ActionRow(Icons.Rounded.DeleteForever, "Clear saved songs and covers", "They load again when you need them") {
+                scope.launch { withContext(Dispatchers.IO) { WavePlatform.current.clearSongCache(); WavePlatform.current.clearCoverCache() }; refresh++ }
             }
-            GroupLabel("Covers")
-            UsageBar(Icons.Rounded.Image, "Album and artist art", usage.second, settings.coverCacheMb)
-            Choice(Icons.Rounded.Storage, "Room for covers", "Applies when Wave restarts", listOf(100 to "100 MB", 200 to "200 MB", 500 to "500 MB"), settings.coverCacheMb) { v -> change { it.copy(coverCacheMb = v) } }
-            ActionRow(Icons.Rounded.DeleteForever, "Clear covers", "They'll load again as you browse") {
-                scope.launch { withContext(Dispatchers.IO) { WavePlatform.current.clearCoverCache() }; refresh++ }
-            }
+            GroupLabel("Mobile data")
+            Toggle(Icons.Rounded.DataSaverOn, "Save mobile data", "On mobile data, Wave plays lighter audio and loads smaller covers", settings.saveData) { on -> change { it.copy(saveData = on) } }
             GroupLabel("History")
             ActionRow(Icons.Rounded.History, "Clear search history", "Your recent searches") {
                 scope.launch {
@@ -815,3 +816,26 @@ private fun UpdatePage(onBack: () -> Unit) {
     }
 }
 
+
+
+/** One space for saved songs and covers: 8 MB to 2 GB (songs get most of it). Applies next start. */
+@Composable
+private fun StoragePool(mb: Int, onPick: (Int) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val steps = listOf(8, 16, 32, 64, 128, 256, 512, 1024, 2048)
+    var at by remember(mb) { mutableStateOf(steps.indexOf(mb).takeIf { it >= 0 } ?: steps.indexOf(256)) }
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Room for both", Modifier.weight(1f), color = c.onBackground, style = display(17.sp, FontWeight.SemiBold))
+            Text(mb(steps[at] * 1024L * 1024), color = c.primary, style = display(17.sp))
+        }
+        androidx.compose.material3.Slider(
+            value = at.toFloat(),
+            onValueChange = { at = it.toInt().coerceIn(0, steps.lastIndex) },
+            onValueChangeFinished = { onPick(steps[at]) },
+            valueRange = 0f..steps.lastIndex.toFloat(),
+            steps = steps.size - 2,
+        )
+        Text("Less room means songs download again more often. Applies when Wave restarts.", color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp))
+    }
+}

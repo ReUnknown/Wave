@@ -5,6 +5,17 @@ object Changelog {
     class Version(val version: String, val title: String, val notes: List<String>)
 
     val versions = listOf(
+        Version("2.0.0-alpha.15", "Grows, swipes and fits", listOf(
+            "The player grows out of the mini player and folds back into it (Back too)",
+            "Swipe the mini player down to close the song",
+            "Tablets: a new player with the cover on the left and the controls on the right; Up next and Lyrics slide in only when you want them",
+            "Tablets: the mini player and tabs in one row (Customize), search in columns, Played lately in columns",
+            "A light player in light mode",
+            "One storage space for songs and covers (256 MB to start, down to 8 MB), and Save mobile data",
+            "The volume slider follows how far you drag",
+            "Legacy gets its own library and keeps the new settings",
+            "Lyrics no longer flicker between lines; Back on Library goes home instead of closing Wave",
+        )),
         Version("2.0.0-alpha.14", "Lighter and tablet-ready", listOf(
             "Uses less battery: nothing redraws between lyric lines, motion is held to 60 fps, and the player checks in less while paused",
             "No more listening to the beat in the background (nothing used it any more)",

@@ -76,6 +76,12 @@ data class Settings(
     val saverQuality: Boolean = false,
     /** Fewer moving things all the time (still progress line, no crossfades). */
     val calmMotion: Boolean = false,
+    /** One storage pool for saved songs and covers, in MB (next start). Songs get most of it. */
+    val storageMb: Int = 256,
+    /** On mobile data: lighter audio and smaller covers. */
+    val saveData: Boolean = true,
+    /** Tablets: the mini player sits beside the tabs in one row. */
+    val dockOneRow: Boolean = true,
 )
 
 
@@ -100,6 +106,9 @@ object WaveSettings {
     private val topSearchKey = booleanPreferencesKey("top_search")
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
+    private val storageKey = androidx.datastore.preferences.core.intPreferencesKey("storage_mb")
+    private val saveDataKey = androidx.datastore.preferences.core.booleanPreferencesKey("save_data")
+    private val oneRowKey = androidx.datastore.preferences.core.booleanPreferencesKey("dock_one_row")
     private val startTabKey = androidx.datastore.preferences.core.intPreferencesKey("start_tab")
     private val songCacheKey = androidx.datastore.preferences.core.intPreferencesKey("song_cache_mb")
     private val coverCacheKey = androidx.datastore.preferences.core.intPreferencesKey("cover_cache_mb")
@@ -147,6 +156,9 @@ object WaveSettings {
             separateMiniPlayer = p[separateKey] ?: false,
             // Anyone already using Wave has effectively set it up.
             setupDone = p[setupKey] ?: (p[matchColors] != null),
+            storageMb = p[storageKey] ?: 256,
+            saveData = p[saveDataKey] ?: true,
+            dockOneRow = p[oneRowKey] ?: true,
             startTab = p[startTabKey] ?: 0,
             songCacheMb = p[songCacheKey] ?: 512,
             coverCacheMb = p[coverCacheKey] ?: 200,
@@ -190,6 +202,9 @@ object WaveSettings {
             it[topSearchKey] = next.topSearch
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
+            it[storageKey] = next.storageMb
+            it[saveDataKey] = next.saveData
+            it[oneRowKey] = next.dockOneRow
             it[startTabKey] = next.startTab
             it[songCacheKey] = next.songCacheMb
             it[coverCacheKey] = next.coverCacheMb

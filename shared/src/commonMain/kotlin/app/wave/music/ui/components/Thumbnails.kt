@@ -8,8 +8,12 @@ private val ytimgSizes = Regex("/(default|mqdefault|hqdefault|sddefault|maxresde
  * covers don't download (and decode) a full-size image. Sizes snap to a few steps so the same
  * picture at nearby sizes shares one cached download.
  */
+/** Save mobile data is on and Wave is on mobile data: covers load at half size. */
+object DataSaver { @Volatile var on = false }
+
 fun String.atSize(px: Int): String {
-    val step = SIZE_STEPS.firstOrNull { it >= px } ?: SIZE_STEPS.last()
+    val want = if (DataSaver.on) px / 2 else px
+    val step = SIZE_STEPS.firstOrNull { it >= want } ?: SIZE_STEPS.last()
     return when {
         sizeParams.containsMatchIn(this) -> replace(sizeParams, "=w$step-h$step")
         // Video thumbnails only come 16:9 at 320x180 (mqdefault) or 1280x720 (maxresdefault).

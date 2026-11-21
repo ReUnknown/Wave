@@ -44,6 +44,8 @@ interface Platform {
     fun storageUsage(): Pair<Long, Long> = 0L to 0L
     fun clearSongCache() {}
     fun clearCoverCache() {}
+    /** On mobile data (or another network that costs money). */
+    val metered: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
     /** The phone's battery saver is on. */
     val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
 

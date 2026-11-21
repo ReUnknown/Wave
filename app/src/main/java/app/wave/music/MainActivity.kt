@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
                     coil3.disk.DiskCache.Builder()
                         .directory(context.cacheDir.resolve("image_cache").absolutePath.toPath())
                         // Settings › Storage: how much room saved covers may take.
-                        .maxSizeBytes(kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load(); app.wave.music.data.WaveSettings.state.value.coverCacheMb }.toLong() * 1024 * 1024)
+                        .maxSizeBytes(kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load(); app.wave.music.data.WaveSettings.state.value.storageMb }.toLong().let { maxOf(it * 1024 * 1024 / 5, 4L * 1024 * 1024) })
                         .build()
                 }
                 .build()

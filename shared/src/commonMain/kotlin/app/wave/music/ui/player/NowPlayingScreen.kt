@@ -1,5 +1,7 @@
 package app.wave.music.ui.player
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Replay10
@@ -131,6 +133,11 @@ private const val ART = 0.7f
 /** A soft dark halo behind white words, so they read even on white art. */
 internal val ReadableShadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 18f)
 
+/** The player's title halo, matching light or dark so the words always lift off the art. */
+@Composable
+private fun titleShadow(): androidx.compose.ui.graphics.Shadow =
+    if (MaterialTheme.colorScheme.background.luminance() > 0.5f) androidx.compose.ui.graphics.Shadow(Color.White.copy(alpha = 0.7f), androidx.compose.ui.geometry.Offset(0f, 1f), blurRadius = 16f) else ReadableShadow
+
 private fun formatTime(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(total / 60, total % 60)
@@ -175,7 +182,10 @@ fun NowPlayingScreen(
     // Docked: a little extra room on the side facing the app, clear of the divider.
     val inner = Modifier.padding(start = if (docked && dockSide > 0) 16.dp else 0.dp, end = if (docked && dockSide < 0) 16.dp else 0.dp)
     // Always dark (light mode too): the player is the art, and its words sit on it.
-    MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl, base = app.wave.music.ui.theme.darkBaseScheme())) {
+    // Light mode gets a light player (the cover's light colors); dark stays dark and immersive.
+    val appLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val base = if (appLight) MaterialTheme.colorScheme else app.wave.music.ui.theme.darkBaseScheme()
+    MaterialTheme(colorScheme = rememberArtColorScheme(song.artworkUrl, base = base)) {
         val c = MaterialTheme.colorScheme
         Box(
             Modifier
@@ -379,47 +389,81 @@ private fun WideNowPlaying(
     docked: Boolean = false,
     openTo: String? = null,
 ) {
+    // Tablets and landscape: the cover fills the left half and fades into the right, where the
+    // controls sit. Up next and Lyrics slide in over the right half when you ask for them, so the
+    // song alone is the default view.
     val c = MaterialTheme.colorScheme
+    var panel by rememberSaveable { mutableStateOf(openTo?.takeIf { it == "queue" || it == "lyrics" }) }
     Box(Modifier.fillMaxSize()) {
         Crossfade(song.artworkUrl?.atSize(ArtSize.BLUR), Modifier.fillMaxSize(), animationSpec = tween(320), label = "wideBackdrop") { art ->
-            BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }, radius = 96.dp)
+            BlurredImage(art, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.3f; scaleY = 1.3f }, radius = 96.dp)
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.45f), 1f to c.background.copy(alpha = 0.82f))))
-        Column(Modifier.fillMaxSize().topBarPadding().navigationBarsPadding().then(inner)) {
-            Header(state, song, onClose, onToggleSize = onToggleSize, docked = docked)
-            Row(
+        Box(Modifier.fillMaxSize().background(c.background.copy(alpha = 0.62f)))
+        Row(Modifier.fillMaxSize()) {
+            // The cover, edge to edge on the left, fading into the controls side.
+            Box(
                 Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    .weight(1.1f)
+                    .fillMaxHeight()
+                    // The cover itself fades out toward the right, into the blurred backdrop behind it.
+                    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(Brush.horizontalGradient(0f to Color.Black, 0.62f to Color.Black, 1f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    },
             ) {
-                if (roomy) {
-                    Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Cover(song, minOf(maxWidth, maxHeight))
-                        }
-                        Column(Modifier.widthIn(max = 560.dp).padding(top = 20.dp)) {
-                            Controls(state, song, position)
-                            ExtrasDrawer(state, Modifier.padding(top = 6.dp))
-                        }
+                AnimatedContent(
+                    targetState = song.artworkUrl?.atSize(ArtSize.FULL),
+                    transitionSpec = { fadeIn(tween(320, easing = WaveMotion.Emphasized)) togetherWith fadeOut(tween(1, delayMillis = 320)) },
+                    modifier = Modifier.fillMaxSize(),
+                    label = "wideArt",
+                ) { art -> AsyncImage(art, song.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.18f to Color.Transparent)))
+            }
+            // The controls, centered on the right, or Up next / Lyrics over them.
+            Box(Modifier.weight(1f).fillMaxHeight().topBarPadding().navigationBarsPadding().then(inner)) {
+                Column(
+                    Modifier.align(Alignment.Center).widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (roomy) 22.dp else 10.dp, Alignment.CenterVertically),
+                ) {
+                    Controls(state, song, position, dense = !roomy, airy = roomy)
+                    Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", panel == "queue", Modifier.weight(1f)) { panel = if (panel == "queue") null else "queue" }
+                        PanelButton(Icons.Rounded.Lyrics, "Lyrics", "lyrics", panel == "lyrics", Modifier.weight(1f)) { panel = if (panel == "lyrics") null else "lyrics" }
                     }
-                    SidePanel(state, Modifier.weight(1f).fillMaxHeight(), startOnQueue = openTo == "queue")
-                } else {
-                    BoxWithConstraints(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
-                        Cover(song, minOf(maxWidth, maxHeight))
-                    }
-                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                        Controls(state, song, position, dense = true)
-                        Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PanelButton(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", "queue", showQueue, Modifier.weight(1f), onQueue)
-                            PanelButton(Icons.Rounded.Lyrics, "Lyrics", "lyrics", showLyrics, Modifier.weight(1f), onLyrics)
+                    // Room enough on a tablet: volume and speed right here, no pull handle.
+                    if (roomy) PlaybackExtras(state.speed, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                    else ExtrasDrawer(state)
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = panel != null,
+                    enter = slideInHorizontally(tween(340, easing = WaveMotion.EmphasizedDecelerate)) { it / 3 } + fadeIn(tween(220)),
+                    exit = slideOutHorizontally(tween(240, easing = WaveMotion.EmphasizedAccelerate)) { it / 3 } + fadeOut(tween(180)),
+                ) {
+                    var shown by remember { mutableStateOf(panel) }
+                    if (panel != null) shown = panel
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(top = 64.dp, end = 16.dp, bottom = 16.dp)
+                            .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(32.dp)))
+                            .background(Color.Black.copy(alpha = 0.32f)),
+                    ) {
+                        Crossfade(shown, Modifier.fillMaxSize(), animationSpec = tween(200), label = "panel") { which ->
+                            if (which == "lyrics") LyricsScreen(state, onClose = { panel = null }, embedded = true)
+                            else QueueScreen(state, onClose = { panel = null }, embedded = true)
                         }
-                        ExtrasDrawer(state, Modifier.padding(top = 2.dp))
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(10.dp).size(44.dp).pressable(CircleShape, Color.Black.copy(alpha = 0.32f), pressedScale = 0.86f) { panel = null },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Rounded.KeyboardArrowDown, "Close", tint = Color.White) }
                     }
+                    // Back closes the panel first.
+                    androidx.compose.ui.backhandler.BackHandler(enabled = panel != null) { panel = null }
                 }
             }
         }
+        Header(state, song, onClose, Modifier.topBarPadding().then(inner), onToggleSize, docked)
     }
 }
 
@@ -520,6 +564,8 @@ private fun Controls(
     position: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier,
     dense: Boolean = false,
+    /** Tablets: more room between everything. */
+    airy: Boolean = false,
 ) {
     val c = MaterialTheme.colorScheme
     val haptics = LocalHapticFeedback.current
@@ -540,8 +586,8 @@ private fun Controls(
                 label = "title",
             ) { shown ->
                 Column {
-                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, shadow = ReadableShadow), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 16.sp, fontWeight = FontWeight.Medium, shadow = ReadableShadow), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, shadow = titleShadow()), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(shown.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 16.sp, fontWeight = FontWeight.Medium, shadow = titleShadow()), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             LikeButton(state.liked) {
@@ -550,7 +596,7 @@ private fun Controls(
             }
         }
 
-        Spacer(Modifier.height(if (dense) 8.dp else 16.dp))
+        Spacer(Modifier.height(if (airy) 28.dp else if (dense) 8.dp else 16.dp))
         WavyProgress(
             progress = { if (state.durationMs > 0) position.value.toFloat() / state.durationMs else 0f },
             // Calm motion / battery saver: the line holds still.
@@ -604,10 +650,10 @@ private fun Controls(
         }
         } else {
         // Previous and next as glass circles around a big play pill, like the play row on pages.
-        val rowHeight = if (dense) 64.dp else 80.dp
+        val rowHeight = if (airy) 88.dp else if (dense) 64.dp else 80.dp
         Row(
             Modifier
-                .padding(top = if (dense) 8.dp else 14.dp)
+                .padding(top = if (airy) 26.dp else if (dense) 8.dp else 14.dp)
                 .fillMaxWidth()
                 .height(rowHeight),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -645,9 +691,9 @@ private fun Controls(
         // Labeled play modes
         Row(
             Modifier
-                .padding(top = if (dense) 6.dp else 10.dp)
+                .padding(top = if (airy) 18.dp else if (dense) 6.dp else 10.dp)
                 .fillMaxWidth()
-                .height(if (dense) 40.dp else 44.dp),
+                .height(if (dense) 40.dp else if (airy) 48.dp else 44.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             ModeButton(
@@ -690,14 +736,14 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
                 if (app.wave.music.platform.PrismaLook.legacy) Modifier.background(c.primaryContainer.copy(alpha = 0.92f))
                 else Modifier.glass(
                     glass, 48.dp, c.background,
-                    listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.52f)), dev.chrisbanes.haze.HazeTint(c.primary.copy(alpha = 0.14f))),
-                    androidx.compose.ui.graphics.lerp(Color.Black, c.primary, 0.12f).copy(alpha = 0.85f),
+                    listOf(dev.chrisbanes.haze.HazeTint((if (c.background.luminance() > 0.5f) Color.White else Color.Black).copy(alpha = 0.52f)), dev.chrisbanes.haze.HazeTint(c.primary.copy(alpha = 0.14f))),
+                    androidx.compose.ui.graphics.lerp(if (c.background.luminance() > 0.5f) Color.White else Color.Black, c.primary, 0.12f).copy(alpha = 0.85f),
                 ),
             )
             .revealDrag(reveal)
             .navigationBarsPadding(),
     ) {
-    RevealHandle(reveal, Color.White.copy(alpha = 0.3f), Modifier.padding(top = 4.dp))
+    RevealHandle(reveal, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f), Modifier.padding(top = 4.dp))
     Row(
         Modifier
             .heightIn(min = 68.dp)
@@ -720,12 +766,12 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
         ) {
             if (next?.artworkUrl != null) {
                 AsyncImage(next.artworkUrl.atSize(ArtSize.THUMB), null, Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-            } else Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = Color.White)
+            } else Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.onBackground)
             Column {
-                Text("Up next", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Up next", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Text(
                     next?.let { "${it.title} · ${it.artist}" } ?: "End of queue",
-                    color = Color.White.copy(alpha = 0.65f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f),
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -734,7 +780,7 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
         }
         }
         }
-        Box(Modifier.width(1.dp).height(32.dp).background(Color.White.copy(alpha = 0.16f)))
+        Box(Modifier.width(1.dp).height(32.dp).background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.16f)))
         Box(Modifier.width(128.dp)) {
         MorphVisibility(!showLyrics) {
         Row(
@@ -746,14 +792,14 @@ private fun Tray(state: PlayerUiState, showQueue: Boolean, showLyrics: Boolean, 
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.Lyrics, null, tint = Color.White)
-            Text("  Lyrics", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Icon(Icons.Rounded.Lyrics, null, tint = MaterialTheme.colorScheme.onBackground)
+            Text("  Lyrics", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
         }
         }
     }
     RevealBox(reveal) {
-        PlaybackExtras(state.speed, Color.White, c.primary, c.onPrimary, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp))
+        PlaybackExtras(state.speed, MaterialTheme.colorScheme.onBackground, c.primary, c.onPrimary, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp))
     }
     }
 }
@@ -783,8 +829,8 @@ private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
         }
     }
     val legacy = app.wave.music.platform.PrismaLook.legacy
-    val container by animateColorAsState(if (liked) c.primary else if (legacy) c.primaryContainer else Color.White.copy(alpha = 0.12f), tween(200), label = "likeBg")
-    val content by animateColorAsState(if (liked) c.onPrimary else if (legacy) c.onPrimaryContainer else Color.White, tween(200), label = "likeFg")
+    val container by animateColorAsState(if (liked) c.primary else if (legacy) c.primaryContainer else c.onBackground.copy(alpha = 0.1f), tween(200), label = "likeBg")
+    val content by animateColorAsState(if (liked) c.onPrimary else if (legacy) c.onPrimaryContainer else c.onBackground, tween(200), label = "likeFg")
     val corner by animateDpAsState(if (legacy) (if (liked) 26.dp else 18.dp) else if (liked) 16.dp else 24.dp, WaveMotion.bouncy(), label = "likeShape")
     Box(
         Modifier
@@ -810,10 +856,10 @@ private fun SkipCircle(icon: ImageVector, label: String, size: androidx.compose.
     Box(
         Modifier
             .size(size)
-            .pressable(CircleShape, Color.White.copy(alpha = 0.12f), pressedScale = 0.86f, onClick = onClick)
+            .pressable(CircleShape, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f), pressedScale = 0.86f, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(34.dp)) }
+    ) { Icon(icon, null, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(34.dp)) }
 }
 
 @Composable
@@ -832,7 +878,7 @@ private fun ModeButton(icon: ImageVector, label: String, on: Boolean, modifier: 
     // Turning a mode on fills it in and firms up its corners; off, it relaxes back to an outline.
     val corner by animateDpAsState(if (on) 16.dp else 22.dp, WaveMotion.bouncy(), label = "modeShape")
     val legacy = app.wave.music.platform.PrismaLook.legacy
-    val fill by animateColorAsState(if (on) c.primary else if (legacy) Color.Transparent else Color.White.copy(alpha = 0.1f), tween(170), label = "modeFill")
+    val fill by animateColorAsState(if (on) c.primary else if (legacy) Color.Transparent else c.onBackground.copy(alpha = 0.08f), tween(170), label = "modeFill")
     val ink by animateColorAsState(if (on) c.onPrimary else c.onBackground.copy(alpha = 0.85f), tween(170), label = "modeInk")
     // Legacy: 1.0's outlined buttons.
     val outline = if (legacy && !on) c.onBackground.copy(alpha = 0.2f) else Color.Transparent

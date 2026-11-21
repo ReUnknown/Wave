@@ -49,6 +49,8 @@ fun WaveApp(
           // Customize: the look's switches (read while drawing), text size and haptics, for everything.
           val look by WaveSettings.state.collectAsState()
           val phoneSaving by app.wave.music.platform.WavePlatform.current.powerSave.collectAsState()
+          val onMobileData by app.wave.music.platform.WavePlatform.current.metered.collectAsState()
+          app.wave.music.ui.components.DataSaver.on = look.saveData && onMobileData
           val saving = phoneSaving && look.saverLook
           app.wave.music.platform.PrismaLook.apply {
               legacy = look.legacyUi

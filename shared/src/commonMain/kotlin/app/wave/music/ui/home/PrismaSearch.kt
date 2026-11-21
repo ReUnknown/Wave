@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.luminance
@@ -252,6 +253,8 @@ fun PrismaSearch(
     val statusTop = topInset()
 
     val glass = dev.chrisbanes.haze.rememberHazeState()
+    val screenWidth = app.wave.music.platform.currentWindowDp().screenWidthDp
+    val resultColumns = when { screenWidth >= 1100 -> 3; screenWidth >= 700 -> 2; else -> 1 }
     Box(Modifier.backGesture(back).fillMaxSize().blocksTouchesBelow().background(c.background)) {
         val look by app.wave.music.data.WaveSettings.state.collectAsState()
         val playingNow by app.wave.music.playback.PlayerConnection.state.collectAsState()
@@ -260,7 +263,7 @@ fun PrismaSearch(
         Box(Modifier.fillMaxSize().hazeSource(glass)) {
         if (!look.legacyUi && look.matchSongColors) AppBackdrop(playingNow.current?.artworkUrl)
         LazyColumn(
-            Modifier.align(Alignment.TopCenter).widthIn(max = 760.dp).fillMaxSize().nestedScroll(hideKeyboardOnScroll).imePadding(),
+            Modifier.align(Alignment.TopCenter).widthIn(max = if (resultColumns > 1) 1280.dp else 760.dp).fillMaxSize().nestedScroll(hideKeyboardOnScroll).imePadding(),
             contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = bottomPadding),
         ) {
             when {
@@ -328,7 +331,15 @@ fun PrismaSearch(
                             val rest = if (gi == 0) group.items.drop(1) else group.items
                             if (rest.isEmpty()) return@forEachIndexed
                             item { GroupTitle(group.title) }
-                            items(rest, key = { "r-" + group.title + it.id }) { FoundRow(it, onClick = { pick(it) }) }
+                            // Tablets: results in two or three columns, so a wide screen shows more at once.
+                            if (resultColumns > 1) {
+                                items(rest.chunked(resultColumns), key = { row -> "r-" + group.title + row.first().id }) { row ->
+                                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                                        row.forEach { item -> Box(Modifier.weight(1f)) { FoundRow(item, onClick = { pick(item) }) } }
+                                        repeat(resultColumns - row.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                }
+                            } else items(rest, key = { "r-" + group.title + it.id }) { FoundRow(it, onClick = { pick(it) }) }
                         }
                     }
                     Found.Idle -> Unit

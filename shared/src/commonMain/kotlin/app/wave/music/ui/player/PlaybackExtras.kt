@@ -136,9 +136,11 @@ private fun Modifier.volumeInput(): Modifier = this
     .pointerInput(Unit) {
         detectHorizontalDragGestures(
             onDragEnd = { PlayerConnection.setVolume(WaveSettings.state.value.appVolume, done = true) },
-        ) { change, _ ->
+        ) { change, dx ->
             change.consume()
-            PlayerConnection.setVolume(change.position.x / size.width, done = false)
+            // Moves by how far your finger travels (a bit faster than 1:1), not to where it is, so
+            // reaching 100% doesn't mean dragging all the way to the screen's edge.
+            PlayerConnection.setVolume((WaveSettings.state.value.appVolume + dx / size.width * 1.4f).coerceIn(0f, 1f), done = false)
         }
     }
     .pointerInput(Unit) {

@@ -484,7 +484,13 @@ class WaveService : MediaSessionService() {
                 videoId = videoId,
                 // Settings › Battery: lighter audio while the phone's battery saver is on, if asked.
                 audioQuality = WaveSettings.state.value.let { st ->
-                    if (st.saverQuality && app.wave.music.platform.WavePlatform.current.powerSave.value) app.wave.music.playback.AudioQuality.LOW else st.audioQuality
+                    val platform = app.wave.music.platform.WavePlatform.current
+                    when {
+                        st.saverQuality && platform.powerSave.value -> app.wave.music.playback.AudioQuality.LOW
+                        // Settings › Storage › Save mobile data.
+                        st.saveData && platform.metered.value -> app.wave.music.playback.AudioQuality.LOW
+                        else -> st.audioQuality
+                    }
                 },
                 connectivityManager = connectivity,
             ).getOrThrow()
@@ -562,7 +568,7 @@ class WaveService : MediaSessionService() {
             simpleCache ?: SimpleCache(
                 File(context.cacheDir, "audio-v2"),
                 // Settings › Storage: how much room saved songs may take.
-                LeastRecentlyUsedCacheEvictor(kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load(); app.wave.music.data.WaveSettings.state.value.songCacheMb }.toLong() * 1024 * 1024),
+                LeastRecentlyUsedCacheEvictor(kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load(); app.wave.music.data.WaveSettings.state.value.storageMb }.toLong() * 1024 * 1024 * 4 / 5),
                 StandaloneDatabaseProvider(context),
             ).also { simpleCache = it }
         }

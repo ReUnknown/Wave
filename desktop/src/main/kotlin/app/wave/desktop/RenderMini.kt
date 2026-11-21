@@ -88,11 +88,13 @@ object RenderApp {
             "split" -> app.wave.music.data.WaveSettings.preview { it.copy(separateMiniPlayer = true) }
             "legacy" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
             "search" -> app.wave.music.data.WaveSettings.preview { it.copy(startTab = 2) }
+            "lightplayer" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1) }
+            "legacylib" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true, startTab = 1) }
             "light" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1) }
             "lighttop" -> app.wave.music.data.WaveSettings.preview { it.copy(theme = 1, topSearch = true, denseHome = true) }
             "legacybar" -> app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = false) }
         }
-        app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu")
+        app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu", "lightplayer")
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
         if (mode == "settings") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Settings
         if (mode.startsWith("page-")) app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.SettingsPage(mode.removePrefix("page-"))
