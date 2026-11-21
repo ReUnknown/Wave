@@ -308,7 +308,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
             SettingsSection.Lyrics -> {
                 item {
                     Text(
-                        "Wave lines lyrics up with each song by itself. If one is still off, use − and + in Lyrics; Wave remembers it for that song.",
+                        "Wave checks each song's lyrics against the song and fixes the timing by itself when something's off.",
                         Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                         color = c.onBackground.copy(alpha = 0.7f), style = body(14.sp).copy(lineHeight = 20.sp),
                     )
@@ -320,7 +320,7 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 item { Choice(Icons.AutoMirrored.Rounded.FormatAlignLeft, "Alignment", "Lines on the left, or centered", listOf(false to "Left", true to "Center"), settings.lyricsCenter) { v -> change { it.copy(lyricsCenter = v) } } }
                 item { Toggle(Icons.Rounded.BlurOn, "Blur other lines", "Lines away from the one being sung soften, so it stands out", settings.lyricsBlur) { on -> change { it.copy(lyricsBlur = on) } } }
                 item { GroupLabel("Timing") }
-                item { Choice(Icons.Rounded.Timer, "Every song", "Move all lyrics earlier or later, if your headphones lag", listOf(-1000 to "−1s", -500 to "−½s", 0 to "None", 500 to "+½s", 1000 to "+1s"), settings.lyricsOffsetMs) { v -> change { it.copy(lyricsOffsetMs = v) } } }
+                item { Toggle(Icons.Rounded.Timer, "Fix timing automatically", "When lyrics run early or late, Wave lines them up with the song. Off: exactly as the lyrics source times them", settings.lyricsAutoSync) { on -> change { it.copy(lyricsAutoSync = on) } } }
             }
             SettingsSection.Storage -> storagePage(settings, ::change)
             SettingsSection.Battery -> {

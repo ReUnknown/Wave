@@ -6,9 +6,8 @@ object Changelog {
 
     val versions = listOf(
         Version("2.0.0-alpha.16", "Lyrics that line up", listOf(
-            "Wave lines lyrics up with each song: it checks word-timed lyrics against line timing and the song's length, and shifts them to match",
-            "A − and + in Lyrics to fix any song that's still off, remembered for that song",
-            "New Lyrics settings: word by word or line by line, lift or lift & glow, size, alignment, blur, and timing for every song",
+            "Wave spots lyrics that are out of time and fixes them by itself: it checks them against a second source, the song's length and where the song ends (can be turned off in Settings › Lyrics)",
+            "New Lyrics settings: word by word or line by line, lift or lift & glow, size, alignment and blur",
             "Tapping the mini player now grows it into the player",
             "Swiping the mini player down no longer leaves an empty frame behind, and a short swipe always springs back",
             "Tablets: Up next and Lyrics take the right side and the controls move over the cover, nothing overlaps",

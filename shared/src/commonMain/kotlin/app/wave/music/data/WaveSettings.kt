@@ -91,8 +91,8 @@ data class Settings(
     val lyricsCenter: Boolean = false,
     /** Lines away from the sung one blur. */
     val lyricsBlur: Boolean = true,
-    /** Every song's lyrics this much later (negative: earlier), in ms. */
-    val lyricsOffsetMs: Int = 0,
+    /** Wave spots lyrics that are out of time with the song and lines them up by itself. */
+    val lyricsAutoSync: Boolean = true,
 )
 
 
@@ -122,7 +122,7 @@ object WaveSettings {
     private val lySizeKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_size")
     private val lyCenterKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_center")
     private val lyBlurKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_blur")
-    private val lyOffsetKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_offset")
+    private val lyAutoKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_auto_sync")
     private val storageKey = androidx.datastore.preferences.core.intPreferencesKey("storage_mb")
     private val saveDataKey = androidx.datastore.preferences.core.booleanPreferencesKey("save_data")
     private val oneRowKey = androidx.datastore.preferences.core.booleanPreferencesKey("dock_one_row")
@@ -178,7 +178,7 @@ object WaveSettings {
             lyricsSize = p[lySizeKey] ?: 1,
             lyricsCenter = p[lyCenterKey] ?: false,
             lyricsBlur = p[lyBlurKey] ?: true,
-            lyricsOffsetMs = p[lyOffsetKey] ?: 0,
+            lyricsAutoSync = p[lyAutoKey] ?: true,
             storageMb = p[storageKey] ?: 256,
             saveData = p[saveDataKey] ?: true,
             dockOneRow = p[oneRowKey] ?: true,
@@ -230,7 +230,7 @@ object WaveSettings {
             it[lySizeKey] = next.lyricsSize
             it[lyCenterKey] = next.lyricsCenter
             it[lyBlurKey] = next.lyricsBlur
-            it[lyOffsetKey] = next.lyricsOffsetMs
+            it[lyAutoKey] = next.lyricsAutoSync
             it[storageKey] = next.storageMb
             it[saveDataKey] = next.saveData
             it[oneRowKey] = next.dockOneRow

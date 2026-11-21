@@ -87,8 +87,25 @@ private object LyricSync {
         return if (diff < 0 && first + diff < 0) 0 else diff
     }
 
-    fun align(chosen: Lyrics, words: Lyrics?, lines: Lyrics?): Lyrics {
+    /** Lyrics still going after the song has ended were timed to a longer version: pull them in. */
+    fun overflowShift(lyrics: Lyrics, songMs: Long): Long {
+        if (songMs <= 0) return 0
+        val sung = lyrics.lines.filter { it.text.isNotBlank() }
+        val last = sung.lastOrNull()?.startMs ?: return 0
+        val first = sung.first().startMs
+        val over = last - (songMs - 1_500)
+        return if (over in 300..10_000 && first - over >= 0) -over else 0
+    }
+
+    fun align(chosen: Lyrics, words: Lyrics?, lines: Lyrics?, songMs: Long = 0): Lyrics {
         if (!chosen.synced) return chosen
+        val fixed = alignBySources(chosen, words, lines)
+        // Last check: nothing may be sung after the song ends.
+        val over = overflowShift(fixed, songMs)
+        return if (over != 0L) fixed.shifted(over).copy(autoShiftMs = fixed.autoShiftMs + over) else fixed
+    }
+
+    private fun alignBySources(chosen: Lyrics, words: Lyrics?, lines: Lyrics?): Lyrics {
         // Word-timed lyrics, checked against LRCLIB's line timing when that matches the song's length.
         if (chosen.wordSynced && lines != null && lines.synced && kotlin.math.abs(lines.durationDiffMs ?: Long.MAX_VALUE) < 1_500) {
             val shift = medianShift(chosen, lines)
@@ -129,7 +146,7 @@ object LyricsRepository {
                     val w = words.await()
                     val l = lines.await()
                     (w?.takeIf { it.wordSynced } ?: l?.takeIf { it.synced } ?: w ?: l)
-                        ?.let { LyricSync.align(it, w, l) }
+                        ?.let { LyricSync.align(it, w, l, durationMs) }
                         ?: runCatching { fromYouTube(videoId) }.getOrNull()
                 }.also { found ->
                     if (found != null) cache[videoId] = found

@@ -245,12 +245,13 @@ fun LyricsScreen(
         while (cascade.moving) androidx.compose.runtime.withFrameNanos { now -> cascade.tick(now) }
     }
 
-    // Timing: Wave's own sync (already applied), then your offset for every song, then this song's.
+    // Timing: Wave lines lyrics up with the song by itself (Settings › Lyrics can turn that off,
+    // which puts back the timing exactly as the source gave it).
     val prefs by WaveSettings.state.collectAsState()
-    var songOffset by remember(song.videoId) { androidx.compose.runtime.mutableIntStateOf(0) }
-    LaunchedEffect(song.videoId) { songOffset = app.wave.music.data.LyricOffsets.get(song.videoId) }
     val rawLyrics = (ui as? LyricsUi.Ready)?.lyrics
-    val lyrics = remember(rawLyrics, prefs.lyricsOffsetMs, songOffset) { rawLyrics?.shifted((prefs.lyricsOffsetMs + songOffset).toLong()) }
+    val lyrics = remember(rawLyrics, prefs.lyricsAutoSync) {
+        if (rawLyrics == null || prefs.lyricsAutoSync) rawLyrics else rawLyrics.shifted(-rawLyrics.autoShiftMs)
+    }
     val look = remember(prefs.lyricsWords, prefs.lyricsMotion, prefs.lyricsSize, prefs.lyricsCenter, prefs.lyricsBlur) {
         LyricLook(prefs.lyricsWords, prefs.lyricsMotion, prefs.lyricsSize, prefs.lyricsCenter, prefs.lyricsBlur)
     }
@@ -381,25 +382,7 @@ fun LyricsScreen(
                 Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            // Timing for this song: earlier or later a tenth of a second at a time, remembered.
-            // Tap the number to put it back.
-            if (lyrics?.synced == true) Row(
-                Modifier.height(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.3f)),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                fun nudge(by: Int) {
-                    songOffset = (songOffset + by).coerceIn(-10_000, 10_000)
-                    val saved = songOffset
-                    scope.launch { app.wave.music.data.LyricOffsets.set(song.videoId, saved) }
-                }
-                Box(Modifier.size(40.dp).clickable { nudge(-100) }, contentAlignment = Alignment.Center) { Text("−", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                Text(
-                    if (songOffset == 0) "Sync" else "%+.1fs".format(songOffset / 1000f),
-                    Modifier.clickable { if (songOffset != 0) nudge(-songOffset) }.padding(horizontal = 4.dp),
-                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                )
-                Box(Modifier.size(40.dp).clickable { nudge(100) }, contentAlignment = Alignment.Center) { Text("+", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-            }
+
         }
 
         Column(
