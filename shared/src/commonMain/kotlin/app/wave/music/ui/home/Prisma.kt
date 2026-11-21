@@ -148,6 +148,7 @@ fun PrismaTopBar(
             Row(
                 Modifier
                     .weight(1f)
+                    .tourTarget("search")
                     .height(52.dp)
                     .clip(CircleShape)
                     .background(c.onBackground.copy(alpha = 0.09f))
@@ -183,6 +184,7 @@ fun PrismaTopBar(
         }
         Box(
             Modifier
+                .tourTarget("avatar")
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(c.onBackground.copy(alpha = 0.1f))
@@ -319,7 +321,7 @@ fun PrismaTabBar(
 private fun DockTabs(tab: Int, onTab: (Int) -> Unit, modifier: Modifier) {
     val c = MaterialTheme.colorScheme
     Row(
-        modifier.height(PrismaBarHeight - 16.dp).padding(7.dp),
+        modifier.tourTarget("tabs").height(PrismaBarHeight - 16.dp).padding(7.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -337,6 +339,7 @@ private fun DockTabs(tab: Int, onTab: (Int) -> Unit, modifier: Modifier) {
                 Modifier
                     .weight(weight)
                     .fillMaxHeight()
+                    .tourTarget("tab-$i")
                     .pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(26.dp)), fill, pressedScale = 0.92f) { onTab(i) },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
@@ -368,6 +371,7 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
     LaunchedEffect(now.videoId) { dragPx = 0f }
     Row(
         modifier
+            .tourTarget("song")
             .fillMaxWidth()
             .height(PrismaDockSongHeight)
             .graphicsLayer {
@@ -561,7 +565,7 @@ private fun PickCard(item: YTItem, onClick: (YTItem) -> Unit, onPlay: () -> Unit
     val menu = LocalItemMenu.current
     val art = item.thumbnail?.atSize(1080)
     Box(
-        Modifier
+        Modifier.tourTarget("pick")
             // Tablets: bigger picks, since there's room.
             .width((if (app.wave.music.platform.PrismaLook.dense) 176.dp else 224.dp) * (if (app.wave.music.platform.currentWindowDp().screenWidthDp >= 600) 1.25f else 1f))
             .height((if (app.wave.music.platform.PrismaLook.dense) 232.dp else 296.dp) * (if (app.wave.music.platform.currentWindowDp().screenWidthDp >= 600) 1.25f else 1f))
@@ -633,7 +637,7 @@ private fun SongLine(song: SongItem, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val menu = LocalItemMenu.current
     Row(
-        Modifier
+        Modifier.tourTarget("songrow")
             .fillMaxWidth()
             .height(if (app.wave.music.platform.PrismaLook.dense) 52.dp else 60.dp)
             .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(14.dp)))
@@ -647,7 +651,7 @@ private fun SongLine(song: SongItem, onClick: () -> Unit) {
             Text(song.title, color = c.onBackground, style = body(15.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(song.artists.joinToString { it.name }, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.size(36.dp).menuAnchor(c.background, c.onBackground.copy(alpha = 0.6f)).clip(CircleShape).clickable { menu.openFor(song) }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(36.dp).tourTarget("menu").menuAnchor(c.background, c.onBackground.copy(alpha = 0.6f)).clip(CircleShape).clickable { menu.openFor(song) }, contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MoreVert, "More", tint = c.onBackground.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
         }
     }

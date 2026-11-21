@@ -1,5 +1,8 @@
 package app.wave.music.ui.home
 
+import androidx.compose.ui.composed
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -90,11 +93,15 @@ object Tour {
 fun MigrationIntro(onDone: (tour: Boolean) -> Unit) {
     val scope = rememberCoroutineScope()
     val sweep = remember { Animatable(0f) }
-    var phase by remember { mutableIntStateOf(0) } // 0 old look, 1 sweeping, 2 welcome
-    LaunchedEffect(Unit) {
-        val before = WaveSettings.state.value
-        // This session only: the old look, so there's something to transform.
+    var phase by remember { mutableIntStateOf(-1) } // -1 welcome, 0 old look, 1 sweeping, 2 tour?
+    val before = remember { WaveSettings.state.value }
+    LaunchedEffect(phase == -1) {
+        if (phase != -1) return@LaunchedEffect
+        // While the welcome shows, Wave sits in its old look underneath, ready to transform.
         WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
+    }
+    LaunchedEffect(phase >= 0) {
+        if (phase < 0) return@LaunchedEffect
         delay(1_300)
         phase = 1
         sweep.animateTo(0.5f, tween(900, easing = FastOutSlowInEasing))
@@ -111,7 +118,30 @@ fun MigrationIntro(onDone: (tour: Boolean) -> Unit) {
             // Nothing underneath can be tapped while this plays.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
-        if (phase < 2) WaveSweep(sweep.value, c.primary, c.onPrimary)
+        // The welcome: what's coming, and Continue to see your Wave change.
+        AnimatedVisibility(phase == -1, enter = fadeIn(tween(300)), exit = fadeOut(tween(350)), modifier = Modifier.fillMaxSize()) {
+            Column(
+                Modifier.fillMaxSize().background(c.background).navigationBarsPadding().padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Spacer(Modifier.weight(1f))
+                FloatingWaveMark(c.onBackground, 92.dp)
+                Text("Wave 2.0 is here", Modifier.padding(top = 28.dp), color = c.onBackground, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center))
+                Text(
+                    "A whole new look, frosted glass, a new player and lyrics, light mode and loads to customize. Your account, likes and settings are all still here.",
+                    Modifier.padding(top = 12.dp).widthIn(max = 460.dp),
+                    color = c.onBackground.copy(alpha = 0.72f),
+                    style = TextStyle(fontFamily = prismaTextFont, fontSize = 16.sp, lineHeight = 23.sp, textAlign = TextAlign.Center),
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.widthIn(max = 520.dp).fillMaxWidth().height(56.dp).pressable(CircleShape, c.primary, pressedScale = 0.96f) { phase = 0 },
+                    contentAlignment = Alignment.Center,
+                ) { Text("Continue", color = c.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 18.sp, fontWeight = FontWeight.Bold)) }
+            }
+        }
+        if (phase in 0..1) WaveSweep(sweep.value, c.primary, c.onPrimary)
         if (phase == 0) {
             Text(
                 "Your Wave",
@@ -166,7 +196,7 @@ fun MigrationIntro(onDone: (tour: Boolean) -> Unit) {
  * up and away. Both edges ripple, and the Wave mark rides in the middle.
  */
 @Composable
-private fun WaveSweep(p: Float, color: Color, ink: Color) {
+internal fun WaveSweep(p: Float, color: Color, ink: Color) {
     val t = rememberInfiniteTransition(label = "ripple")
     val phase by t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "phase")
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -212,40 +242,43 @@ private fun FloatingWaveMark(color: Color, size: Dp) {
     Box(Modifier.graphicsLayer { translationY = lift * 5.dp.toPx(); rotationZ = lift * 3f }) { WaveMark(color, size = size) }
 }
 
-/** One stop on the tour: what to light up (in root coordinates, or nothing) and what to say. */
-private class TourStep(val title: String, val body: String, val spot: (Size, Float, Float, Float) -> Rect?)
+/** Where the parts the tour points at really are on screen (reported by the parts themselves). */
+object TourTargets {
+    val rects = androidx.compose.runtime.mutableStateMapOf<String, Rect>()
+}
+
+/** Marks a part of the screen the tour can light up. */
+fun Modifier.tourTarget(key: String): Modifier = composed {
+    // Each part has its own entry (there are many ⋮s), and forgets it when it leaves the screen,
+    // so the tour never points at a spot where something used to be.
+    val id = remember { "$key@${Any().hashCode()}" }
+    androidx.compose.runtime.DisposableEffect(id) { onDispose { TourTargets.rects.remove(id) } }
+    this.onGloballyPositioned { coords ->
+        val r = coords.boundsInRoot()
+        if (r.width > 1f && r.height > 1f) TourTargets.rects[id] = r else TourTargets.rects.remove(id)
+    }
+}
+
+/** The best on-screen spot for [key]: fully visible, and the one nearest the top for repeated parts. */
+private fun findTarget(key: String, screen: Size): Rect? = TourTargets.rects.entries
+    .filter { it.key.substringBefore('@') == key }
+    .map { it.value }
+    .filter { it.top >= 0f && it.bottom <= screen.height && it.left >= 0f && it.right <= screen.width }
+    .minByOrNull { it.top }
+
+/** One stop on the tour: the part it lights up (or none) and what it says. */
+private class TourStep(val key: String?, val title: String, val body: String)
 
 /**
- * The tour: the screen dims, one part at a time lights up with a short note, Next to go on,
- * Skip to leave. [playing] says whether the mini player is showing; [topSearch] where search is.
+ * The tour: the screen dims, one real part at a time lights up with a short note, Next to go on,
+ * Skip to leave. Parts that aren't on screen right now are skipped.
  */
 @Composable
 fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val statusTop = with(density) { topInset().toPx() }
-    val steps = remember(playing, topSearch, oneRow) {
-        buildList {
-            if (!topSearch) add(TourStep("Home, Library and Search", "Everything's along the bottom. Tap the open tab again to jump back to the top.") { size, d, nav, _ ->
-                val bar = (if (oneRow) 86f else 86f) * d
-                Rect(12 * d, size.height - nav - bar + 4 * d, size.width - 12 * d, size.height - nav - 4 * d)
-            })
-            else add(TourStep("Search, and your library", "The bar at the top searches everything. The button inside it flips to your library and back.") { size, d, _, top ->
-                Rect(12 * d, top + 4 * d, size.width - 64 * d, top + 60 * d)
-            })
-            if (playing) add(TourStep("What's playing", "Tap the mini player to open the player. Swipe it down to close the song.") { size, d, nav, _ ->
-                val tabs = if (topSearch || oneRow) 0f else 78f
-                Rect(12 * d, size.height - nav - (tabs + 74f) * d, size.width - 12 * d, size.height - nav - (tabs + 4f) * d)
-            })
-            add(TourStep("Menus from the ⋮", "Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to a playlist, go to the artist.") { _, _, _, _ -> null })
-            add(TourStep("Make it yours", "Your picture opens Settings. In Customize: Modern or Legacy, the bar or a search bar, light mode, blur, corners and more.") { size, d, _, top ->
-                Rect(size.width - 68 * d, top + 2 * d, size.width - 4 * d, top + 62 * d)
-            })
-            add(TourStep("That's the tour", "Want it again later? Settings › About › Show me around.") { _, _, _, _ -> null })
-        }
-    }
     var at by remember { mutableIntStateOf(0) }
-    val step = steps[at.coerceIn(0, steps.lastIndex)]
     val reveal = remember { Animatable(0f) }
     LaunchedEffect(Unit) { reveal.animateTo(1f, tween(300)) }
     BoxWithConstraints(
@@ -256,7 +289,31 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
         val d = density.density
         val nav = with(density) { androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars.getBottom(this).toFloat() }
         val full = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
-        val target = step.spot(full, d, nav + 8 * d, statusTop)
+        val screen = full
+        // Until you press Next, the stops keep up with what's on screen (home may still be loading);
+        // after that they stay put.
+        val seen = TourTargets.rects.keys.map { it.substringBefore('@') }.toSet()
+        var frozen by remember { mutableStateOf<List<TourStep>?>(null) }
+        val live = remember(seen, screen.width > 0f) {
+            fun has(k: String) = findTarget(k, screen) != null
+            buildList {
+                if (has("pick")) add(TourStep("pick", "Picks for you", "Albums, playlists and new releases chosen for you. Tap a card to open it, or its play button to start it right away."))
+                if (has("songrow")) add(TourStep("songrow", "Songs to play", "Tap a song to play it with the rest of the mix. Hold it for more."))
+                add(TourStep(if (has("menu")) "menu" else null, "Menus from the ⋮", "Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to queue, add to a playlist, start radio, go to the artist."))
+                if (has("tab-0")) add(TourStep("tab-0", "Home", "Your picks, mixes and what you played lately. Tap it again to jump back to the top."))
+                if (has("tab-1")) add(TourStep("tab-1", "Library", "Liked songs, your playlists, albums and artists you saved, and your history."))
+                if (has("tab-2")) add(TourStep("tab-2", "Search", "Songs, artists, albums and playlists, with filters. Your library shows up as you type."))
+                if (has("search")) add(TourStep("search", "Search, and your library", "This searches everything, with filters. The button inside flips to your library and back."))
+                if (has("song")) add(TourStep("song", "What's playing", "Tap the mini player and the player grows out of it. Swipe it down to close the song."))
+                add(TourStep(null, "In the player", "Up next to reorder what's coming, Lyrics that line up with the song by themselves, and volume and speed under the little handle. Back or swipe down to tuck it away."))
+                if (has("avatar")) add(TourStep("avatar", "Make it yours", "Your picture opens Settings. Customize has Modern or Legacy, the bar or a search bar, corners and buttons. Appearance has light mode, the background and blur."))
+                add(TourStep(null, "That's the tour", "Want it again later? Settings › About › Show me around."))
+            }
+        }
+        val steps = frozen ?: live
+        val step = steps[at.coerceIn(0, steps.lastIndex)]
+        // A little room around the part it lights up.
+        val target = step.key?.let { findTarget(it, full) }?.let { Rect(it.left - 6 * d, it.top - 6 * d, it.right + 6 * d, it.bottom + 6 * d) }
         // The spotlight glides from one stop to the next.
         val l = androidx.compose.animation.core.animateFloatAsState(target?.left ?: full.width / 2, spring(dampingRatio = 0.85f, stiffness = 260f), label = "l")
         val tp = androidx.compose.animation.core.animateFloatAsState(target?.top ?: full.height / 2, spring(dampingRatio = 0.85f, stiffness = 260f), label = "t")
@@ -268,7 +325,7 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
                 Color.Black,
                 topLeft = Offset(l.value, tp.value),
                 size = Size(r.value - l.value, b.value - tp.value),
-                cornerRadius = CornerRadius(28 * d),
+                cornerRadius = CornerRadius(minOf(28 * d, (b.value - tp.value) / 2f)),
                 blendMode = BlendMode.Clear,
             )
         }
@@ -303,10 +360,37 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
                 )
                 Spacer(Modifier.weight(1f))
                 Box(
-                    Modifier.height(48.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f) { if (at < steps.lastIndex) at++ else onDone() }.padding(horizontal = 26.dp),
+                    Modifier.height(48.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f) {
+                        if (frozen == null) frozen = steps
+                        if (at < steps.lastIndex) at++ else onDone()
+                    }.padding(horizontal = 26.dp),
                     contentAlignment = Alignment.Center,
                 ) { Text(if (at < steps.lastIndex) "Next" else "Done", color = c.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)) }
             }
         }
+    }
+}
+
+
+/** Once per session (each time Wave starts): opens on the wave of color, which rolls away. */
+object Opening {
+    var done by mutableStateOf(false)
+}
+
+/**
+ * Wave starting up: the screen begins covered in the song-colored wave with the Wave mark, holds a
+ * beat, then the wave rolls up and away to reveal the app underneath.
+ */
+@Composable
+fun OpeningWave(onDone: () -> Unit) {
+    val sweep = remember { Animatable(0.5f) }
+    LaunchedEffect(Unit) {
+        delay(450)
+        sweep.animateTo(1f, tween(950, easing = FastOutSlowInEasing))
+        onDone()
+    }
+    val c = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}) {
+        WaveSweep(sweep.value, c.primary, c.onPrimary)
     }
 }

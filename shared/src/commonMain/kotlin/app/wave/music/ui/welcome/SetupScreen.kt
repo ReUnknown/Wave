@@ -193,7 +193,6 @@ private fun ColumnScope.Welcome() {
     // The Wave mark floating over slow rings of color, and the words coming in one after another.
     val c = MaterialTheme.colorScheme
     val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "welcome")
-    val ring by t.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(2600, easing = androidx.compose.animation.core.LinearEasing)), label = "ring")
     val lift by t.animateFloat(-1f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(2000, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "lift")
     val show = remember { List(3) { androidx.compose.animation.core.Animatable(0f) } }
     LaunchedEffect(Unit) {
@@ -205,18 +204,20 @@ private fun ColumnScope.Welcome() {
         }
     }
     Spacer(Modifier.height(56.dp))
-    Box(Modifier.align(Alignment.CenterHorizontally).size(220.dp).graphicsLayer { alpha = show[0].value; scaleX = 0.85f + 0.15f * show[0].value; scaleY = 0.85f + 0.15f * show[0].value }, contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
-            repeat(3) { i ->
-                val p = (ring + i / 3f) % 1f
-                drawCircle(c.primary.copy(alpha = (1f - p) * 0.28f), radius = size.minDimension / 2f * (0.42f + p * 0.58f))
-            }
-        }
-        Box(
-            Modifier.size(128.dp).graphicsLayer { translationY = lift * 6.dp.toPx() }.clip(RoundedCornerShape(42.dp)).background(c.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) { WaveMark(c.onPrimaryContainer, size = 74.dp) }
-    }
+    // Just the Wave mark, floating gently (no tile, no rings).
+    Box(
+        Modifier
+            .align(Alignment.CenterHorizontally)
+            .size(160.dp)
+            .graphicsLayer {
+                alpha = show[0].value
+                val k = 0.85f + 0.15f * show[0].value
+                scaleX = k
+                scaleY = k
+                translationY = lift * 6.dp.toPx()
+            },
+        contentAlignment = Alignment.Center,
+    ) { WaveMark(c.onBackground, size = 104.dp) }
     Text(
         "Welcome to Wave",
         Modifier.fillMaxWidth().padding(top = 24.dp).graphicsLayer { alpha = show[1].value; translationY = (1f - show[1].value) * 20.dp.toPx() },

@@ -119,6 +119,10 @@ fun WaveApp(
                     HomeScreen(session = current, onSignOut = { if (current.guest) signingIn = true else scope.launch { signOutAndForget() } })
                 }
             }
+            // Each time Wave starts: open on the wave of color, which rolls away (drawn over everything).
+            if (!app.wave.music.ui.home.Opening.done && !preview && restored && settingsReady) {
+                app.wave.music.ui.home.OpeningWave { app.wave.music.ui.home.Opening.done = true }
+            }
           }
           }
         }

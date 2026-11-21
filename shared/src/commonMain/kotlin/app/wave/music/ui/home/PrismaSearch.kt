@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawWithContent
@@ -203,8 +204,8 @@ fun PrismaSearch(
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = remember { FocusRequester() }
     val c = MaterialTheme.colorScheme
-    var query by rememberSaveable { mutableStateOf("") }
-    var submitted by rememberSaveable { mutableStateOf<String?>(null) }
+    var query by rememberSaveable { mutableStateOf(RenderStart.searchQuery.orEmpty()) }
+    var submitted by rememberSaveable { mutableStateOf(RenderStart.searchQuery) }
     var suggestions by remember { mutableStateOf(Suggestions()) }
     var found by remember { mutableStateOf<Found>(Found.Idle) }
     val recents by remember { PrismaRecents.all() }.collectAsState(emptyList())
@@ -220,10 +221,15 @@ fun PrismaSearch(
         delay(180)
         suggestions = SearchRepository.suggestions(query)
     }
-    LaunchedEffect(submitted) {
+    // Filters, like Wave 1.x: Top, Songs, Artists, Albums, Playlists.
+    var filter by rememberSaveable { mutableStateOf(SearchTab.Top) }
+    // New results always start from the top (the list would otherwise hold on to the row it showed).
+    val resultsList = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(submitted, filter) {
         val q = submitted ?: return@LaunchedEffect
         found = Found.Loading
-        found = SearchRepository.search(q, SearchTab.Top).fold({ Found.Ready(it) }, { Found.Failed })
+        found = SearchRepository.search(q, filter).fold({ Found.Ready(it) }, { Found.Failed })
+        resultsList.scrollToItem(0)
     }
 
     fun submit(q: String) {
@@ -263,7 +269,8 @@ fun PrismaSearch(
         Box(Modifier.fillMaxSize().hazeSource(glass)) {
         if (!look.legacyUi && look.matchSongColors) AppBackdrop(playingNow.current?.artworkUrl)
         LazyColumn(
-            Modifier.align(Alignment.TopCenter).widthIn(max = if (resultColumns > 1) 1280.dp else 760.dp).fillMaxSize().nestedScroll(hideKeyboardOnScroll).imePadding(),
+            state = resultsList,
+            modifier = Modifier.align(Alignment.TopCenter).widthIn(max = if (resultColumns > 1) 1280.dp else 760.dp).fillMaxSize().nestedScroll(hideKeyboardOnScroll).imePadding(),
             contentPadding = PaddingValues(top = statusTop + 76.dp, bottom = bottomPadding),
         ) {
             when {
@@ -317,18 +324,35 @@ fun PrismaSearch(
                     items(mine, key = { "mine-" + it.id }) { FoundRow(it, onClick = { pick(it) }) }
                     items(suggestions.items, key = { "m-" + it.id }) { FoundRow(it, onClick = { pick(it) }) }
                 }
-                else -> when (val f = found) {
+                else -> {
+                val filterRow: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = { item(key = "filters") {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(SearchTab.entries.size) { i ->
+                            val tab = SearchTab.entries[i]
+                            FilterChipPill(tab.label, tab == filter) { filter = tab }
+                        }
+                    }
+                } }
+                val bigTop = (found as? Found.Ready)?.groups?.firstOrNull()?.items?.firstOrNull()?.takeIf { filter == SearchTab.Top && confidentMatch(submitted.orEmpty(), it) }
+                // Filters on top, or right under the big top result when there is one.
+                if (bigTop == null) filterRow()
+                when (val f = found) {
                     Found.Loading -> item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { LoadingIndicator(Modifier.size(64.dp)) } }
                     Found.Failed -> item { Hint("Search didn't go through. Check your connection.") }
                     is Found.Ready -> {
                         if (f.groups.isEmpty()) item { Hint("Nothing found for \"$submitted\"") }
-                        val top = f.groups.firstOrNull()?.items?.firstOrNull()
+                        // The big top result only when it's clearly what you searched for.
+                        val top = f.groups.firstOrNull()?.items?.firstOrNull()?.takeIf { filter == SearchTab.Top && confidentMatch(submitted.orEmpty(), it) }
                         if (top != null) item(key = "top") { TopResult(top, onOpen = { pick(top) }, onPlay = {
                             scope.launch { PrismaRecents.add(Recent.Picked(top)) }
                             onPlay(top, false)
                         }) }
+                        if (top != null) filterRow()
                         f.groups.forEachIndexed { gi, group ->
-                            val rest = if (gi == 0) group.items.drop(1) else group.items
+                            val rest = if (gi == 0 && top != null) group.items.drop(1) else group.items
                             if (rest.isEmpty()) return@forEachIndexed
                             item { GroupTitle(group.title) }
                             // Tablets: results in two or three columns, so a wide screen shows more at once.
@@ -343,6 +367,7 @@ fun PrismaSearch(
                         }
                     }
                     Found.Idle -> Unit
+                }
                 }
             }
         }
@@ -552,4 +577,44 @@ private fun GroupTitle(text: String) {
 @Composable
 private fun Hint(text: String) {
     Text(text, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 15.sp))
+}
+
+
+/** A search filter: filled with a check when it's on. */
+@Composable
+private fun FilterChipPill(label: String, on: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val fill by androidx.compose.animation.animateColorAsState(if (on) c.primary else c.onBackground.copy(alpha = 0.08f), androidx.compose.animation.core.tween(180), label = "chipFill")
+    val ink by androidx.compose.animation.animateColorAsState(if (on) c.onPrimary else c.onBackground, androidx.compose.animation.core.tween(180), label = "chipInk")
+    Row(
+        Modifier.height(38.dp).clip(CircleShape).background(fill).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.animation.AnimatedVisibility(on) {
+            Icon(androidx.compose.material.icons.Icons.Rounded.Check, null, Modifier.padding(end = 6.dp).size(18.dp), tint = ink)
+        }
+        Text(label, color = ink, style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+    }
+}
+
+/**
+ * Whether [item] is clearly what [query] was looking for: its name (or name and artist) matches the
+ * search, or nearly all the searched words are in it. Otherwise no big top result.
+ */
+private fun confidentMatch(query: String, item: YTItem): Boolean {
+    fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N} ]"), " ").replace(Regex("\\s+"), " ").trim()
+    val q = norm(query)
+    if (q.length < 2) return false
+    val title = norm(item.title.replace(Regex("\\s*[(\\[].*?[)\\]]"), ""))
+    val by = norm(when (item) {
+        is SongItem -> item.artists.joinToString(" ") { it.name }
+        is AlbumItem -> item.artists?.joinToString(" ") { it.name }.orEmpty()
+        else -> ""
+    })
+    if (title == q || (title.length >= 3 && (q.startsWith(title) || title.startsWith(q)))) return true
+    val words = q.split(" ").filter { it.length > 1 }
+    if (words.isEmpty()) return false
+    val hay = "$title $by"
+    val hits = words.count { w -> hay.split(" ").any { it == w || (w.length >= 4 && it.startsWith(w)) } }
+    return hits * 10 >= words.size * 8 && title.split(" ").any { it in words }
 }

@@ -100,6 +100,10 @@ object RenderApp {
             app.wave.music.data.WaveSettings.preview { it.copy(setupDone = true, seenV2 = false) }
         }
         if (mode == "tour") app.wave.music.ui.home.Tour.requested = true
+        if (mode.startsWith("search-")) {
+            app.wave.music.ui.home.RenderStart.searchQuery = mode.removePrefix("search-").replace('_', ' ')
+            app.wave.music.data.WaveSettings.preview { it.copy(startTab = 2) }
+        }
         if (mode == "openingflat") app.wave.music.data.WaveSettings.preview { it.copy(blurLevel = 0) }
         if (mode == "openinglegacy") app.wave.music.data.WaveSettings.preview { it.copy(legacyUi = true, topSearch = true) }
         app.wave.music.ui.home.RenderStart.player = mode in setOf("player", "queue", "lyrics", "menu", "lightplayer")

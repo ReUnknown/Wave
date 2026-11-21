@@ -120,6 +120,7 @@ object WaveSettings {
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
     private val seenV2Key = booleanPreferencesKey("seen_v2")
+    private val setupCompletedKey = booleanPreferencesKey("setup_completed")
     private val lyWordsKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_words")
     private val lyMotionKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_motion")
     private val lySizeKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_size")
@@ -175,7 +176,14 @@ object WaveSettings {
             topSearch = p[topSearchKey] ?: false,
             separateMiniPlayer = p[separateKey] ?: false,
             // Anyone already using Wave has effectively set it up.
-            setupDone = p[setupKey] ?: (p[matchColors] != null),
+            // Set up = finished the new setup. People coming from 1.x (settings, but nothing from 2.0)
+            // get the welcome and transform instead; anyone on 2.0 who never went through setup
+            // (older 2.0 builds) gets setup now.
+            setupDone = p[setupCompletedKey] ?: run {
+                val fromV1 = p[matchColors] != null && p[legacyKey] == null
+                val finishedBefore = p[setupKey] == true && p[seenV2Key] == true
+                fromV1 || finishedBefore
+            },
             seenV2 = p[seenV2Key] ?: false,
             lyricsWords = p[lyWordsKey] ?: true,
             lyricsMotion = p[lyMotionKey] ?: 1,
@@ -230,6 +238,7 @@ object WaveSettings {
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
             it[seenV2Key] = next.seenV2
+            it[setupCompletedKey] = next.setupDone
             it[lyWordsKey] = next.lyricsWords
             it[lyMotionKey] = next.lyricsMotion
             it[lySizeKey] = next.lyricsSize

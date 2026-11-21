@@ -1495,6 +1495,7 @@ object RenderStart {
     /** Renders only: open the player after this many ms, and note the frame time it happened. */
     var openAfterMs = 0L
     var intro = false
+    var searchQuery: String? = null
     @Volatile var openedAtNanos = 0L
 }
 
