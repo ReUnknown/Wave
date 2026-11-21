@@ -196,7 +196,7 @@ fun MigrationIntro(onDone: (tour: Boolean) -> Unit) {
  * up and away. Both edges ripple, and the Wave mark rides in the middle.
  */
 @Composable
-internal fun WaveSweep(p: Float, color: Color, ink: Color) {
+internal fun WaveSweep(p: Float, color: Color, ink: Color, label: String = "Wave 2.0") {
     val t = rememberInfiniteTransition(label = "ripple")
     val phase by t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "phase")
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -230,7 +230,7 @@ internal fun WaveSweep(p: Float, color: Color, ink: Color) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             WaveMark(ink, size = 84.dp)
-            Text("Wave 2.0", Modifier.padding(top = 12.dp), color = ink, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 30.sp, fontWeight = FontWeight.Bold))
+            Text(label, Modifier.padding(top = 12.dp), color = ink, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 30.sp, fontWeight = FontWeight.Bold))
         }
     }
 }
@@ -391,6 +391,60 @@ fun OpeningWave(onDone: () -> Unit) {
     }
     val c = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}) {
-        WaveSweep(sweep.value, c.primary, c.onPrimary)
+        WaveSweep(sweep.value, c.primary, c.onPrimary, label = "Wave")
+    }
+}
+
+
+/** A new version is out: shown once per version, with a peek at what's in it. */
+@Composable
+fun UpdatePopup(version: String, notes: String, onSeeIt: () -> Unit, onLater: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val peek = remember(notes) {
+        notes.lines().map { it.trim() }.filter { it.startsWith("- ") || it.startsWith("* ") }
+            .map { it.drop(2).replace("**", "") }.take(3)
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onLater() },
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            Modifier
+                .navigationBarsPadding()
+                .padding(16.dp)
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(c.surfaceContainerHigh)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .padding(24.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                FloatingWaveMark(c.primary, 44.dp)
+                Column {
+                    Text("UPDATE READY", color = c.primary, style = TextStyle(fontFamily = prismaTextFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp))
+                    Text("Wave $version", color = c.onSurface, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 22.sp, fontWeight = FontWeight.Bold))
+                }
+            }
+            peek.forEach { line ->
+                Text("•  $line", Modifier.padding(top = 8.dp), color = c.onSurface.copy(alpha = 0.8f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp, lineHeight = 19.sp), maxLines = 2)
+            }
+            Row(Modifier.padding(top = 20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Later",
+                    Modifier.clip(CircleShape).clickable(onClick = onLater).padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = c.onSurface.copy(alpha = 0.7f),
+                    style = TextStyle(fontFamily = prismaTextFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.height(50.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = onSeeIt).padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("See what's new", color = c.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)) }
+            }
+        }
     }
 }

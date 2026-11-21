@@ -1,5 +1,8 @@
 package app.wave.music.ui.home
 
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.runtime.LaunchedEffect
 import app.wave.music.ui.components.sharedContainer
 import kotlinx.coroutines.launch
@@ -182,6 +185,8 @@ fun PrismaTopBar(
             Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { WaveMark(c.onBackground, size = 40.dp) }
             Spacer(Modifier.weight(1f))
         }
+        // Your picture, with the update badge on its corner.
+        Box {
         Box(
             Modifier
                 .tourTarget("avatar")
@@ -197,6 +202,21 @@ fun PrismaTopBar(
             } else {
                 Icon(Icons.Rounded.AccountCircle, "Your account", Modifier.size(28.dp), tint = c.onBackground)
             }
+        }
+        // A new version of Wave: a little badge on your picture until you've updated.
+        val update by app.wave.music.data.Updater.state.collectAsState()
+        val hasUpdate = update is app.wave.music.data.Updater.State.Available || update is app.wave.music.data.Updater.State.Downloading || update is app.wave.music.data.Updater.State.Ready
+        androidx.compose.animation.AnimatedVisibility(
+            hasUpdate,
+            Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp),
+            enter = androidx.compose.animation.scaleIn(spring(dampingRatio = 0.5f, stiffness = 400f)),
+            exit = androidx.compose.animation.scaleOut(),
+        ) {
+            Box(
+                Modifier.size(20.dp).clip(CircleShape).background(c.primary).border(2.dp, c.background, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.ArrowUpward, "Update ready", Modifier.size(12.dp), tint = c.onPrimary) }
+        }
         }
     }
 }

@@ -1,5 +1,6 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
 import androidx.compose.material.icons.rounded.Lyrics
@@ -202,6 +203,42 @@ fun PrismaSettingsHome(onBack: () -> Unit, onSection: (SettingsSection) -> Unit,
                     Modifier.height(40.dp).clip(CircleShape).border(1.dp, c.outline, CircleShape).clickable(onClick = onSignOut).padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center,
                 ) { Text(if (s == null || s.guest) "Sign in" else "Sign out", color = c.primary, style = body(14.sp, FontWeight.SemiBold)) }
+            }
+        }
+        // A new version: a small banner you can close (it comes back for the next one).
+        item {
+            val settings by WaveSettings.state.collectAsState()
+            val update by Updater.state.collectAsState()
+            val release = when (val u = update) {
+                is Updater.State.Available -> u.release
+                is Updater.State.Downloading -> u.release
+                is Updater.State.Ready -> u.release
+                else -> null
+            }
+            val scope = rememberCoroutineScope()
+            androidx.compose.animation.AnimatedVisibility(release != null && settings.updateBannerClosedFor != release.version) {
+                val r = release ?: return@AnimatedVisibility
+                Row(
+                    Modifier
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(c.primaryContainer)
+                        .padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(Icons.Rounded.SystemUpdate, null, tint = c.onPrimaryContainer)
+                    Text("Wave ${r.version} is ready", Modifier.weight(1f), color = c.onPrimaryContainer, style = body(14.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box(
+                        Modifier.height(36.dp).pressable(CircleShape, c.primary, pressedScale = 0.94f) { onSection(SettingsSection.Update) }.padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Update", color = c.onPrimary, style = body(13.sp, FontWeight.Bold)) }
+                    Box(
+                        Modifier.size(36.dp).clip(CircleShape).clickable { scope.launch { WaveSettings.update { it.copy(updateBannerClosedFor = r.version) } } },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Close, "Close", Modifier.size(18.dp), tint = c.onPrimaryContainer) }
+                }
             }
         }
         item { Box(Modifier.height(12.dp)) }
@@ -511,6 +548,29 @@ private fun AboutPage(onBack: () -> Unit, open: (SettingsSection) -> Unit) {
                 NavRow(Icons.Rounded.NewReleases, "What's new", "Every release, newest first, straight from GitHub") { open(SettingsSection.WhatsNew) }
                 NavRow(Icons.Rounded.Favorite, "Attribution", "What Wave is built on and inspired by") { open(SettingsSection.Credits) }
                 NavRow(Icons.Rounded.BugReport, "Report a bug", "Opens a new issue on GitHub", external = true) { WavePlatform.current.openUrl("$GITHUB/issues/new") }
+                var goingBack by remember { mutableStateOf(false) }
+                NavRow(Icons.Rounded.History, "Go back to Wave 1.x", "How to switch back to the finished version") { goingBack = true }
+                if (goingBack) androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { goingBack = false },
+                    icon = { Icon(Icons.Rounded.History, null) },
+                    title = { Text("Going back to Wave 1.x") },
+                    text = {
+                        Text(
+                            "Android can't step an app back a version, so it's a quick reinstall:\n\n" +
+                                "1. Uninstall Wave (your likes and playlists live in your YouTube Music account, so they're safe; Wave's own settings and saved songs are cleared).\n" +
+                                "2. Download the latest Wave 1.x APK from GitHub and open it.\n" +
+                                "3. Sign in again.\n\n" +
+                                "Wave 1.x only offers finished versions, so you'll stay on it until you choose otherwise.",
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            goingBack = false
+                            WavePlatform.current.openUrl("$GITHUB/releases/latest")
+                        }) { Text("Get Wave 1.x") }
+                    },
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = { goingBack = false }) { Text("Stay on 2.0") } },
+                )
             }
         }
         item {

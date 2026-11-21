@@ -95,6 +95,10 @@ data class Settings(
     val lyricsAutoSync: Boolean = true,
     /** Has seen Wave 2.0's welcome (people coming from 1.x get the transform and the tour once). */
     val seenV2: Boolean = false,
+    /** The update the one-time pop-up was shown for (it never shows twice for the same one). */
+    val updatePopupShownFor: String = "",
+    /** The update whose banner in Settings you closed. */
+    val updateBannerClosedFor: String = "",
 )
 
 
@@ -120,6 +124,8 @@ object WaveSettings {
     private val separateKey = booleanPreferencesKey("separate_mini_player")
     private val setupKey = booleanPreferencesKey("setup_done")
     private val seenV2Key = booleanPreferencesKey("seen_v2")
+    private val popupShownKey = stringPreferencesKey("update_popup_shown_for")
+    private val bannerClosedKey = stringPreferencesKey("update_banner_closed_for")
     private val setupCompletedKey = booleanPreferencesKey("setup_completed")
     private val lyWordsKey = androidx.datastore.preferences.core.booleanPreferencesKey("lyrics_words")
     private val lyMotionKey = androidx.datastore.preferences.core.intPreferencesKey("lyrics_motion")
@@ -185,6 +191,8 @@ object WaveSettings {
                 fromV1 || finishedBefore
             },
             seenV2 = p[seenV2Key] ?: false,
+            updatePopupShownFor = p[popupShownKey] ?: "",
+            updateBannerClosedFor = p[bannerClosedKey] ?: "",
             lyricsWords = p[lyWordsKey] ?: true,
             lyricsMotion = p[lyMotionKey] ?: 1,
             lyricsSize = p[lySizeKey] ?: 1,
@@ -238,6 +246,8 @@ object WaveSettings {
             it[separateKey] = next.separateMiniPlayer
             it[setupKey] = next.setupDone
             it[seenV2Key] = next.seenV2
+            it[popupShownKey] = next.updatePopupShownFor
+            it[bannerClosedKey] = next.updateBannerClosedFor
             it[setupCompletedKey] = next.setupDone
             it[lyWordsKey] = next.lyricsWords
             it[lyMotionKey] = next.lyricsMotion

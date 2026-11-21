@@ -913,7 +913,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             ) {
                 // Phones show the picked song in the dock instead, with a loading play button.
                 if (preparing && (shell || legacyMini)) LoadingIndicator(Modifier.size(48.dp).padding(bottom = 8.dp))
-                UpdatePill()
+                if (shell) UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
                     visible = !showPlayer && player.current != null && !keyboardUp && (if (shell) false else legacyMini),
@@ -1055,6 +1055,18 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             scope.launch { WaveSettings.update { it.copy(seenV2 = true) } }
             touring = tour
         }
+    }
+    // A new version: the pop-up shows once for it (the badge and the Settings banner stay).
+    val updateNow by Updater.state.collectAsState()
+    val readyRelease = (updateNow as? Updater.State.Available)?.release
+    if (readyRelease != null && settings.setupDone && settings.seenV2 && !touring && settings.updatePopupShownFor != readyRelease.version && (!app.wave.music.platform.WavePlatform.current.isComputer || RenderStart.intro)) {
+        fun seen() = scope.launch { WaveSettings.update { it.copy(updatePopupShownFor = readyRelease.version) } }
+        UpdatePopup(
+            readyRelease.version,
+            readyRelease.notes,
+            onSeeIt = { seen(); showPlayer = false; push(Destination.SettingsPage("update")) },
+            onLater = { seen() },
+        )
     }
     if (touring) AppTour(
         playing = player.current != null,

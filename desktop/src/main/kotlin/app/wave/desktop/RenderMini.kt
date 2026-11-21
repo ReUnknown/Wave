@@ -100,6 +100,8 @@ object RenderApp {
             app.wave.music.data.WaveSettings.preview { it.copy(setupDone = true, seenV2 = false) }
         }
         if (mode == "tour") app.wave.music.ui.home.Tour.requested = true
+        if (mode == "updatepop") app.wave.music.ui.home.RenderStart.intro = true
+        if (mode == "updatepop" || mode == "settings") app.wave.music.data.WaveSettings.preview { it.copy(setupDone = true, seenV2 = true, updatePopupShownFor = "", updateBannerClosedFor = "") }
         if (mode.startsWith("search-")) {
             app.wave.music.ui.home.RenderStart.searchQuery = mode.removePrefix("search-").replace('_', ' ')
             app.wave.music.data.WaveSettings.preview { it.copy(startTab = 2) }
