@@ -164,6 +164,7 @@ import androidx.compose.runtime.mutableStateListOf
 import coil3.compose.AsyncImage
 import com.metrolist.innertube.models.PlaylistItem
 import com.metrolist.innertube.models.SongItem
+import app.wave.music.data.toVideoTarget
 import com.metrolist.innertube.models.YTItem
 import com.metrolist.innertube.pages.HomePage
 import kotlinx.coroutines.launch
@@ -243,6 +244,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     // Radio for you: the genres in your home and what you play, turned into stations. Nothing to
     // go on yet (or nothing matches): what's popular near you.
     val feedForRadio = (ui as? HomeUi.Ready)?.feed
+    // Music videos for you, for their row on home.
+    var homeVideos by remember { mutableStateOf<List<SongItem>>(emptyList()) }
+    LaunchedEffect(feedForRadio != null) {
+        if (feedForRadio == null || homeVideos.isNotEmpty()) return@LaunchedEffect
+        val artists = feedForRadio.sections.flatMap { it.items }.filterIsInstance<SongItem>().flatMap { s -> s.artists.map { it.name } }
+            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.take(4)
+        homeVideos = runCatching { app.wave.music.data.VideoRepository.shelves(artists).firstOrNull()?.videos.orEmpty() }.getOrDefault(emptyList()).take(12)
+    }
     LaunchedEffect(feedForRadio != null) {
         if (feedForRadio == null) return@LaunchedEffect
         val words = buildList {
@@ -456,7 +465,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (!shell && player.current != null && !showPlayer) 116.dp else 0.dp,
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (!shell && ((player.current != null && !showPlayer) || (app.wave.music.playback.Video.open != null && app.wave.music.playback.Video.minimized))) 116.dp else 0.dp,
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -607,7 +616,23 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             }
                         }
                     } }
+                    // Music videos, a couple of rows down, and the way into the Videos page.
+                    val videoRow: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = { if (homeVideos.isNotEmpty()) {
+                        item(key = "videos-h") { SectionHeader("Watch", "Music videos") }
+                        item(key = "videos") {
+                            WheelRow {
+                                items(homeVideos, key = { "vid" + it.id }) { v ->
+                                    app.wave.music.ui.video.VideoCard(v, 240.dp) {
+                                        val i = homeVideos.indexOf(v)
+                                        app.wave.music.playback.Video.watch(v.toVideoTarget(), (homeVideos.drop(i + 1) + homeVideos.take(i)).map { it.toVideoTarget() })
+                                    }
+                                }
+                                item(key = "videos-all") { app.wave.music.ui.video.VideoMoreCard(240.dp) { push(Destination.Videos) } }
+                            }
+                        }
+                    } }
                     state.feed.sections.forEachIndexed { index, section ->
+                        if (index == 2) videoRow()
                         if (index == 3) radioRow()
                         item(key = "header-$index") { SectionHeader(section.label, section.title) }
                         item(key = "row-$index") {
@@ -627,6 +652,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                             )
                         }
                     }
+                    if (state.feed.sections.size <= 2) videoRow()
                     if (state.feed.sections.size <= 3) radioRow()
                 }
             }
@@ -788,7 +814,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
-                    visible = !shell && !showPlayer && player.current != null && WindowInsets.ime.getBottom(LocalDensity.current) == 0,
+                    visible = !shell && !showPlayer && player.current != null && app.wave.music.playback.Video.open == null && WindowInsets.ime.getBottom(LocalDensity.current) == 0,
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
@@ -869,6 +895,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 openTo = playerPanel,
             )
         }
+        // Watching a video: over everything, the player included.
+        app.wave.music.ui.video.VideoPlayerHost(shell = shell)
         // Wave's notices, just above whatever's at the bottom: the player bar, the mini player,
         // or the open player's tray.
         app.wave.music.ui.components.NoticeHost(

@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Radio
 import app.wave.music.platform.topBarPadding
 import app.wave.music.platform.topInset
@@ -343,6 +344,16 @@ private fun Header(
                 if (docked) "Expand player" else "Shrink player",
                 toggle,
             )
+            Spacer(Modifier.width(8.dp))
+        }
+        // Watch the video: picks up the song at the same spot, as a music video.
+        if (!app.wave.music.data.isRadioId(song.videoId)) {
+            GlassCircle(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Watch the video") {
+                app.wave.music.playback.Video.watch(
+                    app.wave.music.playback.VideoTarget(song.videoId, song.title, song.artist, app.wave.music.playback.Video.thumbnail(song.videoId)),
+                    startMs = app.wave.music.playback.PlayerConnection.position,
+                )
+            }
             Spacer(Modifier.width(8.dp))
         }
         // Live radio: no song actions (playlists, artist, sharing) apply to a station.

@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.material.icons.rounded.SmartDisplay
 import app.wave.music.platform.topBarPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.animateColorAsState
@@ -115,6 +116,7 @@ fun Sidebar(
         }
         NavRow(Icons.Rounded.Album, "Albums & artists", selected = current == Destination.Saved) { onOpen(Destination.Saved) }
         NavRow(Icons.Rounded.History, "History", selected = current == Destination.History) { onOpen(Destination.History) }
+        NavRow(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Music videos", selected = current == Destination.Videos) { onOpen(Destination.Videos) }
 
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 18.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("PLAYLISTS", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = c.onBackground.copy(alpha = 0.75f))

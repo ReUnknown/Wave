@@ -126,6 +126,8 @@ sealed interface Destination {
     data object Saved : Destination { override val id = "saved" }
     /** Live radio: popular stations, or ones matching [query]. */
     data class Radio(val query: String = "") : Destination { override val id = "radio" }
+    /** Music videos picked for you. */
+    data object Videos : Destination { override val id = "videos" }
 
     companion object {
         fun of(item: YTItem): Destination? = when (item) {
@@ -215,6 +217,7 @@ fun DetailScreen(
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
         is Destination.Radio -> app.wave.music.ui.radio.RadioScreen(destination.query, actions)
+        Destination.Videos -> app.wave.music.ui.video.VideosScreen(actions)
     }
     }
 }
@@ -235,6 +238,8 @@ private class HeaderInfo(
     val onSecondary: () -> Unit,
     /** A third button joined to the end of the pair (Follow, on artist pages). */
     val extra: (@Composable () -> Unit)? = null,
+    /** Albums: the cover moves, and its record slides out. */
+    val albumId: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -414,7 +419,8 @@ private fun ShellHeader(info: HeaderInfo) {
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        AsyncImage(
+        if (info.albumId != null) AlbumWithRecord(info.art, info.albumId, 232.dp, 28.dp)
+        else AsyncImage(
             model = info.art?.atSize(ArtSize.CARD),
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -460,8 +466,9 @@ private fun SideHero(info: HeaderInfo, modifier: Modifier) {
     ) {
         BoxWithConstraints(Modifier.weight(1f, fill = false)) {
             // The cover fills the column's width (as tall as the window allows).
-            val side = minOf(maxWidth, maxHeight, 460.dp)
-            AsyncImage(
+            val side = minOf(if (info.albumId != null) maxWidth / 1.42f else maxWidth, maxHeight, 460.dp)
+            if (info.albumId != null) AlbumWithRecord(info.art, info.albumId, side, 36.dp)
+            else AsyncImage(
                 model = info.art?.atSize(ArtSize.CARD),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -488,7 +495,10 @@ private fun Hero(info: HeaderInfo) {
             .fillMaxWidth()
             .height(520.dp),
     ) {
-        ProgressiveBlurImage(info.art?.atSize(1080), Modifier.fillMaxSize(), start = 0.5f, end = 1f, maxRadius = 64.dp)
+        // Albums: the cover drifts slowly, like an animated album cover.
+        Box(Modifier.fillMaxSize().clipToBounds()) {
+            ProgressiveBlurImage(info.art?.atSize(1080), if (info.albumId != null) Modifier.fillMaxSize().albumMotion() else Modifier.fillMaxSize(), start = 0.5f, end = 1f, maxRadius = 64.dp)
+        }
         Box(
             Modifier
                 .fillMaxSize()
@@ -641,6 +651,7 @@ private fun AlbumScreen(browseId: String, actions: PageActions) {
                 onPrimary = { actions.play(QueueBuilder.forList(p.songs, 0, ctx, shuffle = false)) },
                 secondary = "Shuffle" to Icons.Rounded.Shuffle,
                 onSecondary = { actions.play(QueueBuilder.forList(p.songs, 0, ctx, shuffle = true)) },
+                albumId = p.album.browseId,
             )
         },
     ) { p ->

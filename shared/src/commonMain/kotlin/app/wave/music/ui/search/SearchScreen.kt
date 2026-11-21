@@ -1,5 +1,6 @@
 package app.wave.music.ui.search
 
+import app.wave.music.data.toVideoTarget
 import dev.chrisbanes.haze.hazeSource
 import app.wave.music.ui.components.HazeTopBlur
 import androidx.compose.material.icons.rounded.Radio
@@ -321,6 +322,17 @@ fun SearchScreen(
                                     if (rest.isNotEmpty()) {
                                         items(rest) { ItemRow(it, onClick = onOpen) { PlayNextButton { onPlayNext(it) } } }
                                     }
+                                } else if (tab == SearchTab.Videos) {
+                                    // Videos: big pictures, and tapping one watches it.
+                                    val videos = group.items.filterIsInstance<SongItem>()
+                                    items(videos, key = { "v" + it.id }) { v ->
+                                        androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                            BoxWithConstraintsVideo(v) {
+                                                val i = videos.indexOf(v)
+                                                app.wave.music.playback.Video.watch(v.toVideoTarget(), (videos.drop(i + 1) + videos.take(i)).map { it.toVideoTarget() })
+                                            }
+                                        }
+                                    }
                                 } else if (tab != SearchTab.Top || group.items.all { it is SongItem }) {
                                     item { Label(group.title) }
                                     items(group.items) { ItemRow(it, onClick = onOpen) { PlayNextButton { onPlayNext(it) } } }
@@ -597,5 +609,13 @@ private fun RadioShortcut(query: String, onClick: () -> Unit) {
             )
         }
         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = if (radioSearch) c.onPrimaryContainer else c.onSurfaceVariant)
+    }
+}
+
+
+@androidx.compose.runtime.Composable
+private fun BoxWithConstraintsVideo(video: SongItem, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints {
+        app.wave.music.ui.video.VideoCard(video, minOf(maxWidth, 560.dp), onClick)
     }
 }

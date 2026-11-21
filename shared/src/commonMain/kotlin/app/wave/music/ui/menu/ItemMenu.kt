@@ -1,5 +1,6 @@
 package app.wave.music.ui.menu
 
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
@@ -225,6 +226,15 @@ fun ItemMenuHost(
                         }
                         OptionGroup {
                             Option(Icons.Rounded.Sensors, "Start a mix") { choose { actions.playItem(song, false) } }
+                            Option(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Watch the video") {
+                                choose {
+                                    val now = app.wave.music.playback.PlayerConnection.state.value.current?.videoId == target.videoId
+                                    app.wave.music.playback.Video.watch(
+                                        app.wave.music.playback.VideoTarget(target.videoId, target.title, target.artist, app.wave.music.playback.Video.thumbnail(target.videoId)),
+                                        startMs = if (now) app.wave.music.playback.PlayerConnection.position else 0L,
+                                    )
+                                }
+                            }
                             // Named straight away from what the song already says; the links behind
                             // them are almost always known by now, and otherwise followed once they are.
                             val artistName = song.artists.firstOrNull { it.id != null }?.name

@@ -84,6 +84,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
         AndroidPlayer.connect(this)
+        // Music videos play in their own player.
+        app.wave.music.playback.Video.engine = app.wave.music.video.AndroidVideo(this) { desktopMode.value || resources.configuration.smallestScreenWidthDp >= 600 }
         // Opened from a YouTube Music link (or one shared to Wave).
         if (savedInstanceState == null) receiveLink(intent)
         // Covers fade in as they load instead of popping in.
