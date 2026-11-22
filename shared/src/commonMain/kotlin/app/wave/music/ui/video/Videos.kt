@@ -378,22 +378,25 @@ fun VideoPlayerHost() {
         // upright, then the video closes (shrinking away as you swipe, like every page in Wave).
         val swipe = app.wave.music.ui.components.predictiveBack(enabled = target != null && !edgeToEdge, onBack = ::close)
         Box(Modifier.fillMaxSize().backGesture(swipe)) {
-        // Ambient mode (upright, Settings › Playback): the colors follow the picture as it plays.
+        // Ambient mode (upright, Settings › Playback): the background softly takes on the colors on
+        // screen as the video plays. Buttons keep the video's own colors, so nothing jumps around.
         val base = app.wave.music.ui.theme.darkBaseScheme()
         val artScheme = rememberArtColorScheme(current.thumbnail, base = base)
         val ambientOn = WaveSettings.state.collectAsState().value.videoAmbient && !edgeToEdge
-        var ambient by remember(current.videoId) { mutableStateOf<androidx.compose.material3.ColorScheme?>(null) }
+        var glowTarget by remember(current.videoId) { mutableStateOf<Color?>(null) }
         LaunchedEffect(current.videoId, ambientOn) {
-            if (!ambientOn) { ambient = null; return@LaunchedEffect }
+            if (!ambientOn) { glowTarget = null; return@LaunchedEffect }
             while (true) {
-                delay(1500)
+                delay(700)
                 val e = engine ?: continue
-                if (!e.state.value.playing) continue
+                if (!e.state.value.firstFrame) continue
                 val pixels = e.framePixels() ?: continue
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.wave.music.ui.components.schemeFromPixels(pixels, base) }?.let { ambient = it }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.wave.music.ui.components.schemeFromPixels(pixels, base) }?.let { glowTarget = it.primaryContainer }
             }
         }
-        MaterialTheme(colorScheme = if (ambientOn && ambient != null) app.wave.music.ui.components.animateSchemeSlowly(ambient!!) else artScheme) {
+        val glow by androidx.compose.animation.animateColorAsState(glowTarget ?: artScheme.primaryContainer, tween(1400), label = "ambient")
+        CompositionLocalProviderGlow(if (ambientOn) glow else null) {
+        MaterialTheme(colorScheme = artScheme) {
             val c = MaterialTheme.colorScheme
             if (engine == null) {
                 Box(Modifier.fillMaxSize().blocksTouchesBelow().background(c.background).clickable { close() }, contentAlignment = Alignment.Center) {
@@ -514,8 +517,15 @@ fun VideoPlayerHost() {
             }
         }
         }
+        }
     }
 }
+
+private val LocalGlow = androidx.compose.runtime.compositionLocalOf<Color?> { null }
+
+@Composable
+private fun CompositionLocalProviderGlow(glow: Color?, content: @Composable () -> Unit) =
+    androidx.compose.runtime.CompositionLocalProvider(LocalGlow provides glow, content = content)
 
 private fun speedName(v: Float) = if (v == 1f) "1×" else "${v.toString().removeSuffix(".0")}×"
 
@@ -532,9 +542,10 @@ private fun UprightLayout(engine: VideoEngine, state: VideoState, target: VideoT
     Box(Modifier.fillMaxSize()) {
         if (!front) {
             Box(Modifier.fillMaxSize().blocksTouchesBelow().background(c.background))
-            if (WaveSettings.state.collectAsState().value.videoAmbient) {
-                // Ambient mode: a glow in the colors on screen right now, shifting as the video plays.
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.primary.copy(alpha = 0.5f), 0.3f to c.primaryContainer.copy(alpha = 0.85f), 0.65f to c.primaryContainer.copy(alpha = 0.35f), 1f to c.background)))
+            val glow = LocalGlow.current
+            if (glow != null) {
+                // Ambient mode: a soft glow in the colors on screen right now, drifting as it plays.
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to glow.copy(alpha = 0.75f), 0.4f to glow.copy(alpha = 0.4f), 0.75f to c.background.copy(alpha = 0.9f), 1f to c.background)))
             } else {
                 // The video's picture, blurred, filling the screen like the music player's art.
                 app.wave.music.ui.components.BlurredImage(target.thumbnail, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }, radius = 72.dp)

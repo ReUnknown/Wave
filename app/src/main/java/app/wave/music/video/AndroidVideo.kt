@@ -74,8 +74,10 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
     }
 
     private var exo: ExoPlayer? = null
+    /** Set once a video failed to decode: from then on, H.264 only (every phone plays it). */
+    private var h264Only = false
     private val player: ExoPlayer
-        get() = exo ?: ExoPlayer.Builder(activity)
+        get() = exo ?: ExoPlayer.Builder(activity, androidx.media3.exoplayer.DefaultRenderersFactory(activity).setEnableDecoderFallback(true))
             // Start sooner: play once a second is buffered (two after a stall), and begin at a modest
             // quality that sharpens as it measures the connection.
             .setLoadControl(
@@ -106,6 +108,14 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
                     _state.value = _state.value.copy(firstFrame = true)
                 }
                 override fun onPlayerError(error: PlaybackException) {
+                    // This phone can't decode this kind of video (VP9 on some): play it as H.264 instead.
+                    if (!h264Only && error.errorCode in PlaybackException.ERROR_CODE_DECODER_INIT_FAILED..PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED) {
+                        h264Only = true
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setPreferredVideoMimeType(MimeTypes.VIDEO_H264).build()
+                        val at = player.currentPosition
+                        _state.value.videoId?.let { id -> scope.launch { load(id, at) } }
+                        return
+                    }
                     // Its address may have run out: look it up fresh next time.
                     _state.value.videoId?.let { found.remove(it) }
                     _state.value = _state.value.copy(error = "This video stopped. Tap to try again.", playing = false, buffering = false)
