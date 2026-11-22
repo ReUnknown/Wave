@@ -513,6 +513,9 @@ fun LazyListScope.prismaHome(
     /** Radio for you. */
     stations: List<app.wave.music.data.Station> = emptyList(),
     onRadio: () -> Unit = {},
+    /** Music videos for you. */
+    videos: List<SongItem> = emptyList(),
+    onVideos: () -> Unit = {},
 ) {
     item(key = "top") { topBar() }
     val playlistsShown = playlists.withoutLiked()
@@ -571,6 +574,16 @@ fun LazyListScope.prismaHome(
                 }
             }
             "radio" -> if (!radioInFeed) radioRow()
+            "videos" -> if (videos.isNotEmpty()) {
+                val t = title("Music videos")
+                item(key = "videos-h") { t() }
+                item(key = "videos") {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(videos, key = { "vid" + it.id }) { v -> app.wave.music.ui.video.VideoCard(v, 248.dp) { app.wave.music.ui.video.watchFrom(v, videos) } }
+                        item(key = "videos-all") { app.wave.music.ui.video.VideoMoreCard(248.dp, onVideos) }
+                    }
+                }
+            }
             "feed" -> {
                 val shown = feed.sections.withIndex().filter { it.value.title !in hiddenSections }
                 shown.forEachIndexed { n, (index, section) ->

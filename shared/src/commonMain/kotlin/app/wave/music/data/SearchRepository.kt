@@ -17,6 +17,7 @@ enum class SearchTab(val label: String, val filter: YouTube.SearchFilter?) {
     Artists("Artists", YouTube.SearchFilter.FILTER_ARTIST),
     Albums("Albums", YouTube.SearchFilter.FILTER_ALBUM),
     Playlists("Playlists", YouTube.SearchFilter.FILTER_FEATURED_PLAYLIST),
+    Videos("Videos", YouTube.SearchFilter.FILTER_VIDEO),
 }
 
 data class SearchGroup(val title: String, val items: List<YTItem>)

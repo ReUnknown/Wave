@@ -93,6 +93,7 @@ private val about = mapOf(
     "playlists" to "Playlists you made or saved",
     "feed" to "Mixes and rows YouTube Music makes for you",
     "radio" to "Live stations like the music you play",
+    "videos" to "Music videos from the artists you play",
 )
 
 /**
@@ -358,6 +359,21 @@ private fun RowSketch(key: String, modifier: Modifier) {
                     drawRoundRect(if ((row + col) % 2 == 0) primary.copy(alpha = 0.6f) else soft, Offset(x, y + rowH * 0.1f), Size(rowH * 0.8f, rowH * 0.8f), CornerRadius(rowH * 0.2f))
                     drawRoundRect(line, Offset(x + rowH, y + rowH * 0.2f), Size(w * 0.3f, rowH * 0.22f), CornerRadius(h))
                     drawRoundRect(line.copy(alpha = 0.18f), Offset(x + rowH, y + rowH * 0.55f), Size(w * 0.2f, rowH * 0.18f), CornerRadius(h))
+                }
+            }
+            "videos" -> {
+                // Wide 16:9 pictures with a little play mark.
+                val vw = h * 16f / 9f
+                var x = 0f
+                var i = 0
+                while (x < w) {
+                    drawRoundRect(listOf(primary, tertiary)[i % 2].copy(alpha = 0.7f), Offset(x, 0f), Size(vw, h), r)
+                    val cx = x + vw / 2
+                    val cy = h / 2
+                    val t = h * 0.16f
+                    drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(cx - t * 0.7f, cy - t); lineTo(cx + t, cy); lineTo(cx - t * 0.7f, cy + t); close() }, Color.White.copy(alpha = 0.9f))
+                    x += vw + w * 0.05f
+                    i++
                 }
             }
             "radio" -> {

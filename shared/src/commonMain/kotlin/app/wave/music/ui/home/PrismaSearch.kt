@@ -358,6 +358,20 @@ fun PrismaSearch(
                             onPlay(top, false)
                         }) }
                         if (top != null) filterRow()
+                        // Videos: big pictures, and tapping one watches it.
+                        if (filter == SearchTab.Videos) {
+                            val videos = f.groups.flatMap { it.items }.filterIsInstance<SongItem>()
+                            items(videos.chunked(resultColumns), key = { row -> "vid-" + row.first().id }) { row ->
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    row.forEach { v ->
+                                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
+                                            app.wave.music.ui.video.VideoCard(v, maxWidth) { keyboard?.hide(); app.wave.music.ui.video.watchFrom(v, videos) }
+                                        }
+                                    }
+                                    repeat(resultColumns - row.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        } else
                         f.groups.forEachIndexed { gi, group ->
                             val rest = if (gi == 0 && top != null) group.items.drop(1) else group.items
                             if (rest.isEmpty()) return@forEachIndexed

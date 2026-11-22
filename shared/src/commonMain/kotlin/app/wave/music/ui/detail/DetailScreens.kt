@@ -138,6 +138,8 @@ sealed interface Destination {
     data object Saved : Destination { override val id = "saved" }
     /** Live radio: popular stations, or ones matching [query]. */
     data class Radio(val query: String = "") : Destination { override val id = "radio" }
+    /** Music videos picked for you. */
+    data object Videos : Destination { override val id = "videos" }
     data object Settings : Destination { override val id = "settings" }
     data class SettingsPage(override val id: String) : Destination
 
@@ -232,6 +234,7 @@ fun DetailScreen(
         Destination.Playlists -> PlaylistsScreen(actions)
         Destination.Saved -> SavedScreen(actions)
         is Destination.Radio -> app.wave.music.ui.radio.RadioScreen(destination.query, actions)
+        Destination.Videos -> app.wave.music.ui.video.VideosScreen(actions)
         Destination.Settings -> app.wave.music.ui.settings.PrismaSettingsHome(
             onBack = actions.back,
             onSection = { actions.navigate(Destination.SettingsPage(it.id)) },

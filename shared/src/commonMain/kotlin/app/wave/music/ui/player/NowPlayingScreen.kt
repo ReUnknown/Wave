@@ -1,5 +1,6 @@
 package app.wave.music.ui.player
 
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.animation.slideInVertically
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawWithContent
@@ -362,6 +363,26 @@ private fun Header(
                 onClick = toggle,
             )
             Spacer(Modifier.width(8.dp))
+        }
+        // Only songs that really have a music video get the Video button (found quietly in the background).
+        val video by androidx.compose.runtime.produceState(app.wave.music.data.VideoRepository.knownVideoFor(song.videoId)?.ifEmpty { null }, song.videoId) {
+            if (!app.wave.music.data.isRadioId(song.videoId)) value = runCatching { app.wave.music.data.VideoRepository.videoFor(song.videoId, song.title, song.artist) }.getOrNull()
+        }
+        androidx.compose.animation.AnimatedVisibility(video != null, enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandHorizontally(), exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
+            Row(
+                Modifier
+                    .padding(end = 8.dp)
+                    .height(48.dp)
+                    .pressable(CircleShape, Color.Black.copy(alpha = 0.32f), pressedScale = 0.92f) {
+                        video?.let { v -> app.wave.music.ui.video.watchSongVideo(song.videoId, v, song.title, song.artist, app.wave.music.playback.PlayerConnection.position) }
+                    }
+                    .padding(start = 14.dp, end = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                Text("Video", color = Color.White, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
+            }
         }
         if (!app.wave.music.data.isRadioId(song.videoId)) GlassCircle(Icons.Rounded.MoreVert, "More options", Modifier.menuAnchor(Color.Black.copy(alpha = 0.32f), Color.White)) {
             menu.open(MenuTarget.Song(song.videoId, song.title, song.artist, song.artworkUrl, album = song.album, nowPlaying = true))

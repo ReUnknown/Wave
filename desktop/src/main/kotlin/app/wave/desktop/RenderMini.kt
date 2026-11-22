@@ -73,6 +73,21 @@ private fun fakeBackend(): PlayerBackend {
     }
 }
 
+/** A stand-in video player for renders: the video's thumbnail as the picture. */
+private class FakeVideo(val thumb: String, loading: Boolean, paused: Boolean = false) : app.wave.music.playback.VideoEngine {
+    override val state = MutableStateFlow(app.wave.music.playback.VideoState(videoId = "x", playing = !loading && !paused, buffering = loading, durationMs = 262_000, width = 1920, height = 1080, heights = listOf(1080, 720, 480, 360, 240, 144), showing = 1080, firstFrame = !loading))
+    override val positionMs = 96_000L
+    override fun load(videoId: String, startMs: Long) {}
+    override fun togglePlay() {}
+    override fun seekTo(ms: Long) {}
+    override fun setQuality(height: Int?) {}
+    override fun stop() {}
+    override fun setBarsHidden(hidden: Boolean) {}
+    override fun holdOrientation(mode: Int) {}
+    @androidx.compose.runtime.Composable
+    override fun Surface(modifier: Modifier) { coil3.compose.AsyncImage(thumb, null, modifier, contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+}
+
 object RenderApp {
     @JvmStatic
     fun main(args: Array<String>) {
@@ -118,6 +133,18 @@ object RenderApp {
         app.wave.music.ui.home.RenderStart.openTo = mode.takeIf { it == "queue" || it == "lyrics" }
         if (mode == "settings") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Settings
         if (mode.startsWith("page-")) app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.SettingsPage(mode.removePrefix("page-"))
+        if (mode.startsWith("video")) {
+            // Phones: the computer flag off, so the phone layouts show.
+            WavePlatform.current = object : app.wave.music.platform.Platform by DesktopPlatform { override val isComputer = false }
+            if (mode == "videos") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Videos
+            else {
+                val vids = runBlocking { app.wave.music.data.VideoRepository.search("the weeknd official music video") }
+                val t = vids.first().toVideoTargetForRender()
+                app.wave.music.playback.Video.engine = FakeVideo(t.thumbnail!!, loading = mode == "videoload", paused = mode == "videoui")
+                app.wave.music.playback.Video.watch(t, vids.drop(1).take(6).map { it.toVideoTargetForRender() })
+                if (mode == "videomini") app.wave.music.playback.Video.minimized = true
+            }
+        }
         if (mode == "radio") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Radio()
         if (mode == "artist") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Artist("UClYV6hHlupm_S_ObS1W-DYw")
         if (mode == "album") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Album("MPREb_rzLvLCYSi3J")
@@ -159,3 +186,5 @@ object RenderApp {
         kotlin.system.exitProcess(0)
     }
 }
+
+private fun SongItem.toVideoTargetForRender() = app.wave.music.playback.VideoTarget(id, title, artists.joinToString { it.name }, app.wave.music.playback.Video.thumbnail(id))

@@ -13,8 +13,8 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 205
-        versionName = "2.0.0-beta.6"
+        versionCode = 206
+        versionName = "2.0.0-beta.7"
         // Every phone, tablet and Googlebook Wave targets is 64-bit: no 32-bit native code.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.compose.material.icons)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+    implementation(libs.media3.hls)
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
     implementation(libs.media3.datasource.okhttp)

@@ -102,6 +102,30 @@ object StreamResolver {
             Result.failure(error)
         }
 
+    /** A music video: an HLS playlist with every size of picture and the sound together. */
+    class VideoStreams(val manifestUrl: String, val headers: Map<String, String>)
+
+    suspend fun videoFor(videoId: String, connectivityManager: ConnectivityManager): Result<VideoStreams> =
+        try {
+            val hints = ContentHints(wantVideo = true, maxVideoHeight = 1080)
+                .withStreamCapabilities(allowHls = true, allowSabr = false, allowBoundedRange = true)
+            val stream = requireNotNull(
+                bundle().extractor.extract(
+                    videoId = videoId,
+                    hints = hints,
+                    excludedClients = failedStreamClients(videoId),
+                    audioQuality = AudioQuality.AUTO.toInnerTubeX(connectivityManager),
+                    clientPlaybackNonce = generateClientPlaybackNonce(),
+                ),
+            ) { "No playable video" }
+            val url = stream.videoUrl?.takeIf { it.startsWith("https://") } ?: error("This video can't play right now")
+            Result.success(VideoStreams(url, stream.headers))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+
     internal fun markStreamClientFailed(
         videoId: String,
         clientName: String,

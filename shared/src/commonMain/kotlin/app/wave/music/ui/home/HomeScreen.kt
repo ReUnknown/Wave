@@ -233,6 +233,14 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val looks by WaveSettings.state.collectAsState()
     val homeRows = remember(looks.homeRows) { app.wave.music.data.HomeRows.parse(looks.homeRows).filter { it.second }.map { it.first } }
     val hiddenSections = remember(looks.hiddenSections) { looks.hiddenSections.split("\n").filter { it.isNotBlank() }.toSet() }
+    // Music videos for you, for their row on home.
+    var homeVideos by remember { mutableStateOf<List<SongItem>>(emptyList()) }
+    LaunchedEffect((ui as? HomeUi.Ready) != null, "videos" in homeRows) {
+        if ("videos" !in homeRows || homeVideos.isNotEmpty()) return@LaunchedEffect
+        val artists = ((ui as? HomeUi.Ready)?.feed?.sections.orEmpty()).flatMap { it.items }.filterIsInstance<SongItem>().flatMap { s -> s.artists.map { it.name } }
+            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.take(4)
+        homeVideos = runCatching { app.wave.music.data.VideoRepository.shelves(artists).firstOrNull()?.videos.orEmpty() }.getOrDefault(emptyList()).take(12)
+    }
     // Radio for you: stations picked from what you listen to (your home's rows and what you played).
     var stations by remember { mutableStateOf<List<app.wave.music.data.Station>>(emptyList()) }
     val feedTitles = (ui as? HomeUi.Ready)?.feed?.sections?.map { it.title }.orEmpty()
@@ -495,7 +503,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         LocalSharedTransition provides this,
         LocalPeeking provides peeking,
         // The mini player floats over the bottom: pages keep their buttons clear of it.
-        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else if (!settings.legacyUi && settings.dockOneRow && conf.screenWidthDp >= 840 && !settings.topSearch) PrismaBarHeight + 20.dp else (if (player.current != null || pendingSong != null) PrismaDockSongHeight + 28.dp else 20.dp) + (if (settings.topSearch) 0.dp else PrismaBarHeight),
+        app.wave.music.ui.components.LocalMiniPlayerSpace provides if (shell || showPlayer) 0.dp else if (!settings.legacyUi && settings.dockOneRow && conf.screenWidthDp >= 840 && !settings.topSearch) PrismaBarHeight + 20.dp else (if (player.current != null || pendingSong != null || app.wave.music.playback.Video.open != null) PrismaDockSongHeight + 28.dp else 20.dp) + (if (settings.topSearch) 0.dp else PrismaBarHeight),
         app.wave.music.ui.components.LocalShell provides shell,
         app.wave.music.ui.components.LocalPageLook provides pageLook,
     ) {
@@ -646,6 +654,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         hiddenSections = hiddenSections,
                         stations = stations,
                         onRadio = { push(Destination.Radio()) },
+                        videos = homeVideos,
+                        onVideos = { push(Destination.Videos) },
                         topBar = { if (pinnedSearch) Spacer(Modifier.height(PrismaTopHeight + 14.dp)) else if (legacyHome) PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }, search = { showSearch = true }, inLibrary = tab == 1, onLibrary = { tab = if (tab == 1) 0 else 1 }) else PrismaTopBar(session = session, onAvatar = { push(Destination.Settings) }) },
                     )
                   } else if (legacyHome) {
@@ -666,6 +676,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         hiddenSections = hiddenSections,
                         stations = stations,
                         onRadio = { push(Destination.Radio()) },
+                        videos = homeVideos,
+                        onVideos = { push(Destination.Videos) },
                     )
                   } else {
                     item {
@@ -941,7 +953,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 if (shell) UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
-                    visible = !showPlayer && player.current != null && !keyboardUp && (if (shell) false else legacyMini),
+                    visible = !showPlayer && player.current != null && !keyboardUp && app.wave.music.playback.Video.open == null && (if (shell) false else legacyMini),
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
@@ -975,7 +987,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     },
                     haze = barHaze,
-                    now = if (legacyMini) null else dockSong,
+                    // A video open: its own mini player stands in for the song's.
+                    now = if (legacyMini || app.wave.music.playback.Video.open != null) null else dockSong,
                     playing = player.isPlaying,
                     loading = preparing,
                     onOpenPlayer = { openPlayer(null) },
@@ -1022,6 +1035,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 openTo = playerPanel,
             )
         }
+        // Watching a video: full over everything, or its mini player just above the tabs.
+        app.wave.music.ui.video.VideoPlayerHost(miniBottom = if (!shell && !settings.topSearch) PrismaBarHeight + 2.dp else 12.dp)
         // Wave's notices, just above whatever's at the bottom: the player bar, the mini player,
         // or the open player's tray.
         app.wave.music.ui.components.NoticeHost(

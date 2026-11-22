@@ -116,6 +116,7 @@ object HomeRows {
         "playlists" to "Your playlists",
         "feed" to "From YouTube Music",
         "radio" to "Radio for you",
+        "videos" to "Music videos",
     )
 
     /** Every row in order, with whether it's on (new rows Wave adds later show up at the end). */
