@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -229,6 +230,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     LaunchedEffect(Unit) { app.wave.music.ui.components.Shortcuts.openSearch.collect { showSearch = true } }
     val player by PlayerConnection.state.collectAsState()
     val playedHere by app.wave.music.data.RecentPlays.songs.collectAsState()
+    // Home's list (kept up here so the tour can scroll it).
+    val listState = rememberLazyListState()
     // Settings › Customize › Home rows.
     val looks by WaveSettings.state.collectAsState()
     val homeRows = remember(looks.homeRows) { app.wave.music.data.HomeRows.parse(looks.homeRows).filter { it.second }.map { it.first } }
@@ -514,7 +517,6 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         val scrim = if (c.background.luminance() < 0.5f) Color.Black else Color.White
         val backdrop = rememberBackdrop()
         val barHaze = dev.chrisbanes.haze.rememberHazeState()
-        val listState = rememberLazyListState()
         val greetingAlpha by remember {
             derivedStateOf {
                 if (listState.firstVisibleItemIndex > 0) 0f else (1f - listState.firstVisibleItemScrollOffset / 260f).coerceIn(0f, 1f)
@@ -931,9 +933,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // or on its own, and Legacy's floating song-colored mini player.
             val tabsShown = !shell && !showPlayer && !keyboardUp && !settings.topSearch
             val dockSong = pendingSong ?: player.current
+            val videoOpen = app.wave.music.playback.Video.open
+            val videoState by (app.wave.music.playback.Video.engine?.state ?: kotlinx.coroutines.flow.MutableStateFlow(app.wave.music.playback.VideoState())).collectAsState()
             val legacyMini = settings.legacyUi
             val songOnItsOwn = !legacyMini && (settings.separateMiniPlayer || settings.topSearch)
-            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && songOnItsOwn && dockSong != null)
+            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && songOnItsOwn && (dockSong != null || (videoOpen != null && app.wave.music.playback.Video.minimized)))
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -987,11 +991,16 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     },
                     haze = barHaze,
-                    // A video open: its own mini player stands in for the song's.
-                    now = if (legacyMini || app.wave.music.playback.Video.open != null) null else dockSong,
-                    playing = player.isPlaying,
-                    loading = preparing,
-                    onOpenPlayer = { openPlayer(null) },
+                    // A video shrunk down takes the song's place in the dock (full, the dock leaves it out).
+                    now = when {
+                        legacyMini -> null
+                        videoOpen != null -> videoOpen.takeIf { app.wave.music.playback.Video.minimized }?.let { app.wave.music.playback.NowPlaying(it.videoId, it.title, it.artist, it.thumbnail) }
+                        else -> dockSong
+                    },
+                    playing = if (videoOpen != null) videoState.playing else player.isPlaying,
+                    loading = if (videoOpen != null) !videoState.firstFrame && videoState.error == null else preparing,
+                    onOpenPlayer = { if (videoOpen != null) app.wave.music.playback.Video.minimized = false else openPlayer(null) },
+                    video = videoOpen != null,
                     showTabs = dockTabs,
                     split = songOnItsOwn,
                     oneRow = oneRow,
@@ -1036,7 +1045,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             )
         }
         // Watching a video: full over everything, or its mini player just above the tabs.
-        app.wave.music.ui.video.VideoPlayerHost(miniBottom = if (!shell && !settings.topSearch) PrismaBarHeight + 2.dp else 12.dp)
+        app.wave.music.ui.video.VideoPlayerHost(miniBottom = if (!shell && !settings.topSearch) PrismaBarHeight + 2.dp else 12.dp, inDock = !shell && !settings.legacyUi)
         // Wave's notices, just above whatever's at the bottom: the player bar, the mini player,
         // or the open player's tray.
         app.wave.music.ui.components.NoticeHost(
@@ -1130,7 +1139,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         playing = player.current != null,
         topSearch = settings.topSearch,
         oneRow = !settings.legacyUi && settings.dockOneRow && currentWindowDp().screenWidthDp >= 840,
-        onDone = { touring = false },
+        onDone = {
+            touring = false
+            scope.launch { listState.animateScrollToItem(0) }
+        },
+        scrollBy = if (tab == 0 && stack.isEmpty() && !showSearch) ({ px -> listState.animateScrollBy(px, androidx.compose.animation.core.tween(420)) }) else null,
     )
 
     if (askSignOut) {

@@ -121,6 +121,7 @@ object RenderApp {
             app.wave.music.data.WaveSettings.preview { it.copy(setupDone = true, seenV2 = false) }
         }
         if (mode == "tour") app.wave.music.ui.home.Tour.requested = true
+        if (mode.startsWith("tour") && mode.length > 4) { app.wave.music.ui.home.Tour.requested = true; app.wave.music.ui.home.Tour.startAt = mode.removePrefix("tour").toInt() }
         if (mode == "updatepop") app.wave.music.ui.home.RenderStart.intro = true
         if (mode == "updatepop" || mode == "settings") app.wave.music.data.WaveSettings.preview { it.copy(setupDone = true, seenV2 = true, updatePopupShownFor = "", updateBannerClosedFor = "") }
         if (mode.startsWith("search-")) {

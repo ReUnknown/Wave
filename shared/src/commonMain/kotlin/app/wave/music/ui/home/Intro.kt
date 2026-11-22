@@ -1,5 +1,11 @@
 package app.wave.music.ui.home
 
+import androidx.compose.ui.draw.shadow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Sensors
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.ui.composed
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -83,6 +89,8 @@ import kotlin.math.sin
 /** Asking for the tour again (Settings › About › Show me around). */
 object Tour {
     var requested by mutableStateOf(false)
+    /** Renders only: the stop to start on. */
+    var startAt = 0
 }
 
 /**
@@ -274,11 +282,11 @@ private class TourStep(val key: String?, val title: String, val body: String)
  * Skip to leave. Parts that aren't on screen right now are skipped.
  */
 @Composable
-fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () -> Unit) {
+fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () -> Unit, scrollBy: (suspend (Float) -> Unit)? = null) {
     val c = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val statusTop = with(density) { topInset().toPx() }
-    var at by remember { mutableIntStateOf(0) }
+    var at by remember { mutableIntStateOf(Tour.startAt) }
     val reveal = remember { Animatable(0f) }
     LaunchedEffect(Unit) { reveal.animateTo(1f, tween(300)) }
     BoxWithConstraints(
@@ -298,8 +306,9 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
             fun has(k: String) = findTarget(k, screen) != null
             buildList {
                 if (has("pick")) add(TourStep("pick", "Picks for you", "Albums, playlists and new releases chosen for you. Tap a card to open it, or its play button to start it right away."))
-                if (has("songrow")) add(TourStep("songrow", "Songs to play", "Tap a song to play it with the rest of the mix. Hold it for more."))
-                add(TourStep(if (has("menu")) "menu" else null, "Menus from the ⋮", "Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to queue, add to a playlist, start radio, go to the artist."))
+                // Home scrolls these into view, so they're on the tour even when they start lower down.
+                if (has("songrow") || scrollBy != null) add(TourStep("songrow", "Songs to play", "Tap a song to play it with the rest of the mix. Hold it for more."))
+                add(TourStep(if (has("menu") || scrollBy != null) "menu" else null, "Menus from the ⋮", "Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to queue, add to a playlist, start radio, go to the artist."))
                 if (has("tab-0")) add(TourStep("tab-0", "Home", "Your picks, mixes and what you played lately. Tap it again to jump back to the top."))
                 if (has("tab-1")) add(TourStep("tab-1", "Library", "Liked songs, your playlists, albums and artists you saved, and your history."))
                 if (has("tab-2")) add(TourStep("tab-2", "Search", "Songs, artists, albums and playlists, with filters. Your library shows up as you type."))
@@ -312,6 +321,23 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
         }
         val steps = frozen ?: live
         val step = steps[at.coerceIn(0, steps.lastIndex)]
+        // Parts of home further down: scroll until the part sits clearly in view (upper third),
+        // clear of the top bar and the dock, instead of peeking in at an edge.
+        LaunchedEffect(at, step.key) {
+            val key = step.key ?: return@LaunchedEffect
+            val by = scrollBy ?: return@LaunchedEffect
+            if (key !in setOf("pick", "songrow", "menu")) return@LaunchedEffect
+            val h = full.height
+            repeat(12) {
+                val r = TourTargets.rects.entries.filter { it.key.substringBefore('@') == key }.map { it.value }.minByOrNull { it.top }
+                when {
+                    r == null -> by(h * 0.5f)
+                    r.top >= statusTop + 64 * d && r.center.y in (h * 0.16f)..(h * 0.52f) -> return@LaunchedEffect
+                    else -> by(r.center.y - h * 0.32f)
+                }
+                delay(360)
+            }
+        }
         // A little room around the part it lights up.
         val target = step.key?.let { findTarget(it, full) }?.let { Rect(it.left - 6 * d, it.top - 6 * d, it.right + 6 * d, it.bottom + 6 * d) }
         // The spotlight glides from one stop to the next.
@@ -349,6 +375,7 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
                     Text("${i + 1} of ${steps.size}", color = c.primary, style = TextStyle(fontFamily = prismaTextFont, fontSize = 12.sp, fontWeight = FontWeight.Bold))
                     Text(s.title, Modifier.padding(top = 4.dp), color = c.onSurface, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 22.sp, fontWeight = FontWeight.Bold))
                     Text(s.body, Modifier.padding(top = 6.dp), color = c.onSurface.copy(alpha = 0.75f), style = TextStyle(fontFamily = prismaTextFont, fontSize = 15.sp, lineHeight = 21.sp))
+                    if (s.title == "Menus from the ⋮") MenuPreview()
                 }
             }
             Row(Modifier.padding(top = 18.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -499,6 +526,36 @@ fun JustUpdatedPopup(version: String, notes: String, onAll: () -> Unit, onDone: 
                     Modifier.height(50.dp).pressable(CircleShape, c.primary, pressedScale = 0.95f, onClick = onDone).padding(horizontal = 28.dp),
                     contentAlignment = Alignment.Center,
                 ) { Text("Nice", color = c.onPrimary, style = TextStyle(fontFamily = prismaDisplayFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)) }
+            }
+        }
+    }
+}
+
+
+/** What a ⋮ menu looks like, for the tour: a small copy of the real one. */
+@Composable
+private fun MenuPreview() {
+    val c = MaterialTheme.colorScheme
+    val items = listOf(
+        androidx.compose.material.icons.Icons.Rounded.SkipNext to "Play next",
+        androidx.compose.material.icons.Icons.AutoMirrored.Rounded.QueueMusic to "Add to queue",
+        androidx.compose.material.icons.Icons.AutoMirrored.Rounded.PlaylistAdd to "Add to playlist",
+        androidx.compose.material.icons.Icons.Rounded.Sensors to "Start a mix",
+        androidx.compose.material.icons.Icons.Rounded.Person to "Go to artist",
+    )
+    Column(
+        Modifier
+            .padding(top = 14.dp)
+            .width(220.dp)
+            .shadow(10.dp, RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(22.dp)))
+            .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(22.dp)))
+            .background(c.surfaceContainerHighest)
+            .padding(vertical = 6.dp),
+    ) {
+        items.forEach { (icon, label) ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                androidx.compose.material3.Icon(icon, null, tint = c.onSurface, modifier = Modifier.size(20.dp))
+                Text(label, color = c.onSurface, style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp, fontWeight = FontWeight.Medium))
             }
         }
     }

@@ -260,6 +260,14 @@ private fun HeroVideo(video: SongItem, onClick: () -> Unit) {
 
 // ---------------------------------------------------------------- Watching
 
+/** Where the dock's song row wants the video's picture (the dock is the video's mini player). */
+object VideoDock {
+    val spot = mutableStateOf<Rect?>(null)
+}
+
+/** Stops the video and closes its player. */
+fun closeVideo() = close()
+
 private fun close() {
     Video.engine?.setBarsHidden(false)
     Video.engine?.holdOrientation(0)
@@ -304,7 +312,7 @@ private fun Modifier.reportSpot(spot: MutableState<Rect?>, enabled: Boolean): Mo
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun VideoPlayerHost(miniBottom: Dp = 12.dp) {
+fun VideoPlayerHost(miniBottom: Dp = 12.dp, inDock: Boolean = false) {
     val target = Video.open
     var shown by remember { mutableStateOf(target) }
     if (target != null) shown = target
@@ -367,7 +375,9 @@ fun VideoPlayerHost(miniBottom: Dp = 12.dp) {
         // The controls are frosted glass over the picture, like Wave's dock.
         val glassOver = dev.chrisbanes.haze.rememberHazeState()
         val fullSpot = remember { mutableStateOf<Rect?>(null) }
-        val miniSpot = remember { mutableStateOf<Rect?>(null) }
+        val ownSpot = remember { mutableStateOf<Rect?>(null) }
+        // In the dock, the dock's song row is the mini player; otherwise Wave draws its own.
+        val miniSpot = if (inDock) VideoDock.spot else ownSpot
         var origin by remember { mutableStateOf(Offset.Zero) }
         val fullAlpha by animateFloatAsState(if (full) 1f else 0f, tween(if (full) 220 else 180), label = "videoFull")
         val miniAlpha by animateFloatAsState(if (mini) 1f else 0f, tween(if (mini) 220 else 140, delayMillis = if (mini) 120 else 0), label = "videoMini")
@@ -378,7 +388,7 @@ fun VideoPlayerHost(miniBottom: Dp = 12.dp) {
             if (fullAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = fullAlpha }) {
                 FullLayout(engine, state, current, actions, history, edgeToEdge, front = false, spot = fullSpot)
             }
-            if (miniAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha }) {
+            if (miniAlpha > 0f && !inDock) Box(Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha }) {
                 MiniLayout(engine, state, current, miniBottom, front = false, spot = miniSpot)
             }
             // 2. The one picture, gliding to wherever it's wanted.
@@ -406,7 +416,7 @@ fun VideoPlayerHost(miniBottom: Dp = 12.dp) {
             if (fullAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = fullAlpha }) {
                 if (full) FullLayout(engine, state, current, actions, history, edgeToEdge, front = true, spot = fullSpot, glassOver = glassOver)
             }
-            if (miniAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha }) {
+            if (miniAlpha > 0f && !inDock) Box(Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha }) {
                 if (mini) MiniLayout(engine, state, current, miniBottom, front = true, spot = miniSpot)
             }
         }
@@ -537,7 +547,9 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
         .glass(glassOver, 28.dp, Color.Black, listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.35f))), Color.Black.copy(alpha = 0.55f))
         .border(1.dp, Color.White.copy(alpha = 0.12f), panel)
 
-    BoxWithConstraints(modifier) {
+    var chipSpot by remember { mutableStateOf<Rect?>(null) }
+    var controlsOrigin by remember { mutableStateOf(Offset.Zero) }
+    BoxWithConstraints(modifier.onGloballyPositioned { controlsOrigin = it.positionInRoot() }) {
         val w = constraints.maxWidth
         Box(
             Modifier.fillMaxSize().pointerInput(w) {
@@ -580,7 +592,7 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                         Icon(Icons.Rounded.KeyboardArrowDown, "Shrink to the mini player", tint = Color.White)
                     }
                     Spacer(Modifier.weight(1f))
-                    QualityMenu(engine, state, glass, menuOpen) { menuOpen = it }
+                    QualityChip(state, glass, onSpot = { chipSpot = it }) { menuOpen = true }
                     if (full) Row(
                         Modifier.height(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onListen).padding(start = 14.dp, end = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -652,6 +664,7 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                 }
             }
         }
+        QualityPanel(engine, state, glassOver, menuOpen, chipSpot, controlsOrigin) { menuOpen = false }
     }
 }
 
@@ -663,34 +676,58 @@ private fun SoftButton(icon: ImageVector, label: String, size: Dp, enabled: Bool
     }
 }
 
-/** Picture quality as a dropdown: Auto (Wave picks for your connection), or a size of your own. */
+/** The quality button: Auto (with the size showing) or the size you picked. */
 @Composable
-private fun QualityMenu(engine: VideoEngine, state: VideoState, glass: Modifier, open: Boolean, onOpen: (Boolean) -> Unit) {
+private fun QualityChip(state: VideoState, glass: Modifier, onSpot: (Rect) -> Unit, onClick: () -> Unit) {
+    if (state.heights.none { it >= 144 }) return
+    Row(
+        Modifier.height(44.dp).onGloballyPositioned { onSpot(it.boundsInRoot()) }.clip(CircleShape).then(glass).clickable(onClick = onClick).padding(start = 14.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(Icons.Rounded.Tune, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        Text(state.cap?.let { "${it}p" } ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: "")), color = Color.White, style = body(14.sp, FontWeight.SemiBold))
+    }
+}
+
+/**
+ * The quality dropdown: frosted glass over the video like every menu in Wave 2.0, growing out of the
+ * quality button. Auto, or a size of your own.
+ */
+@Composable
+private fun QualityPanel(engine: VideoEngine, state: VideoState, glassOver: dev.chrisbanes.haze.HazeState?, open: Boolean, anchor: Rect?, origin: Offset, onClose: () -> Unit) {
     val sizes = state.heights.filter { it >= 144 }.distinct().sortedDescending()
-    if (sizes.isEmpty()) return
     fun name(h: Int) = when { h >= 2160 -> "4K"; h >= 1440 -> "1440p"; h >= 1080 -> "1080p HD"; h >= 720 -> "720p HD"; else -> "${h}p" }
-    Box {
-        Row(
-            Modifier.height(44.dp).clip(CircleShape).then(glass).clickable { onOpen(true) }.padding(start = 14.dp, end = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+    val progress by animateFloatAsState(if (open) 1f else 0f, if (open) spring(dampingRatio = 0.8f, stiffness = 520f) else tween(140), label = "quality")
+    if (progress == 0f || anchor == null) return
+    val c = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val shape = RoundedCornerShape(PrismaLook.corner(24.dp))
+    Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } }) {
+        val a = anchor.translate(-origin)
+        Column(
+            Modifier
+                .offset { IntOffset((a.right - 236.dp.toPx()).roundToInt().coerceAtLeast(8.dp.roundToPx()), (a.bottom + 8.dp.toPx()).roundToInt()) }
+                .width(236.dp)
+                .graphicsLayer {
+                    alpha = progress.coerceIn(0f, 1f)
+                    scaleX = 0.85f + 0.15f * progress
+                    scaleY = 0.7f + 0.3f * progress
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)
+                    shadowElevation = 16.dp.toPx() * progress
+                    this.shape = shape
+                    clip = true
+                }
+                .glass(glassOver, 28.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainerHigh.copy(alpha = 0.62f))), c.surfaceContainerHigh)
+                .background(Color.White.copy(alpha = 0.04f))
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(vertical = 6.dp),
         ) {
-            Icon(Icons.Rounded.Tune, null, tint = Color.White, modifier = Modifier.size(18.dp))
-            Text(state.cap?.let { "${it}p" } ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: "")), color = Color.White, style = body(14.sp, FontWeight.SemiBold))
-        }
-        val c = MaterialTheme.colorScheme
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { onOpen(false) },
-            shape = RoundedCornerShape(PrismaLook.corner(22.dp)),
-            containerColor = c.surfaceContainerHigh,
-        ) {
-            Text("Quality", Modifier.padding(start = 18.dp, top = 6.dp, bottom = 4.dp), color = c.onSurface.copy(alpha = 0.6f), style = body(12.sp, FontWeight.Bold))
-            val options: List<Int?> = listOf<Int?>(null) + sizes
-            options.forEach { h ->
+            Text("Quality", Modifier.padding(start = 18.dp, top = 8.dp, bottom = 4.dp), color = c.onSurface.copy(alpha = 0.6f), style = body(12.sp, FontWeight.Bold))
+            (listOf<Int?>(null) + sizes).forEach { h ->
                 val on = h == state.cap
                 Row(
-                    Modifier.widthIn(min = 210.dp).clickable { engine.setQuality(h); onOpen(false) }.padding(horizontal = 18.dp, vertical = 11.dp),
+                    Modifier.fillMaxWidth().clickable { engine.setQuality(h); onClose() }.padding(horizontal = 18.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -724,11 +761,8 @@ private fun MiniLayout(engine: VideoEngine, state: VideoState, target: VideoTarg
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.width(112.dp).aspectRatio(16f / 9f).reportSpot(spot, !front))
                 Column(Modifier.weight(1f).graphicsLayer { alpha = if (front) 1f else 0f }) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("VIDEO", Modifier.clip(CircleShape).background(c.primary).padding(horizontal = 7.dp, vertical = 1.dp), color = c.onPrimary, style = body(9.sp, FontWeight.Bold).copy(letterSpacing = 0.8.sp))
-                        Text(target.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Text(target.title, Modifier.padding(top = 2.dp), color = c.onSurface, style = body(15.sp, FontWeight.SemiBold).copy(lineHeight = 18.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(target.title, color = c.onSurface, style = body(15.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(target.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box(Modifier.graphicsLayer { alpha = if (front) 1f else 0f }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
