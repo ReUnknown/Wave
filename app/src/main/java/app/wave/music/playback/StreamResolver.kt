@@ -105,7 +105,54 @@ object StreamResolver {
     /** A music video: an HLS playlist with every size of picture and the sound together. */
     class VideoStreams(val manifestUrl: String, val headers: Map<String, String>)
 
-    suspend fun videoFor(videoId: String, connectivityManager: ConnectivityManager): Result<VideoStreams> =
+    /**
+     * Videos ask clients that need no anti-bot token first: making that token in a hidden WebView
+     * can take many seconds, and a video's HLS playlist doesn't need it. The token path is the
+     * fallback.
+     */
+    @Volatile private var quickVideo: Pair<Long, InnerTubeExtractor>? = null
+    private val noTokens = object : TokenProvider {
+        override val capabilities = TokenProviderCapabilities(emptySet(), usesWebView = false)
+        override suspend fun getPoToken(videoId: String, visitorData: String, cookie: String?): PoTokenResult? = null
+        override suspend fun close() = Unit
+    }
+
+    private suspend fun quickVideoExtractor(): InnerTubeExtractor {
+        val transport = YouTube.extractionTransport()
+        quickVideo?.takeIf { it.first == transport.generation }?.let { return it.second }
+        val main = bundle()
+        val remoteStore = RemotePlayerConfigStore(transport.httpClient, configRepository, logger)
+        val extractor = InnerTubeExtractor(
+            configParser = YtConfigParserImpl(transport.httpClient, transport.innerTube, remoteStore, logger).withEmbeddedConfigFallback(),
+            cipherService = main.cipherService,
+            innerTube = transport.innerTube,
+            tokenProvider = noTokens,
+            logger = logger,
+        )
+        quickVideo = transport.generation to extractor
+        return extractor
+    }
+
+    suspend fun videoFor(videoId: String, connectivityManager: ConnectivityManager): Result<VideoStreams> {
+        val quick = runCatching {
+            kotlinx.coroutines.withTimeout(12_000) {
+                val stream = quickVideoExtractor().extract(
+                    videoId = videoId,
+                    hints = ContentHints(wantVideo = true, maxVideoHeight = 1080).withStreamCapabilities(allowHls = true, allowSabr = false, allowBoundedRange = true),
+                    excludedClients = emptySet(),
+                    audioQuality = AudioQuality.AUTO.toInnerTubeX(connectivityManager),
+                    clientPlaybackNonce = generateClientPlaybackNonce(),
+                )
+                val url = stream?.videoUrl?.takeIf { it.startsWith("https://") } ?: error("no playlist")
+                VideoStreams(url, stream.headers)
+            }
+        }
+        if (quick.isSuccess) return quick
+        if (quick.exceptionOrNull() is CancellationException && quick.exceptionOrNull() !is kotlinx.coroutines.TimeoutCancellationException) throw quick.exceptionOrNull()!!
+        return videoWithTokens(videoId, connectivityManager)
+    }
+
+    private suspend fun videoWithTokens(videoId: String, connectivityManager: ConnectivityManager): Result<VideoStreams> =
         try {
             val hints = ContentHints(wantVideo = true, maxVideoHeight = 1080)
                 .withStreamCapabilities(allowHls = true, allowSabr = false, allowBoundedRange = true)

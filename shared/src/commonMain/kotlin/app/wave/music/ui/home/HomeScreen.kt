@@ -206,6 +206,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         if (WaveSettings.state.value.checkUpdates) Updater.check()
     }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
+    // A video took over (from the player's ⋮ too): the music player isn't open anymore, or home would
+    // keep its bar and mini player hidden for a player that's gone.
+    LaunchedEffect(app.wave.music.playback.Video.open) { if (app.wave.music.playback.Video.open != null) showPlayer = false }
     // Asked to open from home's banner; handled once the player's layout state exists below.
     var openRequested by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
