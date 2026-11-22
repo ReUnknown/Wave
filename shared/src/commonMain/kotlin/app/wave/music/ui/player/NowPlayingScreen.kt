@@ -763,8 +763,8 @@ private fun LiveControls(state: PlayerUiState, song: NowPlaying, modifier: Modif
     val c = MaterialTheme.colorScheme
     Column(modifier) {
         Text(song.title, color = c.onBackground, style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaDisplayFont, fontSize = if (dense) 24.sp else 28.sp, lineHeight = if (dense) 28.sp else 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, shadow = titleShadow()), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            app.wave.music.ui.radio.LivePill()
+        // No LIVE tag here: the button below already says "Playing live".
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(song.artist, color = c.onBackground.copy(alpha = 0.7f), style = androidx.compose.ui.text.TextStyle(fontFamily = app.wave.music.platform.prismaTextFont, fontSize = 15.sp, fontWeight = FontWeight.Medium, shadow = titleShadow()), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(if (airy) 28.dp else if (dense) 10.dp else 18.dp))

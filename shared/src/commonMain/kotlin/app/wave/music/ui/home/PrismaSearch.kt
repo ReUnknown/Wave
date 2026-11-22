@@ -339,9 +339,10 @@ fun PrismaSearch(
                         }
                     }
                 } }
-                val bigTop = (found as? Found.Ready)?.groups?.firstOrNull()?.items?.firstOrNull()?.takeIf { filter == SearchTab.Top && confidentMatch(submitted.orEmpty(), it) }
-                // Searching for radio: a big way in to live radio, on top.
+                // Searching for radio: a big way in to live radio, on top. It *is* the top result, so
+                // no big song card comes in over it.
                 val radioQuery = submitted.orEmpty().let { q -> Regex("\\b(radio|fm|am|station|stations|live)\\b", RegexOption.IGNORE_CASE).containsMatchIn(q) }
+                val bigTop = (found as? Found.Ready)?.groups?.firstOrNull()?.items?.firstOrNull()?.takeIf { !radioQuery && filter == SearchTab.Top && confidentMatch(submitted.orEmpty(), it) }
                 if (radioQuery) item(key = "radio-go") { RadioShortcut(submitted.orEmpty(), big = true) { onRadio(radioSearchText(submitted.orEmpty())) } }
                 // Filters on top, or right under the big top result when there is one.
                 if (bigTop == null) filterRow()
@@ -351,7 +352,7 @@ fun PrismaSearch(
                     is Found.Ready -> {
                         if (f.groups.isEmpty()) item { Hint("Nothing found for \"$submitted\"") }
                         // The big top result only when it's clearly what you searched for.
-                        val top = f.groups.firstOrNull()?.items?.firstOrNull()?.takeIf { filter == SearchTab.Top && confidentMatch(submitted.orEmpty(), it) }
+                        val top = bigTop
                         if (top != null) item(key = "top") { TopResult(top, onOpen = { pick(top) }, onPlay = {
                             scope.launch { PrismaRecents.add(Recent.Picked(top)) }
                             onPlay(top, false)
