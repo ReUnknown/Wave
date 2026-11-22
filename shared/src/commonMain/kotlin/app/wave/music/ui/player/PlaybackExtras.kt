@@ -89,6 +89,10 @@ fun PlaybackExtras(speed: Float, ink: Color, accent: Color, onAccent: Color, mod
     }
 }
 
+/** Wave's volume bar on its own (the video player's tray uses it too). */
+@Composable
+fun WaveVolume(ink: Color, accent: Color, onAccent: Color) = BigVolume(ink, accent, onAccent)
+
 /** A chunky volume bar, Pixel style: the filled part carries the speaker icon. */
 @Composable
 private fun BigVolume(ink: Color, accent: Color, onAccent: Color) {

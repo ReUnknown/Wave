@@ -1,5 +1,9 @@
 package app.wave.music.ui.video
 
+import androidx.compose.animation.core.animateFloat
+import sh.calvin.reorderable.ReorderableItem
+import androidx.compose.material.icons.rounded.DragIndicator
+import app.wave.music.ui.player.revealDrag
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import kotlinx.coroutines.launch
@@ -324,6 +328,7 @@ private class OpenMenu(val kind: String, val anchor: Rect)
 object VideoRender {
     var menu: Pair<String, Rect>? = null
     var upNext = false
+    var volume = false
 }
 
 /**
@@ -439,8 +444,12 @@ fun VideoPlayerHost() {
                 // 3. Controls and words.
                 Layer(front = true)
               }
-                // 4. What's next, sliding up (or in from the side when it's sideways).
-                UpNextPanel(menuGlass, upNextOpen, sideways = layout != "upright", current = current, onClose = { upNextOpen = false }) { v ->
+                // 4. What's next: upright, its own page like the songs' Up next; sideways, a side panel.
+                if (layout == "upright") VideoQueue(state, current, upNextOpen, onClose = { upNextOpen = false }) { v ->
+                    upNextOpen = false
+                    history += current
+                    Video.watch(v, Video.upNext.filter { it.videoId != v.videoId } + current)
+                } else UpNextPanel(menuGlass, upNextOpen, sideways = true, current = current, onClose = { upNextOpen = false }) { v ->
                     upNextOpen = false
                     history += current
                     Video.watch(v, Video.upNext.filter { it.videoId != v.videoId } + current)
@@ -505,6 +514,8 @@ private fun UprightLayout(engine: VideoEngine, state: VideoState, target: VideoT
             Row(Modifier.topBarPadding().padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().graphicsLayer { alpha = if (front) 1f else 0f }) {
                 GlassButton(Icons.Rounded.KeyboardArrowDown, "Close the video", actions.onClose)
                 Spacer(Modifier.weight(1f))
+                GlassButton(Icons.Rounded.Fullscreen, "Full screen", actions.onFullscreen)
+                Spacer(Modifier.width(8.dp))
                 var at by remember { mutableStateOf(Rect.Zero) }
                 Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) { GlassButton(Icons.Rounded.MoreVert, "More options") { actions.onMenu(at) } }
             }
@@ -550,10 +561,6 @@ private fun UprightControls(engine: VideoEngine, state: VideoState, target: Vide
             Column(Modifier.weight(1f)) {
                 Text(target.title, color = c.onBackground, style = display(28.sp).copy(lineHeight = 33.sp, letterSpacing = (-0.4).sp, shadow = shadow), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(target.artist, color = c.onBackground.copy(alpha = 0.7f), style = body(16.sp, FontWeight.Medium).copy(shadow = shadow), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            // Where the music player has Like: full screen.
-            Box(Modifier.size(48.dp).pressable(RoundedCornerShape(24.dp), c.onBackground.copy(alpha = 0.1f), pressedScale = 0.88f, onClick = actions.onFullscreen), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Fullscreen, "Full screen", tint = c.onBackground)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -604,42 +611,176 @@ private fun UprightControls(engine: VideoEngine, state: VideoState, target: Vide
     }
 }
 
-/** The music player's frosted tray: Up next (what's coming), and Full screen where Lyrics is. */
+/**
+ * The music player's frosted tray, all Up next: what's coming (tap for the whole list). Pull its
+ * handle up (or tap it) for Wave's volume, like the music player.
+ */
 @Composable
 private fun VideoTray(actions: VideoActions) {
     val c = MaterialTheme.colorScheme
+    val reveal = app.wave.music.ui.player.rememberReveal()
+    LaunchedEffect(Unit) { if (VideoRender.volume) reveal.toggle() }
     Column(
         Modifier
             .padding(top = 16.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             .background(androidx.compose.ui.graphics.lerp(Color.Black, c.primary, 0.12f).copy(alpha = 0.6f))
+            .revealDrag(reveal)
             .navigationBarsPadding(),
     ) {
-        Box(Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(CircleShape).background(c.onBackground.copy(alpha = 0.3f)))
-        Row(Modifier.heightIn(min = 68.dp).padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            val next = Video.upNext.firstOrNull()
-            Row(
-                Modifier.weight(1f).pressable(RoundedCornerShape(20.dp), pressedScale = 0.96f, enabled = next != null, onClick = actions.onUpNext).padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (next != null) AsyncImage(next.thumbnail, null, Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-                else Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onBackground)
-                Column {
-                    Text("Up next", color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(next?.let { "${it.title} · ${it.artist}" } ?: "Finding more videos…", color = c.onBackground.copy(alpha = 0.65f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        app.wave.music.ui.player.RevealHandle(reveal, c.onBackground.copy(alpha = 0.3f), Modifier.padding(top = 4.dp))
+        val next = Video.upNext.firstOrNull()
+        Row(
+            Modifier
+                .heightIn(min = 68.dp)
+                .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+                .fillMaxWidth()
+                .pressable(RoundedCornerShape(20.dp), pressedScale = 0.97f, enabled = next != null, onClick = actions.onUpNext)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (next != null) AsyncImage(next.thumbnail, null, Modifier.size(width = 64.dp, height = 36.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+            else Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onBackground)
+            Column(Modifier.weight(1f)) {
+                Text("Up next", color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(next?.let { "${it.title} · ${it.artist}" } ?: "Finding more videos…", color = c.onBackground.copy(alpha = 0.65f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (Video.upNext.size > 1) Text("${Video.upNext.size} videos", color = c.onBackground.copy(alpha = 0.55f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Rounded.KeyboardArrowUp, null, tint = c.onBackground.copy(alpha = 0.6f))
+        }
+        app.wave.music.ui.player.RevealBox(reveal) {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)) {
+                app.wave.music.ui.player.WaveVolume(c.onBackground, c.primary, c.onPrimary)
+            }
+        }
+    }
+}
+
+/**
+ * Up next for videos, like the songs' Up next: a big title, the video playing now lit up with the
+ * Wave lines moving, then what's coming. Tap one to watch it, X to drop it, drag the handle to move it.
+ */
+@Composable
+private fun VideoQueue(state: VideoState, current: VideoTarget, open: Boolean, onClose: () -> Unit, onPick: (VideoTarget) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val p by animateFloatAsState(if (open) 1f else 0f, if (open) spring(dampingRatio = 0.86f, stiffness = 380f) else tween(240), label = "videoQueue")
+    if (p == 0f) return
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    var entries by remember { mutableStateOf(Video.upNext) }
+    var dragging by remember { mutableStateOf(false) }
+    LaunchedEffect(Video.upNext) { if (!dragging) entries = Video.upNext }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val reorder = sh.calvin.reorderable.rememberReorderableLazyListState(listState) { from, to ->
+        val a = entries.indexOfFirst { "q" + it.videoId == from.key }
+        val b = entries.indexOfFirst { "q" + it.videoId == to.key }
+        if (a >= 0 && b >= 0) {
+            entries = entries.toMutableList().apply { add(b, removeAt(a)) }
+            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentFrequentTick)
+        }
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = p.coerceIn(0f, 1f); translationY = (1f - p) * size.height * 0.25f }
+            .blocksTouchesBelow()
+            .background(c.background),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        app.wave.music.ui.components.BlurredImage(current.thumbnail, Modifier.fillMaxWidth().height(600.dp).graphicsLayer { scaleX = 1.3f; scaleY = 1.3f }, radius = 80.dp, fadeBottom = 0.4f)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.25f), 0.45f to c.background.copy(alpha = 0.7f), 0.75f to c.background)))
+        LazyColumn(state = listState, modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "head") {
+                Column(Modifier.topBarPadding()) {
+                    Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Up next", color = c.onBackground, style = display(34.sp).copy(letterSpacing = (-0.6).sp))
+                            Text("Music videos", color = c.onBackground.copy(alpha = 0.6f), fontSize = 14.sp)
+                        }
+                        GlassButton(Icons.Rounded.KeyboardArrowDown, "Close Up next", onClose)
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
             }
-            Box(Modifier.width(1.dp).height(32.dp).background(c.onBackground.copy(alpha = 0.16f)))
-            Row(
-                Modifier.width(150.dp).pressable(RoundedCornerShape(20.dp), pressedScale = 0.94f, onClick = actions.onFullscreen).padding(10.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.Fullscreen, null, tint = c.onBackground)
-                Text("  Full screen", color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, softWrap = false)
+            item(key = "now") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(PrismaLook.corner(20.dp)))
+                        .background(Brush.horizontalGradient(listOf(c.primary.copy(alpha = 0.28f), c.primary.copy(alpha = 0.1f))))
+                        .padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    AsyncImage(current.thumbnail, null, Modifier.size(width = 80.dp, height = 45.dp).clip(RoundedCornerShape(PrismaLook.corner(12.dp))), contentScale = ContentScale.Crop)
+                    Column(Modifier.weight(1f)) {
+                        Text(current.title, color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(current.artist, color = c.onBackground.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    WatchingLines(state.playing, c.primary)
+                }
             }
+            if (entries.isNotEmpty()) item(key = "label") {
+                Text("Coming up", Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp), color = c.onBackground.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+            items(entries, key = { "q" + it.videoId }) { v ->
+                ReorderableItem(reorder, key = "q" + v.videoId, modifier = Modifier.animateItem()) { isDragging ->
+                    val lift by animateFloatAsState(if (isDragging) 1f else 0f, WaveMotion.bouncy(), label = "lift")
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp)
+                            .graphicsLayer { scaleX = 1f + 0.03f * lift; scaleY = 1f + 0.03f * lift }
+                            .shadow(12.dp * lift, RoundedCornerShape(PrismaLook.corner(20.dp)))
+                            .clip(RoundedCornerShape(PrismaLook.corner(20.dp)))
+                            .background(c.surfaceContainerHighest.copy(alpha = lift.coerceIn(0f, 1f)))
+                            .clickable { onPick(v) }
+                            .padding(start = 10.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        AsyncImage(v.thumbnail, null, Modifier.size(width = 80.dp, height = 45.dp).clip(RoundedCornerShape(PrismaLook.corner(12.dp))), contentScale = ContentScale.Crop)
+                        Column(Modifier.weight(1f)) {
+                            Text(v.title, color = c.onBackground, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(v.artist, color = c.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        androidx.compose.material3.IconButton(onClick = { Video.upNext = Video.upNext.filter { it.videoId != v.videoId } }) {
+                            Icon(Icons.Rounded.Close, "Remove ${v.title} from Up next", tint = c.onBackground.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                        }
+                        androidx.compose.material3.IconButton(
+                            onClick = {},
+                            modifier = Modifier.draggableHandle(
+                                onDragStarted = { dragging = true },
+                                onDragStopped = { dragging = false; Video.upNext = entries },
+                            ),
+                        ) { Icon(Icons.Rounded.DragIndicator, "Drag to move ${v.title}", tint = c.onSurfaceVariant) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The Wave mark's three lines, rippling while the video plays. */
+@Composable
+private fun WatchingLines(playing: Boolean, color: Color) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
+    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), androidx.compose.animation.core.infiniteRepeatable(tween(1100, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
+    val amount by animateFloatAsState(if (playing) 1f else 0.25f, tween(400), label = "amount")
+    androidx.compose.foundation.Canvas(Modifier.size(width = 28.dp, height = 22.dp)) {
+        val stroke = 2.6.dp.toPx()
+        val amp = 2.6.dp.toPx() * amount
+        repeat(3) { row ->
+            val y0 = size.height * (0.2f + row * 0.3f)
+            val path = androidx.compose.ui.graphics.Path()
+            for (i in 0..24) {
+                val x = size.width * i / 24
+                val y = y0 + amp * kotlin.math.sin(phase + row * 0.9f + x / size.width * 2f * Math.PI.toFloat())
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
         }
     }
 }

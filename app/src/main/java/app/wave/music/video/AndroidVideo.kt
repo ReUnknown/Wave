@@ -75,6 +75,8 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
         }
 
     init {
+        // Wave's own volume (the slider under the player's tray) applies to videos too.
+        scope.launch { app.wave.music.data.WaveSettings.state.collect { exo?.volume = it.appVolume } }
         // Leaving Wave pauses the video (it isn't background music).
         activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) { exo?.pause() }
@@ -119,6 +121,7 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
             val source = HlsMediaSource.Factory(OkHttpDataSource.Factory(http).setDefaultRequestProperties(s.headers))
                 .createMediaSource(MediaItem.Builder().setUri(s.manifestUrl).setMimeType(MimeTypes.APPLICATION_M3U8).build())
             applyCap(_state.value.cap)
+            player.volume = app.wave.music.data.WaveSettings.state.value.appVolume
             player.setMediaSource(source, startMs)
             player.prepare()
             player.play()
