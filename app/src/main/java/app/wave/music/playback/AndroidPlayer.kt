@@ -228,7 +228,7 @@ object AndroidPlayer : PlayerBackend {
      * Autoplay: when you reach the last song of the queue (with repeat off), add songs like it,
      * the way YouTube Music keeps going after a playlist ends.
      */
-    private fun maybeAutoplay() {
+    private fun maybeAutoplay(thenSkip: Boolean = false) {
         val c = controller ?: return
         if (!app.wave.music.data.WaveSettings.state.value.autoplay) return
         if (c.repeatMode != Player.REPEAT_MODE_OFF || c.mediaItemCount == 0) return
@@ -237,7 +237,8 @@ object AndroidPlayer : PlayerBackend {
         val seed = c.getMediaItemAt(last).mediaId
         // A radio station never ends, so there's nothing to keep going after.
         if (app.wave.music.data.isRadioId(seed)) return
-        if (autoplayFrom == seed) return
+        // Next pressed on the last song asks again even if this seed was tried (it may have failed).
+        if (autoplayFrom == seed && !thenSkip) return
         autoplayFrom = seed
         scope.launch {
             val songs = withContext(Dispatchers.IO) {
@@ -255,7 +256,8 @@ object AndroidPlayer : PlayerBackend {
             if (fresh.isNotEmpty()) {
                 ctl.addMediaItems(fresh)
                 queueChanged()
-            }
+                if (thenSkip) ctl.seekToNextMediaItem()
+            } else if (thenSkip) autoplayFrom = null
         }
     }
 
@@ -348,10 +350,19 @@ object AndroidPlayer : PlayerBackend {
     override fun play() { controller?.play() }
 
     override fun togglePlay() { controller?.run { if (isPlaying) pause() else play() } }
-    override fun next() { controller?.seekToNext() }
+    override fun next() {
+        val c = controller ?: return
+        // The last song: Next brings in more songs like it and moves on to the first of them.
+        if (!c.hasNextMediaItem() && c.repeatMode == Player.REPEAT_MODE_OFF && !app.wave.music.data.isRadioId(c.currentMediaItem?.mediaId)) maybeAutoplay(thenSkip = true)
+        else c.seekToNext()
+    }
     override fun previous() { controller?.seekToPrevious() }
     /** Straight to the next / previous song in play order (no "restart this song" step). */
-    override fun nextSong() { controller?.seekToNextMediaItem() }
+    override fun nextSong() {
+        val c = controller ?: return
+        if (!c.hasNextMediaItem() && c.repeatMode == Player.REPEAT_MODE_OFF && !app.wave.music.data.isRadioId(c.currentMediaItem?.mediaId)) maybeAutoplay(thenSkip = true)
+        else c.seekToNextMediaItem()
+    }
     override fun previousSong() { controller?.seekToPreviousMediaItem() }
     override fun seekTo(ms: Long) { controller?.seekTo(ms) }
     override fun skipTo(index: Int) { controller?.seekToDefaultPosition(index) }

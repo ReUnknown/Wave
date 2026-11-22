@@ -51,10 +51,21 @@ interface VideoEngine {
 }
 
 /** A video to watch: a song's video or a music video. */
-data class VideoTarget(val videoId: String, val title: String, val artist: String, val thumbnail: String?)
+data class VideoTarget(
+    val videoId: String,
+    val title: String,
+    val artist: String,
+    val thumbnail: String?,
+    /** The song this is the video of (its own id and album cover), when it came from one. */
+    val songId: String? = null,
+    val songArt: String? = null,
+)
 
 object Video {
     var engine: VideoEngine? = null
+
+    /** Plays a song as music (set by home: the song starts with more like it after). */
+    var playSong: (com.metrolist.innertube.models.SongItem) -> Unit = {}
 
     /** What's open in the video player (null: closed). */
     var open by mutableStateOf<VideoTarget?>(null)

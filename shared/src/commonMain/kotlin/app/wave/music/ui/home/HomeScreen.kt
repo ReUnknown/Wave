@@ -280,6 +280,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
     }
     val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item)) }
+    // "Listen" from a video: the song plays like any other you pick.
+    androidx.compose.runtime.SideEffect { app.wave.music.playback.Video.playSong = { song -> playItem(song, false) } }
     val stack = remember { mutableStateListOf<Destination>().apply { RenderStart.page?.let { add(it) } } }
     // Which way pages move: deeper slides in from the right, back slides in from the left.
     var forward by remember { mutableStateOf(true) }
@@ -646,7 +648,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                   if (prismaHomeUi) {
                     prismaHome(
                         feed = state.feed,
-                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
+                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16),
                         playlists = myPlaylists,
                         guest = session.guest,
                         playItem = playItem,
@@ -666,7 +668,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     item { Hero(hero, jump = emptyList(), onJump = openItem, onSharedBackdrop = false, modernButtons = true) }
                     prismaHome(
                         feed = state.feed,
-                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
+                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16),
                         playlists = myPlaylists,
                         guest = session.guest,
                         playItem = playItem,
@@ -698,7 +700,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     }
                     // What you played in Wave just now comes first; YouTube's history fills in the rest.
-                    val recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16)
+                    val recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16)
                     if (recent.isNotEmpty()) {
                         item { SectionHeader("Your recent spins", "Recently played") }
                         item {

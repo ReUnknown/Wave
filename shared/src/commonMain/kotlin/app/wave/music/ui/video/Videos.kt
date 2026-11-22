@@ -1,5 +1,6 @@
 package app.wave.music.ui.video
 
+import kotlinx.coroutines.flow.drop
 import androidx.compose.foundation.border
 import app.wave.music.ui.components.glass
 import dev.chrisbanes.haze.hazeSource
@@ -147,8 +148,33 @@ fun watchFrom(video: SongItem, list: List<SongItem>) {
  * Watches a song's music video: the same song picked up at the same spot when the video is the
  * song itself, or its official video from the start.
  */
-fun watchSongVideo(songId: String, videoId: String, title: String, artist: String, positionMs: Long = 0) {
-    Video.watch(VideoTarget(videoId, title, artist, Video.thumbnail(videoId)), startMs = if (videoId == songId) positionMs else 0L)
+fun watchSongVideo(songId: String, videoId: String, title: String, artist: String, positionMs: Long = 0, songArt: String? = null) {
+    Video.watch(VideoTarget(videoId, title, artist, Video.thumbnail(videoId), songId = songId, songArt = songArt), startMs = if (videoId == songId) positionMs else 0L)
+}
+
+/**
+ * Back to listening: the song the video came from, with its album cover. When that song is the one
+ * in the player, the player just carries on (your queue, next and previous all still there);
+ * otherwise the song starts with more like it after.
+ */
+private fun listenInstead(target: VideoTarget, atMs: Long) {
+    val songId = target.songId ?: target.videoId
+    val sameTiming = songId == target.videoId
+    close()
+    val now = PlayerConnection.state.value.current
+    if (now?.videoId == songId) {
+        if (sameTiming) PlayerConnection.seekTo(atMs)
+        if (!PlayerConnection.state.value.isPlaying) PlayerConnection.togglePlay()
+    } else {
+        Video.playSong(
+            SongItem(
+                id = songId,
+                title = target.title.replace(Regex("\\s*[(\\[](official|music|lyric|video|audio)[^)\\]]*[)\\]]", RegexOption.IGNORE_CASE), "").trim(),
+                artists = listOf(com.metrolist.innertube.models.Artist(target.artist, null)),
+                thumbnail = target.songArt ?: target.thumbnail.orEmpty(),
+            ),
+        )
+    }
 }
 
 // ---------------------------------------------------------------- Cards and the Videos page
@@ -335,6 +361,13 @@ fun VideoPlayerHost(miniBottom: Dp = 12.dp, inDock: Boolean = false) {
             Video.startAt = 0
             if (Video.upNext.size < 3) Video.upNext = Video.upNext + VideoRepository.upNextFor(t).filter { n -> Video.upNext.none { it.videoId == n.videoId } }
         }
+        // A song started while a video is open (you picked one): the video steps aside for it.
+        LaunchedEffect(target?.videoId) {
+            if (target == null) return@LaunchedEffect
+            androidx.compose.runtime.snapshotFlow { PlayerConnection.state.value.isPlaying to PlayerConnection.state.value.current?.videoId }
+                .drop(1)
+                .collect { (playing, _) -> if (playing && Video.open != null) close() }
+        }
         LaunchedEffect(state.ended) { if (state.ended && Video.upNext.isNotEmpty() && target != null) { history += target; playNext(target) } }
 
         val window = currentWindowDp()
@@ -361,14 +394,7 @@ fun VideoPlayerHost(miniBottom: Dp = 12.dp, inDock: Boolean = false) {
             onPrevious = { playPrevious(current, history) },
             hasPrevious = history.isNotEmpty(),
             hasNext = Video.upNext.isNotEmpty(),
-            onListen = {
-                val at = engine.positionMs
-                close()
-                PlayerConnection.play(
-                    PlayRequest(listOf(app.wave.music.playback.NowPlaying(current.videoId, current.title, current.artist, current.thumbnail)), 0, app.wave.music.playback.PlaybackContext("video-${current.videoId}", current.title, current.thumbnail, null, isCollection = false), false),
-                    at,
-                )
-            },
+            onListen = { listenInstead(current, engine.positionMs) },
             onShare = { WavePlatform.current.share(current.title, "https://music.youtube.com/watch?v=${current.videoId}") },
         )
 
@@ -656,10 +682,11 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                         }
                         SoftButton(Icons.Rounded.Forward10, "Forward 10 seconds", 46.dp) { engine.seekTo((engine.positionMs + 10_000).coerceAtMost(state.durationMs.coerceAtLeast(0))); touched++ }
                         if (full) SoftButton(Icons.Rounded.SkipNext, "Next video", 42.dp, actions.hasNext) { actions.onNext() }
-                        Box(Modifier.padding(horizontal = 4.dp).size(width = 1.dp, height = 26.dp).background(Color.White.copy(alpha = 0.18f)))
-                        val toggle = actions.onFullscreen
-                        if (toggle != null) SoftButton(if (full) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, if (full) "Leave full screen" else "Full screen", 42.dp, onClick = toggle)
-                        else SoftButton(Icons.Rounded.PictureInPictureAlt, "Shrink to the mini player", 42.dp, onClick = actions.onMinimize)
+                        // Big screens: the whole window or back beside Up next (phones are always full).
+                        actions.onFullscreen?.let { toggle ->
+                            Box(Modifier.padding(horizontal = 4.dp).size(width = 1.dp, height = 26.dp).background(Color.White.copy(alpha = 0.18f)))
+                            SoftButton(if (full) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, if (full) "Leave full screen" else "Full screen", 42.dp, onClick = toggle)
+                        }
                     }
                 }
             }
