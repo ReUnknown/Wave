@@ -1,5 +1,6 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -326,6 +327,8 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 }
             }
             SettingsSection.Playback -> {
+                item { GroupLabel("Videos") }
+                item { Toggle(Icons.Rounded.SmartDisplay, "Ambient mode", "Upright videos: the player's colors follow what's on screen as it plays", settings.videoAmbient) { on -> change { it.copy(videoAmbient = on) } } }
                 item { GroupLabel("Sound") }
                 item {
                     Choice(

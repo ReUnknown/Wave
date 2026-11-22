@@ -41,6 +41,10 @@ interface VideoEngine {
     fun togglePlay()
     fun seekTo(ms: Long)
     fun setSpeed(speed: Float) {}
+    /** A tiny copy of the picture showing now (for ambient mode), or null when there isn't one. */
+    fun framePixels(): IntArray? = null
+    /** Looks a video up ahead of time, so it starts right away when it's opened. */
+    fun prefetch(videoId: String) {}
     /** The most picture it may use (null: Auto). */
     fun setQuality(height: Int?)
     fun stop()

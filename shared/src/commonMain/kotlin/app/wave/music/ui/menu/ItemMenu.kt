@@ -250,6 +250,8 @@ fun ItemMenuHost(
                             if (!app.wave.music.data.isRadioId(target.videoId)) {
                                 val video by androidx.compose.runtime.produceState(app.wave.music.data.VideoRepository.knownVideoFor(target.videoId), target.videoId) {
                                     if (value == null) value = runCatching { app.wave.music.data.VideoRepository.videoFor(target.videoId, target.title, target.artist) }.getOrNull().orEmpty()
+                                    // Found one: look it up now, so it starts right away if you pick it.
+                                    value?.takeIf { it.isNotEmpty() }?.let { app.wave.music.playback.Video.engine?.prefetch(it) }
                                 }
                                 when (val v = video) {
                                     null -> Option(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Looking for a music video…", enabled = false, loading = true) {}

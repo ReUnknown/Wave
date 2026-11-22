@@ -1,5 +1,7 @@
 package app.wave.music.ui.video
 
+import app.wave.music.data.WaveSettings
+import app.wave.music.ui.components.backGesture
 import androidx.compose.animation.core.animateFloat
 import sh.calvin.reorderable.ReorderableItem
 import androidx.compose.material.icons.rounded.DragIndicator
@@ -231,7 +233,10 @@ fun VideosScreen(actions: PageActions) {
                 list.isEmpty() -> item { Text("Couldn't find videos right now. Check your connection and try again.", Modifier.padding(24.dp), color = c.onBackground.copy(alpha = 0.65f), style = body(15.sp)) }
                 else -> {
                     val hero = list.first().videos.first()
-                    item(key = "hero") { HeroVideo(hero) { watchFrom(hero, list.first().videos) } }
+                    item(key = "hero") {
+                        LaunchedEffect(hero.id) { Video.engine?.prefetch(hero.id) }
+                        HeroVideo(hero) { watchFrom(hero, list.first().videos) }
+                    }
                     list.forEachIndexed { i, shelf ->
                         val videos = if (i == 0) shelf.videos.drop(1) else shelf.videos
                         if (videos.isEmpty()) return@forEachIndexed
@@ -362,7 +367,6 @@ fun VideoPlayerHost() {
             if (Video.open != null) engine?.holdOrientation(0)
         }
     }
-    androidx.compose.ui.backhandler.BackHandler(enabled = target != null) { if (edgeToEdge) upright() else close() }
 
     androidx.compose.animation.AnimatedVisibility(
         visible = target != null,
@@ -370,7 +374,26 @@ fun VideoPlayerHost() {
         exit = androidx.compose.animation.slideOutVertically(tween(260, easing = WaveMotion.EmphasizedAccelerate)) { it / 3 } + fadeOut(tween(200)),
     ) {
         val current = shown ?: return@AnimatedVisibility
-        MaterialTheme(colorScheme = rememberArtColorScheme(current.thumbnail, base = app.wave.music.ui.theme.darkBaseScheme())) {
+        // Back, the same everywhere: menus and Up next close first, then full screen goes back
+        // upright, then the video closes (shrinking away as you swipe, like every page in Wave).
+        val swipe = app.wave.music.ui.components.predictiveBack(enabled = target != null && !edgeToEdge, onBack = ::close)
+        Box(Modifier.fillMaxSize().backGesture(swipe)) {
+        // Ambient mode (upright, Settings › Playback): the colors follow the picture as it plays.
+        val base = app.wave.music.ui.theme.darkBaseScheme()
+        val artScheme = rememberArtColorScheme(current.thumbnail, base = base)
+        val ambientOn = WaveSettings.state.collectAsState().value.videoAmbient && !edgeToEdge
+        var ambient by remember(current.videoId) { mutableStateOf<androidx.compose.material3.ColorScheme?>(null) }
+        LaunchedEffect(current.videoId, ambientOn) {
+            if (!ambientOn) { ambient = null; return@LaunchedEffect }
+            while (true) {
+                delay(1500)
+                val e = engine ?: continue
+                if (!e.state.value.playing) continue
+                val pixels = e.framePixels() ?: continue
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.wave.music.ui.components.schemeFromPixels(pixels, base) }?.let { ambient = it }
+            }
+        }
+        MaterialTheme(colorScheme = if (ambientOn && ambient != null) app.wave.music.ui.components.animateSchemeSlowly(ambient!!) else artScheme) {
             val c = MaterialTheme.colorScheme
             if (engine == null) {
                 Box(Modifier.fillMaxSize().blocksTouchesBelow().background(c.background).clickable { close() }, contentAlignment = Alignment.Center) {
@@ -382,7 +405,8 @@ fun VideoPlayerHost() {
             val history = remember { mutableListOf<VideoTarget>() }
             LaunchedEffect(target?.videoId) {
                 val t = target ?: return@LaunchedEffect
-                if (PlayerConnection.state.value.isPlaying) PlayerConnection.togglePlay()
+                // One player: a video takes over from the music (it doesn't wait paused underneath).
+                if (PlayerConnection.state.value.current != null) PlayerConnection.reset()
                 engine.load(t.videoId, Video.startAt)
                 Video.startAt = 0
                 if (Video.upNext.size < 3) Video.upNext = Video.upNext + VideoRepository.upNextFor(t).filter { n -> Video.upNext.none { it.videoId == n.videoId } }
@@ -393,11 +417,14 @@ fun VideoPlayerHost() {
                 androidx.compose.runtime.snapshotFlow { PlayerConnection.state.value.isPlaying }.drop(1)
                     .collect { playing -> if (playing && Video.open != null) close() }
             }
+            // Once it's playing, look up what's next so it starts right away.
+            LaunchedEffect(state.firstFrame, Video.upNext.firstOrNull()?.videoId) {
+                if (state.firstFrame) Video.upNext.take(2).forEach { engine.prefetch(it.videoId) }
+            }
             LaunchedEffect(state.ended) { if (state.ended && Video.upNext.isNotEmpty() && target != null) { history += target; playNext(target) } }
 
             var menu by remember { mutableStateOf(VideoRender.menu?.let { OpenMenu(it.first, it.second) }) }
             var upNextOpen by remember { mutableStateOf(VideoRender.upNext) }
-            androidx.compose.ui.backhandler.BackHandler(enabled = upNextOpen) { upNextOpen = false }
             val actions = VideoActions(
                 onClose = ::close,
                 onUpright = ::upright,
@@ -454,6 +481,16 @@ fun VideoPlayerHost() {
                     history += current
                     Video.watch(v, Video.upNext.filter { it.videoId != v.videoId } + current)
                 }
+                // Back closes what's on top first (registered last, so it comes before the rest of Wave).
+                androidx.compose.runtime.key(menu != null, upNextOpen, edgeToEdge) {
+                    androidx.compose.ui.backhandler.BackHandler(enabled = menu != null || upNextOpen || edgeToEdge) {
+                        when {
+                            menu != null -> menu = null
+                            upNextOpen -> upNextOpen = false
+                            else -> upright()
+                        }
+                    }
+                }
                 // 5. A glass menu, when one's open.
                 menu?.let { m ->
                     GlassMenu(menuGlass, m.anchor, origin, onClose = { menu = null }, title = when (m.kind) { "quality" -> "Quality"; "speed" -> "Speed"; else -> null }) {
@@ -476,6 +513,7 @@ fun VideoPlayerHost() {
                 }
             }
         }
+        }
     }
 }
 
@@ -493,9 +531,14 @@ private fun UprightLayout(engine: VideoEngine, state: VideoState, target: VideoT
     val c = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize()) {
         if (!front) {
-            // The video's picture, blurred, filling the screen like the music player's art.
             Box(Modifier.fillMaxSize().blocksTouchesBelow().background(c.background))
-            app.wave.music.ui.components.BlurredImage(target.thumbnail, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }, radius = 72.dp)
+            if (WaveSettings.state.collectAsState().value.videoAmbient) {
+                // Ambient mode: a glow in the colors on screen right now, shifting as the video plays.
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.primary.copy(alpha = 0.5f), 0.3f to c.primaryContainer.copy(alpha = 0.85f), 0.65f to c.primaryContainer.copy(alpha = 0.35f), 1f to c.background)))
+            } else {
+                // The video's picture, blurred, filling the screen like the music player's art.
+                app.wave.music.ui.components.BlurredImage(target.thumbnail, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }, radius = 72.dp)
+            }
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(

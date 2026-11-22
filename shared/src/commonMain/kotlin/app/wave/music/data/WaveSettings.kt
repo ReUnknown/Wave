@@ -105,6 +105,8 @@ data class Settings(
     val hiddenSections: String = "",
     /** The version whose "What's new" was last shown (after updating, the new one's notes show once). */
     val lastSeenVersion: String = "",
+    /** Videos (upright): the player's colors follow what's on screen as it plays. */
+    val videoAmbient: Boolean = true,
 )
 
 /** Home's rows: which ones show, in what order. */
@@ -157,6 +159,7 @@ object WaveSettings {
     private val homeRowsKey = stringPreferencesKey("home_rows")
     private val hiddenSectionsKey = stringPreferencesKey("hidden_sections")
     private val lastSeenKey = stringPreferencesKey("last_seen_version")
+    private val videoAmbientKey = booleanPreferencesKey("video_ambient")
     private val popupShownKey = stringPreferencesKey("update_popup_shown_for")
     private val bannerClosedKey = stringPreferencesKey("update_banner_closed_for")
     private val setupCompletedKey = booleanPreferencesKey("setup_completed")
@@ -227,6 +230,7 @@ object WaveSettings {
             homeRows = p[homeRowsKey] ?: HomeRows.DEFAULT,
             hiddenSections = p[hiddenSectionsKey] ?: "",
             lastSeenVersion = p[lastSeenKey] ?: if (p[matchColors] != null) "earlier" else "",
+            videoAmbient = p[videoAmbientKey] ?: true,
             updatePopupShownFor = p[popupShownKey] ?: "",
             updateBannerClosedFor = p[bannerClosedKey] ?: "",
             lyricsWords = p[lyWordsKey] ?: true,
@@ -285,6 +289,7 @@ object WaveSettings {
             it[homeRowsKey] = next.homeRows
             it[hiddenSectionsKey] = next.hiddenSections
             it[lastSeenKey] = next.lastSeenVersion
+            it[videoAmbientKey] = next.videoAmbient
             it[popupShownKey] = next.updatePopupShownFor
             it[bannerClosedKey] = next.updateBannerClosedFor
             it[setupCompletedKey] = next.setupDone

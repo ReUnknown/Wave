@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import app.wave.music.data.toVideoTarget
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Check
@@ -248,7 +249,12 @@ fun PrismaSearch(
     val pick: (YTItem) -> Unit = { item ->
         keyboard?.hide()
         scope.launch { PrismaRecents.add(Recent.Picked(item)) }
-        if (item is SongItem) onPlay(item, false) else onOpen(item)
+        when {
+            // A music video plays as a video; a song as music.
+            item is SongItem && item.isVideoSong && app.wave.music.data.VideoRepository.isRealVideo(item) -> app.wave.music.playback.Video.watch(item.toVideoTarget())
+            item is SongItem -> onPlay(item, false)
+            else -> onOpen(item)
+        }
     }
     val hideKeyboardOnScroll = remember(keyboard) {
         object : NestedScrollConnection {
@@ -355,7 +361,7 @@ fun PrismaSearch(
                         val top = bigTop
                         if (top != null) item(key = "top") { TopResult(top, onOpen = { pick(top) }, onPlay = {
                             scope.launch { PrismaRecents.add(Recent.Picked(top)) }
-                            onPlay(top, false)
+                            if (top is SongItem && top.isVideoSong && app.wave.music.data.VideoRepository.isRealVideo(top)) app.wave.music.playback.Video.watch(top.toVideoTarget()) else onPlay(top, false)
                         }) }
                         if (top != null) filterRow()
                         // Videos: big pictures, and tapping one watches it.
@@ -376,6 +382,16 @@ fun PrismaSearch(
                             val rest = if (gi == 0 && top != null) group.items.drop(1) else group.items
                             if (rest.isEmpty()) return@forEachIndexed
                             item { GroupTitle(group.title) }
+                            // Videos: a row of video cards (their pictures, not little squares).
+                            val videos = rest.filterIsInstance<SongItem>().filter { it.isVideoSong && app.wave.music.data.VideoRepository.isRealVideo(it) }
+                            if (videos.size >= 2 && videos.size * 2 >= rest.size) {
+                                item(key = "vrow-" + group.title) {
+                                    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                        items(videos.size) { i -> app.wave.music.ui.video.VideoCard(videos[i], 240.dp) { keyboard?.hide(); app.wave.music.ui.video.watchFrom(videos[i], videos) } }
+                                    }
+                                }
+                                return@forEachIndexed
+                            }
                             // Tablets: results in two or three columns, so a wide screen shows more at once.
                             if (resultColumns > 1) {
                                 items(rest.chunked(resultColumns), key = { row -> "r-" + group.title + row.first().id }) { row ->

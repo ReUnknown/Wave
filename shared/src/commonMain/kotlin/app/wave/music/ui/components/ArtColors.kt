@@ -50,6 +50,16 @@ fun rememberArtColorScheme(artUrl: String?, base: ColorScheme = MaterialTheme.co
     return animateScheme(scheme)
 }
 
+/** A color scheme from raw pixels (a video's current picture, for ambient mode), or null. */
+fun schemeFromPixels(pixels: IntArray, base: ColorScheme): ColorScheme? {
+    val (seed, mood) = pickSeed(quantize(pixels)) ?: return null
+    return if (base.background.luminance() < 0.5f) darkScheme(Color(seed), mood, base) else lightScheme(Color(seed), base)
+}
+
+/** Fades between schemes slowly (ambient mode follows a video without flickering). */
+@Composable
+fun animateSchemeSlowly(target: ColorScheme): ColorScheme = animateScheme(target)
+
 /**
  * The color a cover is "about", the way Pixel picks it: the colorful family that covers the most
  * of the art, not whichever swatch happens to be most vibrant. A speck of blue on a white cover
