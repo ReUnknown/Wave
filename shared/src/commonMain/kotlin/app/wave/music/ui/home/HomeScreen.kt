@@ -648,7 +648,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                   if (prismaHomeUi) {
                     prismaHome(
                         feed = state.feed,
-                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16),
+                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
                         playlists = myPlaylists,
                         guest = session.guest,
                         playItem = playItem,
@@ -668,7 +668,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     item { Hero(hero, jump = emptyList(), onJump = openItem, onSharedBackdrop = false, modernButtons = true) }
                     prismaHome(
                         feed = state.feed,
-                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16),
+                        recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16),
                         playlists = myPlaylists,
                         guest = session.guest,
                         playItem = playItem,
@@ -700,7 +700,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     }
                     // What you played in Wave just now comes first; YouTube's history fills in the rest.
-                    val recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16)
+                    val recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16)
                     if (recent.isNotEmpty()) {
                         item { SectionHeader("Your recent spins", "Recently played") }
                         item {
@@ -935,11 +935,9 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             // or on its own, and Legacy's floating song-colored mini player.
             val tabsShown = !shell && !showPlayer && !keyboardUp && !settings.topSearch
             val dockSong = pendingSong ?: player.current
-            val videoOpen = app.wave.music.playback.Video.open
-            val videoState by (app.wave.music.playback.Video.engine?.state ?: kotlinx.coroutines.flow.MutableStateFlow(app.wave.music.playback.VideoState())).collectAsState()
             val legacyMini = settings.legacyUi
             val songOnItsOwn = !legacyMini && (settings.separateMiniPlayer || settings.topSearch)
-            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && songOnItsOwn && (dockSong != null || (videoOpen != null && app.wave.music.playback.Video.minimized)))
+            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && songOnItsOwn && dockSong != null)
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -959,7 +957,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                 if (shell) UpdatePill()
                 // The player grows out of the mini player and tucks back into it.
                 AnimatedVisibility(
-                    visible = !showPlayer && player.current != null && !keyboardUp && app.wave.music.playback.Video.open == null && (if (shell) false else legacyMini),
+                    visible = !showPlayer && player.current != null && !keyboardUp && (if (shell) false else legacyMini),
                     enter = EnterTransition.None,
                     exit = ExitTransition.None,
                 ) {
@@ -994,15 +992,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     },
                     haze = barHaze,
                     // A video shrunk down takes the song's place in the dock (full, the dock leaves it out).
-                    now = when {
-                        legacyMini -> null
-                        videoOpen != null -> videoOpen.takeIf { app.wave.music.playback.Video.minimized }?.let { app.wave.music.playback.NowPlaying(it.videoId, it.title, it.artist, it.thumbnail) }
-                        else -> dockSong
-                    },
-                    playing = if (videoOpen != null) videoState.playing else player.isPlaying,
-                    loading = if (videoOpen != null) !videoState.firstFrame && videoState.error == null else preparing,
-                    onOpenPlayer = { if (videoOpen != null) app.wave.music.playback.Video.minimized = false else openPlayer(null) },
-                    video = videoOpen != null,
+                    now = if (legacyMini) null else dockSong,
+                    playing = player.isPlaying,
+                    loading = preparing,
+                    onOpenPlayer = { openPlayer(null) },
                     showTabs = dockTabs,
                     split = songOnItsOwn,
                     oneRow = oneRow,
@@ -1047,7 +1040,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             )
         }
         // Watching a video: full over everything, or its mini player just above the tabs.
-        app.wave.music.ui.video.VideoPlayerHost(miniBottom = if (!shell && !settings.topSearch) PrismaBarHeight + 2.dp else 12.dp, inDock = !shell && !settings.legacyUi)
+        app.wave.music.ui.video.VideoPlayerHost()
         // Wave's notices, just above whatever's at the bottom: the player bar, the mini player,
         // or the open player's tray.
         app.wave.music.ui.components.NoticeHost(

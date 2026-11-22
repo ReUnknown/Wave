@@ -410,7 +410,7 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
                         androidx.compose.animation.core.animate(dragPx, closeAt * 1.6f, animationSpec = tween(140)) { v, _ -> dragPx = v }
                         onSwipedAway()
-                        if (video) app.wave.music.ui.video.closeVideo() else app.wave.music.playback.PlayerConnection.reset()
+                        app.wave.music.playback.PlayerConnection.reset()
                     } else {
                         // Not far enough: it springs back home.
                         androidx.compose.animation.core.animate(dragPx, 0f, animationSpec = app.wave.music.ui.components.WaveMotion.bouncy()) { v, _ -> dragPx = v }
@@ -422,34 +422,11 @@ private fun DockSong(now: app.wave.music.playback.NowPlaying, playing: Boolean, 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (video) {
-            // The video itself plays here (Wave moves its picture into this spot).
-            Box(
-                Modifier
-                    .size(width = 82.dp, height = 46.dp)
-                    .onGloballyPositioned { app.wave.music.ui.video.VideoDock.spot.value = it.boundsInRoot() }
-                    .clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(12.dp)))
-                    .background(Color.Black),
-            )
-            androidx.compose.runtime.DisposableEffect(Unit) { onDispose { app.wave.music.ui.video.VideoDock.spot.value = null } }
-        } else AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(14.dp))).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
+AsyncImage(now.artworkUrl?.atSize(226), null, Modifier.size(46.dp).clip(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(14.dp))).background(c.surfaceContainerHigh), contentScale = ContentScale.Crop)
         Column(Modifier.weight(1f)) {
             Text(now.title, color = c.onSurface, style = body(15.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (live) app.wave.music.ui.radio.LivePill(Modifier.padding(top = 2.dp))
             else Text(now.artist, color = c.onSurface.copy(alpha = 0.65f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        // A video: just play and pause, in the video's colors, with room to breathe.
-        if (video) {
-            Box(
-                Modifier.padding(start = 14.dp, end = 6.dp).size(46.dp).pressable(RoundedCornerShape(app.wave.music.platform.PrismaLook.corner(16.dp)), song.primary, pressedScale = 0.9f) { app.wave.music.playback.Video.engine?.togglePlay() },
-                contentAlignment = Alignment.Center,
-            ) {
-                androidx.compose.animation.Crossfade(loading, label = "dockVideoLoading") { busy ->
-                    if (busy) androidx.compose.material3.LoadingIndicator(Modifier.size(34.dp), color = song.onPrimary)
-                    else app.wave.music.ui.components.PlayPauseIcon(playing, song.onPrimary)
-                }
-            }
-            return@Row
         }
         // Live radio: nothing to skip, one round button that stops and rejoins live.
         if (live) {

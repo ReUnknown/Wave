@@ -389,8 +389,6 @@ fun PrismaSearch(
                     }
                     Found.Idle -> Unit
                 }
-                // Not about radio: a small way to find stations for it, at the end.
-                if (!radioQuery && found is Found.Ready) item(key = "radio-go") { RadioShortcut(submitted.orEmpty(), big = false) { onRadio(submitted.orEmpty()) } }
                 }
             }
         }

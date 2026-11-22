@@ -22,7 +22,7 @@ object VideoRepository {
     /** Music videos for [query] (official videos first, the way YouTube Music ranks them). */
     suspend fun search(query: String): List<SongItem> = withContext(Dispatchers.IO) {
         YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()?.items
-            ?.filterIsInstance<SongItem>()?.distinctBy { it.id }.orEmpty()
+            ?.filterIsInstance<SongItem>()?.filter { it.isVideoSong }?.distinctBy { it.id }.orEmpty()
     }
 
     /** Your artists, most played first: from what you played in Wave, then your home. */

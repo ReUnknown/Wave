@@ -141,9 +141,9 @@ object RenderApp {
             else {
                 val vids = runBlocking { app.wave.music.data.VideoRepository.search("the weeknd official music video") }
                 val t = vids.first().toVideoTargetForRender()
-                app.wave.music.playback.Video.engine = FakeVideo(t.thumbnail!!, loading = mode == "videoload", paused = mode == "videoui")
+                app.wave.music.playback.Video.engine = FakeVideo(t.thumbnail!!, loading = mode == "videoload", paused = mode == "videoui" || mode == "videomenu")
                 app.wave.music.playback.Video.watch(t, vids.drop(1).take(6).map { it.toVideoTargetForRender() })
-                if (mode == "videomini") app.wave.music.playback.Video.minimized = true
+                if (mode == "videomenu") app.wave.music.ui.video.VideoRender.menu = "quality" to androidx.compose.ui.geometry.Rect(20f, 606f, 155f, 648f)
             }
         }
         if (mode == "radio") app.wave.music.ui.home.RenderStart.page = app.wave.music.ui.detail.Destination.Radio()

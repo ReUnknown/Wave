@@ -25,6 +25,8 @@ data class VideoState(
     val error: String? = null,
     /** The first picture is on screen (until then, it's still loading). */
     val firstFrame: Boolean = false,
+    /** Playback speed (1 is normal). */
+    val speed: Float = 1f,
 )
 
 /**
@@ -38,6 +40,7 @@ interface VideoEngine {
     fun load(videoId: String, startMs: Long = 0)
     fun togglePlay()
     fun seekTo(ms: Long)
+    fun setSpeed(speed: Float) {}
     /** The most picture it may use (null: Auto). */
     fun setQuality(height: Int?)
     fun stop()

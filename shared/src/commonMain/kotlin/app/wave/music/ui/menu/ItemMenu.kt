@@ -256,8 +256,7 @@ fun ItemMenuHost(
                                     "" -> Unit
                                     else -> Option(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Watch the music video") {
                                         choose {
-                                            val playingIt = app.wave.music.playback.PlayerConnection.state.value.current?.videoId == target.videoId
-                                            app.wave.music.ui.video.watchSongVideo(target.videoId, v, target.title, target.artist, if (playingIt) app.wave.music.playback.PlayerConnection.position else 0L, songArt = target.artworkUrl)
+                                            app.wave.music.ui.video.watchSongVideo(target.videoId, v, target.title, target.artist)
                                         }
                                     }
                                 }

@@ -108,7 +108,7 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
         loading?.cancel()
         exo?.stop()
         val keep = _state.value
-        _state.value = VideoState(videoId = videoId, buffering = true, cap = keep.cap)
+        _state.value = VideoState(videoId = videoId, buffering = true, cap = keep.cap, speed = keep.speed)
         val connectivity = activity.getSystemService(ConnectivityManager::class.java)
         loading = scope.launch {
             val result = withContext(Dispatchers.IO) { StreamResolver.videoFor(videoId, connectivity) }
@@ -137,6 +137,11 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
     }
 
     override fun seekTo(ms: Long) { exo?.seekTo(ms) }
+
+    override fun setSpeed(speed: Float) {
+        exo?.setPlaybackSpeed(speed)
+        _state.value = _state.value.copy(speed = speed)
+    }
 
     override fun setQuality(height: Int?) {
         _state.value = _state.value.copy(cap = height)
