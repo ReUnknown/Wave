@@ -226,13 +226,20 @@ fun ItemMenuHost(
                         }
                         OptionGroup {
                             Option(Icons.Rounded.Sensors, "Start a mix") { choose { actions.playItem(song, false) } }
-                            Option(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Watch the video") {
-                                choose {
-                                    val now = app.wave.music.playback.PlayerConnection.state.value.current?.videoId == target.videoId
-                                    app.wave.music.playback.Video.watch(
-                                        app.wave.music.playback.VideoTarget(target.videoId, target.title, target.artist, app.wave.music.playback.Video.thumbnail(target.videoId)),
-                                        startMs = if (now) app.wave.music.playback.PlayerConnection.position else 0L,
-                                    )
+                            // The music video, when this song has one: checked as the menu opens.
+                            if (!app.wave.music.data.isRadioId(target.videoId)) {
+                                val video by androidx.compose.runtime.produceState(app.wave.music.data.VideoRepository.knownVideoFor(target.videoId), target.videoId) {
+                                    if (value == null) value = runCatching { app.wave.music.data.VideoRepository.videoFor(target.videoId, target.title, target.artist) }.getOrNull().orEmpty()
+                                }
+                                when (val v = video) {
+                                    null -> Option(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Looking for a music video…", enabled = false, loading = true) {}
+                                    "" -> Unit
+                                    else -> Option(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Watch the music video") {
+                                        choose {
+                                            val playingIt = app.wave.music.playback.PlayerConnection.state.value.current?.videoId == target.videoId
+                                            app.wave.music.ui.video.watchSongVideo(target.videoId, v, target.title, target.artist, if (playingIt) app.wave.music.playback.PlayerConnection.position else 0L, songArt = target.artworkUrl)
+                                        }
+                                    }
                                 }
                             }
                             // Named straight away from what the song already says; the links behind

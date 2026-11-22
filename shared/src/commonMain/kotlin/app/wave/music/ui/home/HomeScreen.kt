@@ -236,6 +236,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
         }
     }
     val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }) }
+    // "Listen" from a video: the song plays like any other you pick.
+    androidx.compose.runtime.SideEffect { app.wave.music.playback.Video.playSong = { song -> playItem(song, false) } }
     val stack = remember { mutableStateListOf<Destination>() }
     // Which way pages move: deeper slides in from the right, back slides in from the left.
     var forward by remember { mutableStateOf(true) }
@@ -597,7 +599,7 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                         }
                     }
                     // What you played in Wave just now comes first; YouTube's history fills in the rest.
-                    val recent = (playedHere + state.feed.recent).distinctBy { it.id }.take(16)
+                    val recent = (playedHere + state.feed.recent).distinctBy { it.id }.distinctBy { app.wave.music.data.VideoRepository.sameSong(it.title, it.artists.firstOrNull()?.name.orEmpty()) }.take(16)
                     if (recent.isNotEmpty()) {
                         item { SectionHeader("Your recent spins", "Recently played") }
                         item {

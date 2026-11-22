@@ -54,6 +54,42 @@ object VideoRepository {
         return shelves
     }
 
+    private val videoOf = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private const val NONE = "-"
+
+    private fun plain(s: String) = s.lowercase().replace(Regex("\\(.*?\\)|\\[.*?]"), "").replace(Regex("[^\\p{L}\\p{N} ]"), " ").replace(Regex("\\s+"), " ").trim()
+
+    /** One key for a song and its music video ("Blinding Lights (Official Video)" is "Blinding Lights"). */
+    fun sameSong(title: String, artist: String): String =
+        plain(title.replace(Regex("(?i)official|music video|lyric video|lyrics|video|audio|hd|4k"), "")) + "|" + plain(artist.substringBefore(",").substringBefore(" & "))
+
+    /** Known already (no network): the video for [videoId], "" for none, or null when not checked yet. */
+    fun knownVideoFor(videoId: String): String? = videoOf[videoId]?.let { if (it == NONE) "" else it }
+
+    /**
+     * The music video for a song, or null when it has none. A song that's a video already is its
+     * own; an album track (audio only) gets its official video when one clearly matches.
+     */
+    suspend fun videoFor(videoId: String, title: String, artist: String): String? = withContext(Dispatchers.IO) {
+        videoOf[videoId]?.let { return@withContext it.takeIf { v -> v != NONE } }
+        val type = YouTube.player(videoId, client = com.metrolist.innertube.models.YouTubeClient.WEB_REMIX).getOrNull()?.videoDetails?.musicVideoType
+        val found = when {
+            type == null -> null
+            type != com.metrolist.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.MUSIC_VIDEO_TYPE_ATV -> videoId
+            else -> {
+                val name = plain(title)
+                val who = plain(artist.substringBefore(",").substringBefore(" & "))
+                search("$title $artist").take(5).firstOrNull { v ->
+                    val vt = plain(v.title)
+                    (vt.contains(name) || name.contains(vt)) && name.isNotBlank() &&
+                        (v.artists.any { plain(it.name).contains(who) || who.contains(plain(it.name)) } || vt.contains(who))
+                }?.id
+            }
+        }
+        if (type != null) videoOf[videoId] = found ?: NONE
+        found
+    }
+
     /** What plays after [target]: more from the same artist, then what's on the Videos page. */
     suspend fun upNextFor(target: VideoTarget): List<VideoTarget> {
         val artist = target.artist.substringBefore(",").substringBefore(" & ").trim()

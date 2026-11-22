@@ -346,15 +346,9 @@ private fun Header(
             )
             Spacer(Modifier.width(8.dp))
         }
-        // Watch the video: picks up the song at the same spot, as a music video.
-        if (!app.wave.music.data.isRadioId(song.videoId)) {
-            GlassCircle(androidx.compose.material.icons.Icons.Rounded.SmartDisplay, "Watch the video") {
-                app.wave.music.playback.Video.watch(
-                    app.wave.music.playback.VideoTarget(song.videoId, song.title, song.artist, app.wave.music.playback.Video.thumbnail(song.videoId)),
-                    startMs = app.wave.music.playback.PlayerConnection.position,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
+        // A song's music video is in its ⋮ menu (only when it has one); check now so the menu knows.
+        LaunchedEffect(song.videoId) {
+            if (!app.wave.music.data.isRadioId(song.videoId)) runCatching { app.wave.music.data.VideoRepository.videoFor(song.videoId, song.title, song.artist) }
         }
         // Live radio: no song actions (playlists, artist, sharing) apply to a station.
         if (!app.wave.music.data.isRadioId(song.videoId)) GlassCircle(Icons.Rounded.MoreVert, "More options") {

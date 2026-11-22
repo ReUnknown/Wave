@@ -1,5 +1,12 @@
 package app.wave.music.ui.video
 
+import kotlin.math.roundToInt
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.Close
@@ -291,6 +298,14 @@ fun VideoPlayerHost(shell: Boolean = false) {
         LaunchedEffect(edgeToEdge) { engine.setBarsHidden(edgeToEdge) }
         androidx.compose.ui.backhandler.BackHandler(enabled = full) { if (wideRoom && fullscreenAsked) fullscreenAsked = false else Video.minimized = true }
 
+        // A song started while a video is open (you picked one): the video steps aside for it.
+        LaunchedEffect(target?.videoId) {
+            if (target == null) return@LaunchedEffect
+            androidx.compose.runtime.snapshotFlow { PlayerConnection.state.value.isPlaying }
+                .drop(1)
+                .collect { playing -> if (playing && Video.open != null) close() }
+        }
+
         val actions = VideoActions(
             onClose = ::close,
             onMinimize = { fullscreenAsked = false; Video.minimized = true },
@@ -299,97 +314,166 @@ fun VideoPlayerHost(shell: Boolean = false) {
             onPrevious = { playPrevious(current, history) },
             hasPrevious = history.isNotEmpty(),
             hasNext = Video.upNext.isNotEmpty(),
-            onListen = {
-                // Same song as music, picked up where the video was.
-                val at = engine.positionMs
-                close()
-                PlayerConnection.play(
-                    PlayRequest(listOf(app.wave.music.playback.NowPlaying(current.videoId, current.title, current.artist, current.thumbnail)), 0, app.wave.music.playback.PlaybackContext("video-${current.videoId}", current.title, current.thumbnail, null, isCollection = false), false),
-                    at,
-                )
-            },
+            onListen = { listenInstead(current, engine.positionMs) },
             onShare = { WavePlatform.current.share(current.title, "https://music.youtube.com/watch?v=${current.videoId}") },
         )
 
-        Box(Modifier.fillMaxSize()) {
-            AnimatedVisibility(
-                visible = full,
-                enter = fadeIn(tween(220)) + androidx.compose.animation.scaleIn(tween(320, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate), initialScale = 0.9f),
-                exit = fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(240), targetScale = 0.9f),
-            ) {
-                Box(Modifier.fillMaxSize().blocksTouchesBelow().background(if (edgeToEdge) Color.Black else c.background)) {
-                    if (edgeToEdge) VideoFrame(engine, state, current, actions, full = true, modifier = Modifier.fillMaxSize())
-                    else Row(Modifier.fillMaxSize().topBarPadding().navigationBarsPadding().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        // Tablets and Googlebook: the video big on the left, what's next on the right.
-                        Column(Modifier.weight(1.75f).fillMaxHeight()) {
-                            Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                RoundButton(Icons.Rounded.KeyboardArrowDown, "Shrink to the mini player", c.onBackground.copy(alpha = 0.08f), c.onBackground, onClick = actions.onMinimize)
-                                Text("Watching", Modifier.padding(start = 12.dp), color = c.onBackground.copy(alpha = 0.7f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            VideoFrame(engine, state, current, actions, full = false, modifier = Modifier.fillMaxWidth().weight(1f, fill = false).aspectRatio(16f / 9f).clip(RoundedCornerShape(24.dp)))
-                            VideoInfo(current, actions)
-                        }
-                        UpNextList(Modifier.weight(1f).fillMaxHeight(), current, history)
-                    }
+        // One picture for both: each layout leaves a hole and says where it is, and the picture moves
+        // there. (Handing the video from one view to another left the mini player blank.)
+        val fullSpot = remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+        val miniSpot = remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+        var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        val mini = target != null && Video.minimized
+        val fullAlpha by animateFloatAsState(if (full) 1f else 0f, tween(if (full) 220 else 180), label = "videoFull")
+        val miniAlpha by animateFloatAsState(if (mini) 1f else 0f, tween(if (mini) 220 else 140, delayMillis = if (mini) 120 else 0), label = "videoMini")
+        if (fullAlpha == 0f && miniAlpha == 0f && target == null) return@MaterialTheme
+
+        Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+            if (fullAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = fullAlpha }) {
+                FullVideo(engine, state, current, actions, history, edgeToEdge, front = false, spot = fullSpot)
+            }
+            if (miniAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha }) {
+                VideoMiniPlayer(engine, state, current, shell, front = false, spot = miniSpot)
+            }
+            val goal = (if (full || miniSpot.value == null) fullSpot.value else miniSpot.value)?.translate(-origin)
+            if (goal != null) {
+                val rect = remember { androidx.compose.animation.core.Animatable(goal, androidx.compose.ui.geometry.Rect.VectorConverter) }
+                LaunchedEffect(goal) { rect.animateTo(goal, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) }
+                val r = rect.value
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val corner by androidx.compose.animation.core.animateDpAsState(if (full) (if (edgeToEdge) 0.dp else 24.dp) else 20.dp, tween(260), label = "videoCorner")
+                Box(
+                    Modifier
+                        .offset { androidx.compose.ui.unit.IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
+                        .size(with(density) { r.width.toDp() }, with(density) { r.height.toDp() })
+                        .graphicsLayer { alpha = maxOf(fullAlpha, miniAlpha) }
+                        .clip(RoundedCornerShape(corner))
+                        .background(Color.Black),
+                ) {
+                    engine.Surface(Modifier.fillMaxSize())
+                    LoadingCover(state, current, small = !full)
                 }
             }
-            AnimatedVisibility(
-                visible = target != null && Video.minimized,
-                modifier = Modifier.align(if (shell) Alignment.BottomEnd else Alignment.BottomCenter),
-                enter = fadeIn(tween(200, delayMillis = 120)) + androidx.compose.animation.slideInVertically(tween(320, delayMillis = 80, easing = app.wave.music.ui.components.WaveMotion.EmphasizedDecelerate)) { it },
-                exit = fadeOut(tween(160)) + androidx.compose.animation.slideOutVertically(tween(220)) { it },
-            ) {
-                VideoMiniPlayer(engine, state, current, shell)
+            if (fullAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = fullAlpha }) {
+                if (full) FullVideo(engine, state, current, actions, history, edgeToEdge, front = true, spot = fullSpot)
+            }
+            if (miniAlpha > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha }) {
+                if (mini) VideoMiniPlayer(engine, state, current, shell, front = true, spot = miniSpot)
             }
         }
     }
 }
 
+/** Full: edge to edge (phones, sideways), or beside Up next on tablets and Googlebook. */
+@Composable
+private fun FullVideo(engine: app.wave.music.playback.VideoEngine, state: app.wave.music.playback.VideoState, current: VideoTarget, actions: VideoActions, history: MutableList<VideoTarget>, edgeToEdge: Boolean, front: Boolean, spot: androidx.compose.runtime.MutableState<androidx.compose.ui.geometry.Rect?>) {
+    val c = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxSize().then(if (!front) Modifier.blocksTouchesBelow().background(if (edgeToEdge) Color.Black else c.background) else Modifier)) {
+        if (edgeToEdge) VideoFrame(engine, state, current, actions, full = true, modifier = Modifier.fillMaxSize(), spot = spot, front = front)
+        else Row(Modifier.fillMaxSize().topBarPadding().navigationBarsPadding().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.weight(1.75f).fillMaxHeight()) {
+                Row(Modifier.padding(bottom = 10.dp).graphicsLayer { alpha = if (front) 1f else 0f }, verticalAlignment = Alignment.CenterVertically) {
+                    RoundButton(Icons.Rounded.KeyboardArrowDown, "Shrink to the mini player", c.onBackground.copy(alpha = 0.08f), c.onBackground, onClick = actions.onMinimize)
+                    Text("Watching", Modifier.padding(start = 12.dp), color = c.onBackground.copy(alpha = 0.7f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+                VideoFrame(engine, state, current, actions, full = false, modifier = Modifier.fillMaxWidth().weight(1f, fill = false).aspectRatio(16f / 9f).clip(RoundedCornerShape(24.dp)), spot = spot, front = front)
+                if (front) VideoInfo(current, actions)
+            }
+            Box(Modifier.weight(1f).fillMaxHeight()) { if (front) UpNextList(Modifier.fillMaxSize(), current, history) }
+        }
+    }
+}
+
 /**
- * The video's mini player: like the music one, but with the video itself still playing in it, a
- * VIDEO tag, and an X to stop. Tap it to watch full again.
+ * Until the first picture: the thumbnail, dimmed, with a spinner and "Loading video" (so you know
+ * it's coming). When it stalls later, just the spinner. When it fails, why.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun LoadingCover(state: app.wave.music.playback.VideoState, target: VideoTarget, small: Boolean) {
+    val starting = !state.firstFrame && state.error == null
+    AnimatedVisibility(starting || state.error != null, Modifier.fillMaxSize(), enter = fadeIn(tween(120)), exit = fadeOut(tween(260))) {
+        Box(Modifier.fillMaxSize()) {
+            AsyncImage(target.thumbnail, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (state.error == null) {
+                    LoadingIndicator(Modifier.size(if (small) 32.dp else 72.dp), color = Color.White)
+                    if (!small) Text("Loading video", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                } else if (!small) Text(state.error, Modifier.padding(horizontal = 24.dp), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+    if (state.firstFrame && state.buffering && state.error == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator(Modifier.size(if (small) 28.dp else 64.dp), color = Color.White) }
+}
+
+/**
+ * Back to listening: the song the video came from, with its album cover. When that song is the one
+ * in the player, the player carries on (queue, next and previous all there); otherwise the song
+ * starts with more like it after.
+ */
+private fun listenInstead(target: VideoTarget, atMs: Long) {
+    val songId = target.songId ?: target.videoId
+    close()
+    if (PlayerConnection.state.value.current?.videoId == songId) {
+        if (songId == target.videoId) PlayerConnection.seekTo(atMs)
+        if (!PlayerConnection.state.value.isPlaying) PlayerConnection.togglePlay()
+    } else {
+        Video.playSong(
+            SongItem(
+                id = songId,
+                title = target.title.replace(Regex("\\s*[(\\[](official|music|lyric|video|audio)[^)\\]]*[)\\]]", RegexOption.IGNORE_CASE), "").trim(),
+                artists = listOf(com.metrolist.innertube.models.Artist(target.artist, null)),
+                thumbnail = target.songArt ?: target.thumbnail.orEmpty(),
+            ),
+        )
+    }
+}
+
+/** Watches a song's music video: at the same spot when the video is the song itself. */
+fun watchSongVideo(songId: String, videoId: String, title: String, artist: String, positionMs: Long = 0, songArt: String? = null) {
+    Video.watch(VideoTarget(videoId, title, artist, Video.thumbnail(videoId), songId = songId, songArt = songArt), startMs = if (videoId == songId) positionMs else 0L)
+}
+
+/**
+ * The video's mini player: like the music one, with the video still playing in it and an X to stop.
+ * Tap it to watch full again. Drawn in two layers around the picture (the card, then its words).
  */
 @Composable
-private fun VideoMiniPlayer(engine: app.wave.music.playback.VideoEngine, state: app.wave.music.playback.VideoState, target: VideoTarget, shell: Boolean) {
+private fun VideoMiniPlayer(engine: app.wave.music.playback.VideoEngine, state: app.wave.music.playback.VideoState, target: VideoTarget, shell: Boolean, front: Boolean, spot: androidx.compose.runtime.MutableState<androidx.compose.ui.geometry.Rect?>) {
     val c = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .navigationBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, bottom = if (shell) 104.dp else 12.dp)
-            .then(if (shell) Modifier.width(420.dp) else Modifier.widthIn(max = 640.dp).fillMaxWidth())
-            .shadow(18.dp, RoundedCornerShape(30.dp))
-            .clip(RoundedCornerShape(30.dp))
-            .background(c.surfaceContainerHigh)
-            .clickable { Video.minimized = false },
-    ) {
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // The video keeps playing, small.
-            Box(Modifier.width(118.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(20.dp)).background(Color.Black)) {
-                engine.Surface(Modifier.fillMaxSize())
-                if (state.buffering && engine.positionMs < 500) AsyncImage(target.thumbnail, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            }
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("VIDEO", Modifier.clip(CircleShape).background(c.primary).padding(horizontal = 7.dp, vertical = 1.dp), color = c.onPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                    Text(target.artist, color = c.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val shape = RoundedCornerShape(30.dp)
+    Box(Modifier.fillMaxSize(), contentAlignment = if (shell) Alignment.BottomEnd else Alignment.BottomCenter) {
+        Column(
+            Modifier
+                .navigationBarsPadding()
+                .padding(start = 12.dp, end = 12.dp, bottom = if (shell) 104.dp else 12.dp)
+                .then(if (shell) Modifier.width(420.dp) else Modifier.widthIn(max = 640.dp).fillMaxWidth())
+                .then(if (front) Modifier.clip(shape).clickable { Video.minimized = false } else Modifier.shadow(18.dp, shape).clip(shape).background(c.surfaceContainerHigh)),
+        ) {
+            Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.width(118.dp).aspectRatio(16f / 9f).then(if (!front) Modifier.onGloballyPositioned { spot.value = it.boundsInRoot() } else Modifier))
+                Column(Modifier.weight(1f).graphicsLayer { alpha = if (front) 1f else 0f }) {
+                    Text(target.title, color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(target.artist, color = c.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(target.title, Modifier.padding(top = 2.dp), color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
+                Row(Modifier.graphicsLayer { alpha = if (front) 1f else 0f }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val corner by androidx.compose.animation.core.animateDpAsState(if (state.playing) 16.dp else 24.dp, app.wave.music.ui.components.WaveMotion.bouncy(), label = "miniVideoPlay")
+                    Box(
+                        Modifier.size(48.dp).pressable(RoundedCornerShape(corner), c.primary, pressedScale = 0.88f, enabled = front) { engine.togglePlay() },
+                        contentAlignment = Alignment.Center,
+                    ) { PlayPauseIcon(state.playing, c.onPrimary, size = 24.dp) }
+                    Box(
+                        Modifier.size(40.dp).pressable(CircleShape, c.onSurface.copy(alpha = 0.08f), pressedScale = 0.86f, enabled = front, onClick = ::close),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Close, "Stop the video", tint = c.onSurface, modifier = Modifier.size(20.dp)) }
+                }
             }
-            val corner by androidx.compose.animation.core.animateDpAsState(if (state.playing) 16.dp else 24.dp, app.wave.music.ui.components.WaveMotion.bouncy(), label = "miniVideoPlay")
-            Box(
-                Modifier.size(48.dp).pressable(RoundedCornerShape(corner), c.primary, pressedScale = 0.88f) { engine.togglePlay() },
-                contentAlignment = Alignment.Center,
-            ) { PlayPauseIcon(state.playing, c.onPrimary, size = 24.dp) }
-            Box(
-                Modifier.size(40.dp).pressable(CircleShape, c.onSurface.copy(alpha = 0.08f), pressedScale = 0.86f, onClick = ::close),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.Close, "Stop the video", tint = c.onSurface, modifier = Modifier.size(20.dp)) }
-        }
-        // How far along, as a thin line along the bottom.
-        var position by remember { mutableLongStateOf(0L) }
-        LaunchedEffect(target.videoId) { while (true) { position = engine.positionMs; delay(500) } }
-        Box(Modifier.fillMaxWidth().height(3.dp).background(c.onSurface.copy(alpha = 0.1f))) {
-            Box(Modifier.fillMaxWidth(if (state.durationMs > 0) (position.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f).height(3.dp).background(c.primary))
+            var position by remember { mutableLongStateOf(0L) }
+            LaunchedEffect(target.videoId, front) { while (front) { position = engine.positionMs; delay(500) } }
+            Box(Modifier.fillMaxWidth().height(3.dp).graphicsLayer { alpha = if (front) 1f else 0f }.background(c.onSurface.copy(alpha = 0.1f))) {
+                Box(Modifier.fillMaxWidth(if (state.durationMs > 0) (position.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f).height(3.dp).background(c.primary))
+            }
         }
     }
 }
@@ -475,7 +559,14 @@ private fun UpNextList(modifier: Modifier, target: VideoTarget, history: Mutable
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun VideoFrame(engine: app.wave.music.playback.VideoEngine, state: app.wave.music.playback.VideoState, target: VideoTarget, actions: VideoActions, full: Boolean, modifier: Modifier) {
+private fun VideoFrame(engine: app.wave.music.playback.VideoEngine, state: app.wave.music.playback.VideoState, target: VideoTarget, actions: VideoActions, full: Boolean, modifier: Modifier, spot: androidx.compose.runtime.MutableState<androidx.compose.ui.geometry.Rect?>, front: Boolean) {
+    // The back layer: black, with a hole that says where the picture goes (the host draws it there).
+    if (!front) {
+        Box(modifier.background(Color.Black)) {
+            Box(Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(state.width.toFloat() / state.height.coerceAtLeast(1), matchHeightConstraintsFirst = full).onGloballyPositioned { spot.value = it.boundsInRoot() })
+        }
+        return
+    }
     var controls by remember { mutableStateOf(true) }
     var touched by remember { mutableIntStateOf(0) }
     LaunchedEffect(controls, state.playing, touched) { if (controls && state.playing) { delay(3200); controls = false } }
@@ -485,14 +576,8 @@ private fun VideoFrame(engine: app.wave.music.playback.VideoEngine, state: app.w
     LaunchedEffect(jump) { if (jump != 0) { delay(650); jump = 0 } }
     val shade by animateFloatAsState(if (controls || !state.playing) 1f else 0f, tween(220), label = "shade")
 
-    BoxWithConstraints(modifier.background(Color.Black)) {
+    BoxWithConstraints(modifier) {
         val w = constraints.maxWidth
-        // The picture keeps its shape (black bars where the screen's shape differs).
-        Box(Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(state.width.toFloat() / state.height.coerceAtLeast(1), matchHeightConstraintsFirst = full)) {
-            engine.Surface(Modifier.fillMaxSize())
-        }
-        // Before the first picture: the thumbnail.
-        if (state.buffering && position < 500) AsyncImage(target.thumbnail, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
 
         Box(
             Modifier.fillMaxSize().pointerInput(w) {
@@ -538,8 +623,9 @@ private fun VideoFrame(engine: app.wave.music.playback.VideoEngine, state: app.w
                     RoundButton(Icons.Rounded.Headphones, "Listen instead", Color.White.copy(alpha = 0.16f), Color.White, onClick = actions.onListen)
                 } else Row(Modifier.align(Alignment.TopEnd).padding(10.dp)) { QualityChip(engine, state) }
 
-                // Middle: previous, back 10, play/pause (big), forward 10, next.
-                Row(
+                // Middle: previous, back 10, play/pause (big), forward 10, next. Still loading: clear,
+                // for the spinner and "Loading video".
+                if (state.firstFrame || state.error != null) Row(
                     Modifier.align(Alignment.Center),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(if (full) 28.dp else 14.dp),
@@ -571,9 +657,6 @@ private fun VideoFrame(engine: app.wave.music.playback.VideoEngine, state: app.w
                     }
                     if (full) RoundButton(Icons.Rounded.SkipNext, "Next video", Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = if (actions.hasNext) 1f else 0.35f), size = 52.dp) { if (actions.hasNext) actions.onNext() }
                 }
-                state.error?.let {
-                    Text(it, Modifier.align(Alignment.Center).padding(top = if (full) 150.dp else 110.dp), color = Color.White, fontSize = 14.sp)
-                }
 
                 // Bottom: the time, a wave you can drag through, and full screen.
                 Row(
@@ -595,9 +678,7 @@ private fun VideoFrame(engine: app.wave.music.playback.VideoEngine, state: app.w
                         modifier = Modifier.weight(1f).height(32.dp),
                     )
                     Text(formatTime(state.durationMs), color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp)
-                    val toggle = actions.onFullscreen
-                    if (toggle != null) RoundButton(if (full) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, if (full) "Leave full screen" else "Full screen", Color.Transparent, Color.White, size = 40.dp, onClick = toggle)
-                    else RoundButton(Icons.Rounded.PictureInPictureAlt, "Shrink to the mini player", Color.Transparent, Color.White, size = 40.dp, onClick = actions.onMinimize)
+                    actions.onFullscreen?.let { toggle -> RoundButton(if (full) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, if (full) "Leave full screen" else "Full screen", Color.Transparent, Color.White, size = 40.dp, onClick = toggle) }
                 }
             }
         }

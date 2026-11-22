@@ -65,6 +65,9 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
                         .filter { it > 0 }.distinct().sortedDescending()
                     if (heights.isNotEmpty()) _state.value = _state.value.copy(heights = heights)
                 }
+                override fun onRenderedFirstFrame() {
+                    _state.value = _state.value.copy(firstFrame = true)
+                }
                 override fun onPlayerError(error: PlaybackException) {
                     _state.value = _state.value.copy(error = "This video stopped. Tap to try again.", playing = false, buffering = false)
                 }
