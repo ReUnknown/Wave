@@ -1,5 +1,7 @@
 package app.wave.music.ui.video
 
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.rounded.Speed
@@ -307,6 +309,8 @@ private class VideoActions(
     val hasNext: Boolean,
     /** The ⋮: the song itself, and sharing. */
     val onMenu: (Rect) -> Unit,
+    /** What's next, in a frosted panel. */
+    val onUpNext: () -> Unit,
 )
 
 /** Where the picture should be, reported by the layout showing it (window pixels). */
@@ -319,6 +323,7 @@ private class OpenMenu(val kind: String, val anchor: Rect)
 /** Renders only: a menu to show open. */
 object VideoRender {
     var menu: Pair<String, Rect>? = null
+    var upNext = false
 }
 
 /**
@@ -386,6 +391,8 @@ fun VideoPlayerHost() {
             LaunchedEffect(state.ended) { if (state.ended && Video.upNext.isNotEmpty() && target != null) { history += target; playNext(target) } }
 
             var menu by remember { mutableStateOf(VideoRender.menu?.let { OpenMenu(it.first, it.second) }) }
+            var upNextOpen by remember { mutableStateOf(VideoRender.upNext) }
+            androidx.compose.ui.backhandler.BackHandler(enabled = upNextOpen) { upNextOpen = false }
             val actions = VideoActions(
                 onClose = ::close,
                 onUpright = ::upright,
@@ -395,6 +402,7 @@ fun VideoPlayerHost() {
                 hasPrevious = history.isNotEmpty(),
                 hasNext = Video.upNext.isNotEmpty(),
                 onMenu = { menu = OpenMenu("more", it) },
+                onUpNext = { upNextOpen = true },
             )
             val glassOver = dev.chrisbanes.haze.rememberHazeState()
             val spot = remember { mutableStateOf<Rect?>(null) }
@@ -431,7 +439,13 @@ fun VideoPlayerHost() {
                 // 3. Controls and words.
                 Layer(front = true)
               }
-                // 4. A glass menu, when one's open.
+                // 4. What's next, sliding up (or in from the side when it's sideways).
+                UpNextPanel(menuGlass, upNextOpen, sideways = layout != "upright", current = current, onClose = { upNextOpen = false }) { v ->
+                    upNextOpen = false
+                    history += current
+                    Video.watch(v, Video.upNext.filter { it.videoId != v.videoId } + current)
+                }
+                // 5. A glass menu, when one's open.
                 menu?.let { m ->
                     GlassMenu(menuGlass, m.anchor, origin, onClose = { menu = null }, title = when (m.kind) { "quality" -> "Quality"; "speed" -> "Speed"; else -> null }) {
                         when (m.kind) {
@@ -493,10 +507,25 @@ private fun UprightLayout(engine: VideoEngine, state: VideoState, target: VideoT
                     if (front) VideoTapLayer(engine, state, actions)
                 }
             }
-            if (front) LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 32.dp)) {
-                item { UprightControls(engine, state, target, actions, onMenu) }
-                if (Video.upNext.isNotEmpty()) item { Text("Up next", Modifier.padding(top = 28.dp, bottom = 6.dp), color = c.onBackground, style = display(20.sp)) }
-                items(Video.upNext, key = { "n" + it.videoId }) { v -> UpNextRow(v) { history += target; Video.watch(v, Video.upNext.filter { it.videoId != v.videoId } + target) } }
+            if (front) Column(
+                Modifier.fillMaxWidth().weight(1f).navigationBarsPadding().padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                UprightControls(engine, state, target, actions, onMenu)
+                // Up next stays tucked away: a pill that slides it up.
+                Row(
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .height(44.dp)
+                        .pressable(CircleShape, c.onBackground.copy(alpha = 0.08f), pressedScale = 0.95f, enabled = Video.upNext.isNotEmpty(), onClick = actions.onUpNext)
+                        .padding(start = 16.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onBackground, modifier = Modifier.size(20.dp))
+                    Text(if (Video.upNext.isEmpty()) "Finding more videos…" else "Up next · ${Video.upNext.size}", color = c.onBackground, style = body(14.sp, FontWeight.SemiBold))
+                    Icon(Icons.Rounded.KeyboardArrowUp, null, tint = c.onBackground.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                }
             }
         }
     }
@@ -529,12 +558,11 @@ private fun UprightControls(engine: VideoEngine, state: VideoState, target: Vide
             Text(formatTime(position), color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp, FontWeight.SemiBold))
             Text("−" + formatTime((state.durationMs - position).coerceAtLeast(0)), color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp, FontWeight.SemiBold))
         }
-        // Previous · play · next, like the music player (double-tap the video to jump 10 seconds).
-        Row(Modifier.padding(top = 14.dp).fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(80.dp).pressable(CircleShape, c.onBackground.copy(alpha = 0.1f), pressedScale = 0.86f, enabled = actions.hasPrevious, onClick = actions.onPrevious), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.SkipPrevious, "Previous video", tint = c.onBackground.copy(alpha = if (actions.hasPrevious) 1f else 0.35f), modifier = Modifier.size(34.dp))
-            }
-            val corner by animateDpAsState(if (state.playing) 26.dp else 40.dp, WaveMotion.bouncy(), label = "videoPlayShape")
+        // Previous, 10 seconds back, play, 10 seconds on, next: the music player's row, plus the jumps.
+        Row(Modifier.padding(top = 18.dp).fillMaxWidth().height(76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            RowCircle(Icons.Rounded.SkipPrevious, "Previous video", 52.dp, actions.hasPrevious, actions.onPrevious)
+            RowCircle(Icons.Rounded.Replay10, "Back 10 seconds", 52.dp) { engine.seekTo((engine.positionMs - 10_000).coerceAtLeast(0)) }
+            val corner by animateDpAsState(if (state.playing) 24.dp else 38.dp, WaveMotion.bouncy(), label = "videoPlayShape")
             Box(
                 Modifier.weight(1f).fillMaxHeight().pressable(RoundedCornerShape(PrismaLook.corner(corner)), c.primary, pressedScale = 0.94f, enabled = state.firstFrame || state.error != null) {
                     if (state.ended) engine.seekTo(0)
@@ -545,22 +573,65 @@ private fun UprightControls(engine: VideoEngine, state: VideoState, target: Vide
                 Crossfade(when { state.error != null -> 2; state.ended -> 3; !state.firstFrame -> 1; else -> 0 }, label = "videoPlay") { s ->
                     when (s) {
                         1 -> LoadingIndicator(Modifier.size(44.dp), color = c.onPrimary)
-                        2 -> Icon(Icons.Rounded.Refresh, "Try again", tint = c.onPrimary, modifier = Modifier.size(38.dp))
-                        3 -> Icon(Icons.Rounded.Replay, "Watch again", tint = c.onPrimary, modifier = Modifier.size(38.dp))
-                        else -> PlayPauseIcon(state.playing, c.onPrimary, size = 42.dp)
+                        2 -> Icon(Icons.Rounded.Refresh, "Try again", tint = c.onPrimary, modifier = Modifier.size(36.dp))
+                        3 -> Icon(Icons.Rounded.Replay, "Watch again", tint = c.onPrimary, modifier = Modifier.size(36.dp))
+                        else -> PlayPauseIcon(state.playing, c.onPrimary, size = 40.dp)
                     }
                 }
             }
-            Box(Modifier.size(80.dp).pressable(CircleShape, c.onBackground.copy(alpha = 0.1f), pressedScale = 0.86f, enabled = actions.hasNext, onClick = actions.onNext), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.SkipNext, "Next video", tint = c.onBackground.copy(alpha = if (actions.hasNext) 1f else 0.35f), modifier = Modifier.size(34.dp))
-            }
+            RowCircle(Icons.Rounded.Forward10, "Forward 10 seconds", 52.dp) { engine.seekTo((engine.positionMs + 10_000).coerceAtMost(state.durationMs.coerceAtLeast(0))) }
+            RowCircle(Icons.Rounded.SkipNext, "Next video", 52.dp, actions.hasNext, actions.onNext)
         }
         // Where the music player has shuffle and repeat: quality, speed and full screen.
-        Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.padding(top = 18.dp).fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val quality = state.cap?.let { "${it}p" } ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: ""))
-            ModeChip(Icons.Rounded.Tune, quality, Modifier.weight(1.3f)) { onMenu("quality", it) }
-            ModeChip(Icons.Rounded.Speed, speedName(state.speed), Modifier.weight(0.9f), on = state.speed != 1f) { onMenu("speed", it) }
-            ModeChip(Icons.Rounded.Fullscreen, "Full screen", Modifier.weight(1.2f)) { actions.onFullscreen() }
+            ModeChip(Icons.Rounded.Tune, quality, Modifier.weight(1f)) { onMenu("quality", it) }
+            ModeChip(Icons.Rounded.Speed, speedName(state.speed), Modifier.weight(1f), on = state.speed != 1f) { onMenu("speed", it) }
+            ModeChip(Icons.Rounded.Fullscreen, "Full screen", Modifier.weight(1f)) { actions.onFullscreen() }
+        }
+    }
+}
+
+@Composable
+private fun RowCircle(icon: ImageVector, label: String, size: Dp, enabled: Boolean = true, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Box(Modifier.size(size).pressable(CircleShape, c.onBackground.copy(alpha = 0.1f), pressedScale = 0.86f, enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, label, tint = c.onBackground.copy(alpha = if (enabled) 1f else 0.35f), modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/**
+ * What's next, in a frosted panel: up from the bottom when upright, in from the right when sideways.
+ * Tap one to watch it.
+ */
+@Composable
+private fun UpNextPanel(glass: dev.chrisbanes.haze.HazeState?, open: Boolean, sideways: Boolean, current: VideoTarget, onClose: () -> Unit, onPick: (VideoTarget) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val p by animateFloatAsState(if (open) 1f else 0f, if (open) spring(dampingRatio = 0.86f, stiffness = 380f) else tween(220), label = "upNext")
+    if (p == 0f) return
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = p }.background(Color.Black.copy(alpha = 0.35f)).pointerInput(Unit) { detectTapGestures { onClose() } })
+        val shape = if (sideways) RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp) else RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+        Column(
+            Modifier
+                .align(if (sideways) Alignment.CenterEnd else Alignment.BottomCenter)
+                .then(if (sideways) Modifier.fillMaxHeight().width(380.dp) else Modifier.fillMaxWidth().fillMaxHeight(0.62f))
+                .graphicsLayer {
+                    if (sideways) translationX = (1f - p) * size.width else translationY = (1f - p) * size.height
+                    this.shape = shape
+                    clip = true
+                }
+                .glass(glass, 30.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainer.copy(alpha = 0.7f))), c.surfaceContainerHigh)
+                .pointerInput(Unit) { detectTapGestures { } }
+                .then(if (sideways) Modifier.padding(top = 8.dp) else Modifier.navigationBarsPadding()),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Up next", Modifier.weight(1f), color = c.onSurface, style = display(22.sp))
+                CircleButton(if (sideways) Icons.Rounded.Close else Icons.Rounded.KeyboardArrowDown, "Close Up next", c.onSurface.copy(alpha = 0.08f), c.onSurface, 40.dp, onClose)
+            }
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 20.dp)) {
+                items(Video.upNext, key = { "n" + it.videoId }) { v -> UpNextRow(v) { onPick(v) } }
+            }
         }
     }
 }
@@ -853,9 +924,14 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    // Sideways: back to the upright player.
-                    if (full) Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onUpright), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.FullscreenExit, "Leave full screen", tint = Color.White)
+                    // Sideways: close the video, or back to the upright player (also at the bottom right).
+                    if (full) {
+                        Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onClose), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Close, "Close the video", tint = Color.White)
+                        }
+                        Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onUpright), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.FullscreenExit, "Leave full screen", tint = Color.White)
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     QualityChip(state, glass, onSpot = { chipSpot = it }) { chipSpot?.let { onMenu("quality", it) } }
@@ -867,6 +943,14 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                     ) {
                         Icon(Icons.Rounded.Speed, null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Text(speedName(state.speed), color = Color.White, style = body(14.sp, FontWeight.SemiBold))
+                    }
+                    if (full) Row(
+                        Modifier.height(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onUpNext).padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text("Up next", color = Color.White, style = body(14.sp, FontWeight.SemiBold))
                     }
                     var moreAt by remember { mutableStateOf(Rect.Zero) }
                     Box(Modifier.size(44.dp).onGloballyPositioned { moreAt = it.boundsInRoot() }.clip(CircleShape).then(glass).clickable { actions.onMenu(moreAt) }, contentAlignment = Alignment.Center) {
