@@ -473,74 +473,89 @@ fun VideoPlayerHost() {
 private fun speedName(v: Float) = if (v == 1f) "1×" else "${v.toString().removeSuffix(".0")}×"
 
 /**
- * Upright: the video across the top (its whole picture, never cut off), then the controls laid out
- * like the music player's: the name, the wave you drag through, previous · play · next, and labeled
- * buttons for quality, speed and full screen where shuffle and repeat would be. What's next under it.
+ * Upright: laid out exactly like the music player. The same round buttons at the top, the video in
+ * the art's place (its whole picture, centered, over its own blurred colors), and at the bottom the
+ * same controls with the same spacing: name (full screen where Like is), the wave and times,
+ * previous · play · next, two labeled buttons (Quality and Speed where Shuffle and Repeat are),
+ * and the frosted tray (Up next, and Full screen where Lyrics is).
  */
 @Composable
 private fun UprightLayout(engine: VideoEngine, state: VideoState, target: VideoTarget, actions: VideoActions, history: MutableList<VideoTarget>, front: Boolean, spot: MutableState<Rect?>, onMenu: (String, Rect) -> Unit) {
     val c = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize()) {
         if (!front) {
-            // The video's colors, blurred, behind everything (like the music player's art).
+            // The video's picture, blurred, filling the screen like the music player's art.
             Box(Modifier.fillMaxSize().blocksTouchesBelow().background(c.background))
-            app.wave.music.ui.components.BlurredImage(target.thumbnail, Modifier.fillMaxSize().graphicsLayer { alpha = 0.6f; scaleX = 1.3f; scaleY = 1.3f }, radius = 64.dp)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to c.background.copy(alpha = 0.55f), 0.45f to c.background.copy(alpha = 0.8f), 1f to c.background)))
+            app.wave.music.ui.components.BlurredImage(target.thumbnail, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }, radius = 72.dp)
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = 0.4f),
+                        0.1f to Color.Transparent,
+                        0.44f to Color.Transparent,
+                        0.6f to c.background.copy(alpha = 0.32f),
+                        0.74f to c.background.copy(alpha = 0.6f),
+                        1f to c.background.copy(alpha = 0.85f),
+                    ),
+                ),
+            )
         }
-        Column(Modifier.fillMaxSize().topBarPadding()) {
-            // The top: close, and the ⋮ (the song itself, sharing).
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).graphicsLayer { alpha = if (front) 1f else 0f }, verticalAlignment = Alignment.CenterVertically) {
-                CircleButton(Icons.Rounded.KeyboardArrowDown, "Close the video", c.onBackground.copy(alpha = 0.1f), c.onBackground, 48.dp, actions.onClose)
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("NOW WATCHING", color = c.onBackground.copy(alpha = 0.7f), style = body(11.sp, FontWeight.SemiBold).copy(letterSpacing = 0.8.sp))
-                    Text("Music video", color = c.onBackground, style = body(14.sp, FontWeight.Bold))
-                }
-                var at by remember { mutableStateOf<Rect?>(null) }
-                Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-                    CircleButton(Icons.Rounded.MoreVert, "More options", c.onBackground.copy(alpha = 0.1f), c.onBackground, 48.dp) { at?.let(actions.onMenu) }
-                }
+        Column(Modifier.fillMaxSize()) {
+            // The header: the music player's, button for button.
+            Row(Modifier.topBarPadding().padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().graphicsLayer { alpha = if (front) 1f else 0f }) {
+                GlassButton(Icons.Rounded.KeyboardArrowDown, "Close the video", actions.onClose)
+                Spacer(Modifier.weight(1f))
+                var at by remember { mutableStateOf(Rect.Zero) }
+                Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) { GlassButton(Icons.Rounded.MoreVert, "More options") { actions.onMenu(at) } }
             }
-            // The video, edge to edge, its whole picture.
-            BoxWithConstraints(Modifier.padding(top = 8.dp).fillMaxWidth()) {
+            // Where the art is: the video, centered, its whole picture.
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 val ratio = (state.width.toFloat() / state.height.coerceAtLeast(1)).coerceIn(0.5f, 2.4f)
-                Box(Modifier.fillMaxWidth().aspectRatio(ratio).heightIn(max = maxWidth * 1.1f).reportSpot(spot, !front)) {
+                Box(Modifier.fillMaxWidth().aspectRatio(ratio).heightIn(max = maxHeight).reportSpot(spot, !front)) {
                     if (front) VideoTapLayer(engine, state, actions)
                 }
             }
-            if (front) Column(
-                Modifier.fillMaxWidth().weight(1f).navigationBarsPadding().padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                UprightControls(engine, state, target, actions, onMenu)
-                // Up next stays tucked away: a pill that slides it up.
-                Row(
-                    Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .height(44.dp)
-                        .pressable(CircleShape, c.onBackground.copy(alpha = 0.08f), pressedScale = 0.95f, enabled = Video.upNext.isNotEmpty(), onClick = actions.onUpNext)
-                        .padding(start = 16.dp, end = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onBackground, modifier = Modifier.size(20.dp))
-                    Text(if (Video.upNext.isEmpty()) "Finding more videos…" else "Up next · ${Video.upNext.size}", color = c.onBackground, style = body(14.sp, FontWeight.SemiBold))
-                    Icon(Icons.Rounded.KeyboardArrowUp, null, tint = c.onBackground.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
-                }
+            if (front) {
+                UprightControls(engine, state, target, actions, onMenu, Modifier.padding(horizontal = 20.dp))
+                VideoTray(actions)
+            } else {
+                // Same room as the controls and tray, so the video sits in the same place.
+                Box(Modifier.alpha0()) { UprightControls(engine, state, target, actions, onMenu, Modifier.padding(horizontal = 20.dp)); }
+                Box(Modifier.alpha0()) { VideoTray(actions) }
             }
         }
     }
 }
 
-/** Upright controls, in the music player's style. */
+private fun Modifier.alpha0() = graphicsLayer { alpha = 0f }
+
+/** The music player's round glass button (top corners). */
+@Composable
+private fun GlassButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Box(Modifier.size(48.dp).pressable(CircleShape, Color.Black.copy(alpha = 0.32f), pressedScale = 0.86f, onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, label, tint = Color.White)
+    }
+}
+
+/** The music player's controls, measure for measure. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun UprightControls(engine: VideoEngine, state: VideoState, target: VideoTarget, actions: VideoActions, onMenu: (String, Rect) -> Unit) {
+private fun UprightControls(engine: VideoEngine, state: VideoState, target: VideoTarget, actions: VideoActions, onMenu: (String, Rect) -> Unit, modifier: Modifier) {
     val c = MaterialTheme.colorScheme
     var position by remember { mutableLongStateOf(0L) }
     LaunchedEffect(target.videoId) { while (true) { position = engine.positionMs; delay(250) } }
-    Column {
-        Text(target.title, color = c.onBackground, style = display(26.sp).copy(lineHeight = 31.sp, letterSpacing = (-0.4).sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(target.artist, Modifier.padding(top = 2.dp), color = c.onBackground.copy(alpha = 0.7f), style = body(16.sp, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 2f), 12f)
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(target.title, color = c.onBackground, style = display(28.sp).copy(lineHeight = 33.sp, letterSpacing = (-0.4).sp, shadow = shadow), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(target.artist, color = c.onBackground.copy(alpha = 0.7f), style = body(16.sp, FontWeight.Medium).copy(shadow = shadow), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            // Where the music player has Like: full screen.
+            Box(Modifier.size(48.dp).pressable(RoundedCornerShape(24.dp), c.onBackground.copy(alpha = 0.1f), pressedScale = 0.88f, onClick = actions.onFullscreen), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Fullscreen, "Full screen", tint = c.onBackground)
+            }
+        }
         Spacer(Modifier.height(16.dp))
         WavyProgress(
             progress = { if (state.durationMs > 0) (engine.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f },
@@ -555,16 +570,15 @@ private fun UprightControls(engine: VideoEngine, state: VideoState, target: Vide
             modifier = Modifier.fillMaxWidth().height(32.dp),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatTime(position), color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp, FontWeight.SemiBold))
-            Text("−" + formatTime((state.durationMs - position).coerceAtLeast(0)), color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp, FontWeight.SemiBold))
+            Text(formatTime(position), color = c.onBackground.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("−" + formatTime((state.durationMs - position).coerceAtLeast(0)), color = c.onBackground.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
-        // Previous, 10 seconds back, play, 10 seconds on, next: the music player's row, plus the jumps.
-        Row(Modifier.padding(top = 18.dp).fillMaxWidth().height(76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RowCircle(Icons.Rounded.SkipPrevious, "Previous video", 52.dp, actions.hasPrevious, actions.onPrevious)
-            RowCircle(Icons.Rounded.Replay10, "Back 10 seconds", 52.dp) { engine.seekTo((engine.positionMs - 10_000).coerceAtLeast(0)) }
-            val corner by animateDpAsState(if (state.playing) 24.dp else 38.dp, WaveMotion.bouncy(), label = "videoPlayShape")
+        // Previous · play · next: glass circles around a big play pill.
+        Row(Modifier.padding(top = 14.dp).fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            RowCircle(Icons.Rounded.SkipPrevious, "Previous video", 80.dp, actions.hasPrevious, actions.onPrevious)
+            val corner by animateDpAsState(if (state.playing) 26.dp else 40.dp, WaveMotion.bouncy(), label = "videoPlayShape")
             Box(
-                Modifier.weight(1f).fillMaxHeight().pressable(RoundedCornerShape(PrismaLook.corner(corner)), c.primary, pressedScale = 0.94f, enabled = state.firstFrame || state.error != null) {
+                Modifier.weight(1f).fillMaxSize().pressable(RoundedCornerShape(corner), c.primary, pressedScale = 0.94f, enabled = state.firstFrame || state.error != null) {
                     if (state.ended) engine.seekTo(0)
                     engine.togglePlay()
                 },
@@ -573,21 +587,59 @@ private fun UprightControls(engine: VideoEngine, state: VideoState, target: Vide
                 Crossfade(when { state.error != null -> 2; state.ended -> 3; !state.firstFrame -> 1; else -> 0 }, label = "videoPlay") { s ->
                     when (s) {
                         1 -> LoadingIndicator(Modifier.size(44.dp), color = c.onPrimary)
-                        2 -> Icon(Icons.Rounded.Refresh, "Try again", tint = c.onPrimary, modifier = Modifier.size(36.dp))
-                        3 -> Icon(Icons.Rounded.Replay, "Watch again", tint = c.onPrimary, modifier = Modifier.size(36.dp))
-                        else -> PlayPauseIcon(state.playing, c.onPrimary, size = 40.dp)
+                        2 -> Icon(Icons.Rounded.Refresh, "Try again", tint = c.onPrimary, modifier = Modifier.size(38.dp))
+                        3 -> Icon(Icons.Rounded.Replay, "Watch again", tint = c.onPrimary, modifier = Modifier.size(38.dp))
+                        else -> PlayPauseIcon(state.playing, c.onPrimary, size = 42.dp)
                     }
                 }
             }
-            RowCircle(Icons.Rounded.Forward10, "Forward 10 seconds", 52.dp) { engine.seekTo((engine.positionMs + 10_000).coerceAtMost(state.durationMs.coerceAtLeast(0))) }
-            RowCircle(Icons.Rounded.SkipNext, "Next video", 52.dp, actions.hasNext, actions.onNext)
+            RowCircle(Icons.Rounded.SkipNext, "Next video", 80.dp, actions.hasNext, actions.onNext)
         }
-        // Where the music player has shuffle and repeat: quality, speed and full screen.
-        Row(Modifier.padding(top = 18.dp).fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Where Shuffle and Repeat are: Quality and Speed.
+        Row(Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val quality = state.cap?.let { "${it}p" } ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: ""))
             ModeChip(Icons.Rounded.Tune, quality, Modifier.weight(1f)) { onMenu("quality", it) }
-            ModeChip(Icons.Rounded.Speed, speedName(state.speed), Modifier.weight(1f), on = state.speed != 1f) { onMenu("speed", it) }
-            ModeChip(Icons.Rounded.Fullscreen, "Full screen", Modifier.weight(1f)) { actions.onFullscreen() }
+            ModeChip(Icons.Rounded.Speed, if (state.speed == 1f) "Normal speed" else speedName(state.speed), Modifier.weight(1f), on = state.speed != 1f) { onMenu("speed", it) }
+        }
+    }
+}
+
+/** The music player's frosted tray: Up next (what's coming), and Full screen where Lyrics is. */
+@Composable
+private fun VideoTray(actions: VideoActions) {
+    val c = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(androidx.compose.ui.graphics.lerp(Color.Black, c.primary, 0.12f).copy(alpha = 0.6f))
+            .navigationBarsPadding(),
+    ) {
+        Box(Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(CircleShape).background(c.onBackground.copy(alpha = 0.3f)))
+        Row(Modifier.heightIn(min = 68.dp).padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val next = Video.upNext.firstOrNull()
+            Row(
+                Modifier.weight(1f).pressable(RoundedCornerShape(20.dp), pressedScale = 0.96f, enabled = next != null, onClick = actions.onUpNext).padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (next != null) AsyncImage(next.thumbnail, null, Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                else Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = c.onBackground)
+                Column {
+                    Text("Up next", color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(next?.let { "${it.title} · ${it.artist}" } ?: "Finding more videos…", color = c.onBackground.copy(alpha = 0.65f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Box(Modifier.width(1.dp).height(32.dp).background(c.onBackground.copy(alpha = 0.16f)))
+            Row(
+                Modifier.width(150.dp).pressable(RoundedCornerShape(20.dp), pressedScale = 0.94f, onClick = actions.onFullscreen).padding(10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Fullscreen, null, tint = c.onBackground)
+                Text("  Full screen", color = c.onBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, softWrap = false)
+            }
         }
     }
 }
@@ -680,10 +732,6 @@ private fun VideoTapLayer(engine: VideoEngine, state: VideoState, actions: Video
             Box(Modifier.size(64.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(34.dp))
             }
-        }
-        // Full screen, in the corner.
-        Box(Modifier.align(Alignment.BottomEnd).padding(10.dp).size(38.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.4f)).clickable(onClick = actions.onFullscreen), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Fullscreen, "Full screen", tint = Color.White, modifier = Modifier.size(22.dp))
         }
     }
 }
