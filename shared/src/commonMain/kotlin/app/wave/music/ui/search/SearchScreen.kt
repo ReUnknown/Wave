@@ -184,7 +184,9 @@ fun SearchScreen(
         keyboard?.hide()
         val text = query.trim()
         if (text.isNotEmpty()) scope.launch { SearchRepository.remember(text) }
-        onOpen(item)
+        // A music video plays as a video; everything else as before.
+        if (item is SongItem && item.isVideoSong && app.wave.music.data.VideoRepository.isRealVideo(item)) app.wave.music.playback.Video.watch(item.toVideoTarget())
+        else onOpen(item)
     }
     // Scrolling the list puts the keyboard away so you can see everything.
     val hideKeyboardOnScroll = remember(keyboard) {

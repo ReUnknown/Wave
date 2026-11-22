@@ -1,5 +1,6 @@
 package app.wave.music.video
 
+import kotlinx.coroutines.async
 import android.content.pm.ActivityInfo
 import android.net.ConnectivityManager
 import android.view.TextureView
@@ -46,9 +47,45 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
     private var loading: Job? = null
     private val http = OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build()
 
+    /** Videos already looked up: their playlist address, until it runs out (YouTube's own expiry). */
+    private val found = java.util.concurrent.ConcurrentHashMap<String, Pair<StreamResolver.VideoStreams, Long>>()
+    private val looking = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Result<StreamResolver.VideoStreams>>>()
+
+    private fun expiryOf(url: String): Long =
+        Regex("/expire/(\\d+)").find(url)?.groupValues?.get(1)?.toLongOrNull()?.times(1000)?.minus(10 * 60_000)
+            ?: (System.currentTimeMillis() + 4 * 3_600_000)
+
+    /** The video's streams: from the ones looked up already, or looked up now (once, however many ask). */
+    private suspend fun streamsFor(videoId: String): Result<StreamResolver.VideoStreams> {
+        found[videoId]?.takeIf { it.second > System.currentTimeMillis() }?.let { return Result.success(it.first) }
+        val connectivity = activity.getSystemService(ConnectivityManager::class.java)
+        val job = looking.getOrPut(videoId) {
+            scope.async(Dispatchers.IO) { StreamResolver.videoFor(videoId, connectivity) }
+        }
+        val result = job.await()
+        looking.remove(videoId, job)
+        result.getOrNull()?.let { found[videoId] = it to expiryOf(it.manifestUrl) }
+        return result
+    }
+
+    override fun prefetch(videoId: String) {
+        if (found[videoId]?.let { it.second > System.currentTimeMillis() } == true) return
+        scope.launch { streamsFor(videoId) }
+    }
+
     private var exo: ExoPlayer? = null
     private val player: ExoPlayer
-        get() = exo ?: ExoPlayer.Builder(activity).build().also { p ->
+        get() = exo ?: ExoPlayer.Builder(activity)
+            // Start sooner: play once a second is buffered (two after a stall), and begin at a modest
+            // quality that sharpens as it measures the connection.
+            .setLoadControl(
+                androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build(),
+            )
+            .setBandwidthMeter(androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(activity).setInitialBitrateEstimate(1_500_000).build())
+            .build().also { p ->
             exo = p
             p.setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             p.setHandleAudioBecomingNoisy(true)
@@ -69,12 +106,16 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
                     _state.value = _state.value.copy(firstFrame = true)
                 }
                 override fun onPlayerError(error: PlaybackException) {
+                    // Its address may have run out: look it up fresh next time.
+                    _state.value.videoId?.let { found.remove(it) }
                     _state.value = _state.value.copy(error = "This video stopped. Tap to try again.", playing = false, buffering = false)
                 }
             })
         }
 
     init {
+        // Wave's own volume (the slider under the player's tray) applies to videos too.
+        scope.launch { app.wave.music.data.WaveSettings.state.collect { exo?.volume = it.appVolume } }
         // Leaving Wave pauses the video (it isn't background music).
         activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) { exo?.pause() }
@@ -108,17 +149,19 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
         loading?.cancel()
         exo?.stop()
         val keep = _state.value
-        _state.value = VideoState(videoId = videoId, buffering = true, cap = keep.cap)
+        _state.value = VideoState(videoId = videoId, buffering = true, cap = keep.cap, speed = keep.speed)
         val connectivity = activity.getSystemService(ConnectivityManager::class.java)
         loading = scope.launch {
-            val result = withContext(Dispatchers.IO) { StreamResolver.videoFor(videoId, connectivity) }
+            val result = streamsFor(videoId)
             val s = result.getOrElse {
+                found.remove(videoId)
                 _state.value = _state.value.copy(buffering = false, error = it.message ?: "This video can't play right now")
                 return@launch
             }
             val source = HlsMediaSource.Factory(OkHttpDataSource.Factory(http).setDefaultRequestProperties(s.headers))
                 .createMediaSource(MediaItem.Builder().setUri(s.manifestUrl).setMimeType(MimeTypes.APPLICATION_M3U8).build())
             applyCap(_state.value.cap)
+            player.volume = app.wave.music.data.WaveSettings.state.value.appVolume
             player.setMediaSource(source, startMs)
             player.prepare()
             player.play()
@@ -129,7 +172,7 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
         val p = exo ?: return
         val s = _state.value
         when {
-            s.error != null -> s.videoId?.let { load(it, p.currentPosition) }
+            s.error != null -> s.videoId?.let { found.remove(it); load(it, p.currentPosition) }
             p.playbackState == Player.STATE_ENDED -> { p.seekTo(0); p.play() }
             p.isPlaying -> p.pause()
             else -> p.play()
@@ -137,6 +180,11 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
     }
 
     override fun seekTo(ms: Long) { exo?.seekTo(ms) }
+
+    override fun setSpeed(speed: Float) {
+        exo?.setPlaybackSpeed(speed)
+        _state.value = _state.value.copy(speed = speed)
+    }
 
     override fun setQuality(height: Int?) {
         _state.value = _state.value.copy(cap = height)
@@ -168,12 +216,24 @@ class AndroidVideo(private val activity: ComponentActivity, private val big: () 
         }
     }
 
+    private var texture: TextureView? = null
+
+    override fun framePixels(): IntArray? {
+        val view = texture ?: return null
+        if (!view.isAvailable || !_state.value.firstFrame) return null
+        val bitmap = runCatching { view.getBitmap(48, 27) }.getOrNull() ?: return null
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        bitmap.recycle()
+        return pixels
+    }
+
     @Composable
     override fun Surface(modifier: Modifier) {
         AndroidView(
-            factory = { context -> TextureView(context).also { player.setVideoTextureView(it) } },
+            factory = { context -> TextureView(context).also { texture = it; player.setVideoTextureView(it) } },
             modifier = modifier,
-            onRelease = { exo?.clearVideoTextureView(it) },
+            onRelease = { if (texture === it) texture = null; exo?.clearVideoTextureView(it) },
         )
     }
 }

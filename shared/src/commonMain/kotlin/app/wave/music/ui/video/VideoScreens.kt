@@ -273,12 +273,17 @@ fun VideoPlayerHost(shell: Boolean = false) {
         // Load each video once (full or mini); the music pauses while you watch.
         LaunchedEffect(target?.videoId) {
             val t = target ?: return@LaunchedEffect
-            if (PlayerConnection.state.value.isPlaying) PlayerConnection.togglePlay()
+            // One player: a video takes over from the music (it doesn't wait paused underneath).
+            if (PlayerConnection.state.value.current != null) PlayerConnection.reset()
             engine.load(t.videoId, Video.startAt)
             Video.startAt = 0
             if (Video.upNext.size < 3) Video.upNext = Video.upNext + VideoRepository.upNextFor(t).filter { n -> Video.upNext.none { it.videoId == n.videoId } }
         }
         // At the end, the next one starts.
+        // Once it's playing, look up what's next so it starts right away.
+        LaunchedEffect(state.firstFrame, Video.upNext.firstOrNull()?.videoId) {
+            if (state.firstFrame) Video.upNext.take(2).forEach { engine.prefetch(it.videoId) }
+        }
         LaunchedEffect(state.ended) { if (state.ended && Video.upNext.isNotEmpty() && target != null) { history += target; playNext(target) } }
 
         val window = currentWindowDp()
@@ -296,7 +301,11 @@ fun VideoPlayerHost(shell: Boolean = false) {
         }
         val edgeToEdge = full && (!wideRoom || fullscreenAsked)
         LaunchedEffect(edgeToEdge) { engine.setBarsHidden(edgeToEdge) }
-        androidx.compose.ui.backhandler.BackHandler(enabled = full) { if (wideRoom && fullscreenAsked) fullscreenAsked = false else Video.minimized = true }
+        // Back: out of the whole window first, then down to the mini player. Re-registered whenever
+        // it changes, so the video always gets Back before the pages under it.
+        androidx.compose.runtime.key(full, fullscreenAsked) {
+            androidx.compose.ui.backhandler.BackHandler(enabled = full) { if (wideRoom && fullscreenAsked) fullscreenAsked = false else Video.minimized = true }
+        }
 
         // A song started while a video is open (you picked one): the video steps aside for it.
         LaunchedEffect(target?.videoId) {

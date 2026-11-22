@@ -1,5 +1,6 @@
 package app.wave.music.data
 
+import kotlinx.coroutines.async
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.metrolist.innertube.YouTube
@@ -40,10 +41,18 @@ object SearchRepository {
     }
 
     suspend fun search(query: String, tab: SearchTab): Result<List<SearchGroup>> = runCatching {
-        if (tab.filter == null) {
-            YouTube.searchSummary(query).getOrThrow().summaries
+        if (tab.filter == null) kotlinx.coroutines.coroutineScope {
+            // Everything YouTube found, and music videos too (a row of them when the summary has none).
+            val videos = async { runCatching { VideoRepository.search(query).take(10) }.getOrDefault(emptyList()) }
+            val groups = YouTube.searchSummary(query).getOrThrow().summaries
                 .map { SearchGroup(it.title, it.items.filterNot(::isPodcast).distinctBy { item -> item.id }) }
                 .filter { it.items.isNotEmpty() }
+            val hasVideos = groups.any { g -> g.items.count { it is SongItem && it.isVideoSong } >= 2 }
+            val extra = videos.await().filter { v -> groups.none { g -> g.items.any { it.id == v.id } } }
+            if (hasVideos || extra.isEmpty()) groups
+            else groups.take(2) + SearchGroup("Videos", extra) + groups.drop(2)
+        } else if (tab == SearchTab.Videos) {
+            listOf(SearchGroup(tab.label, VideoRepository.search(query)))
         } else {
             val items = YouTube.search(query, tab.filter).getOrThrow().items.filterNot(::isPodcast).distinctBy { it.id }
             listOf(SearchGroup(tab.label, items))
@@ -74,8 +83,8 @@ object SearchRepository {
     private fun isPodcast(item: YTItem): Boolean = when (item) {
         is PodcastItem, is EpisodeItem -> true
         is PlaylistItem -> item.isPodcast
-        // Music only: no music videos, episodes or user channels.
-        is SongItem -> item.isEpisode || item.isVideoSong
+        // Music and music videos; no podcast episodes.
+        is SongItem -> item.isEpisode || item.musicVideoType?.contains("PODCAST") == true
         is com.metrolist.innertube.models.ArtistItem -> item.isProfile
         else -> false
     }

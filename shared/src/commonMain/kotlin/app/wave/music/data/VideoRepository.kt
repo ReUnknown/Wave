@@ -19,10 +19,43 @@ object VideoRepository {
     @Volatile private var cached: Pair<Long, List<VideoShelf>>? = null
     private const val FRESH_FOR_MS = 30 * 60_000L
 
-    /** Music videos for [query] (official videos first, the way YouTube Music ranks them). */
+    private const val ATV = "MUSIC_VIDEO_TYPE_ATV"
+    private const val OMV = "MUSIC_VIDEO_TYPE_OMV"
+
+    /** A real video (not an album track's still cover, not a podcast episode). */
+    fun isRealVideo(item: SongItem): Boolean = item.musicVideoType != ATV && item.musicVideoType?.contains("PODCAST") != true && !item.isEpisode
+
+    private val searchCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<SongItem>>>()
+
+    /**
+     * Music videos for [query]: real videos only, official ones first, then the rest in YouTube's
+     * order. Results are kept for a while, and a search that comes back empty is tried once more.
+     */
     suspend fun search(query: String): List<SongItem> = withContext(Dispatchers.IO) {
-        YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()?.items
-            ?.filterIsInstance<SongItem>()?.distinctBy { it.id }.orEmpty()
+        val key = query.trim().lowercase()
+        searchCache[key]?.takeIf { System.currentTimeMillis() - it.first < FRESH_FOR_MS }?.let { return@withContext it.second }
+        suspend fun once() = YouTube.search(query, YouTube.SearchFilter.FILTER_VIDEO).getOrNull()?.items
+            ?.filterIsInstance<SongItem>()?.filter(::isRealVideo)?.distinctBy { it.id }.orEmpty()
+        val found = once().ifEmpty { kotlinx.coroutines.delay(300); once() }
+        val ranked = found.sortedBy { if (it.musicVideoType == OMV) 0 else 1 }
+        if (ranked.isNotEmpty()) searchCache[key] = System.currentTimeMillis() to ranked
+        ranked
+    }
+
+    private fun words(s: String) = plain(s).split(" ").filter { it.length > 1 }.toSet()
+
+    /** How alike two names are: the share of the song's words found in the video's title (0..1). */
+    private fun overlap(song: String, video: String): Float {
+        val a = words(song)
+        if (a.isEmpty()) return 0f
+        val b = words(video)
+        return a.count { it in b }.toFloat() / a.size
+    }
+
+    private fun byArtist(v: SongItem, artist: String): Boolean {
+        val who = plain(artist.substringBefore(",").substringBefore(" & ").substringBefore(" feat"))
+        if (who.isBlank()) return false
+        return v.artists.any { plain(it.name).let { n -> n.contains(who) || who.contains(n) && n.isNotBlank() } } || plain(v.title).contains(who)
     }
 
     /** Your artists, most played first: from what you played in Wave, then your home. */
@@ -37,10 +70,10 @@ object VideoRepository {
         cached?.takeIf { !refresh && System.currentTimeMillis() - it.first < FRESH_FOR_MS }?.let { return it.second }
         val artists = (yourArtists() + homeArtists).distinct().take(6)
         val shelves = coroutineScope {
-            val perArtist = artists.map { a -> async { runCatching { a to search("$a official music video").filter { v -> v.artists.any { it.name.equals(a, true) } }.take(10) }.getOrNull() } }
+            val perArtist = artists.map { a -> async { runCatching { a to search("$a official music video").filter { v -> byArtist(v, a) }.take(10) }.getOrNull() } }
             val trending = async { runCatching { search("trending music videos this week").take(14) }.getOrDefault(emptyList()) }
             val fresh = async { runCatching { search("new music video ${java.time.Year.now().value}").take(14) }.getOrDefault(emptyList()) }
-            val mine = perArtist.awaitAll().filterNotNull().filter { it.second.size >= 3 }
+            val mine = perArtist.awaitAll().filterNotNull().filter { it.second.size >= 2 }
             // For you: the top two from each of your artists, taking turns, so it's not one artist's row.
             val forYou = (0 until 3).flatMap { round -> mine.mapNotNull { it.second.getOrNull(round) } }.distinctBy { it.id }
             buildList {
@@ -76,18 +109,40 @@ object VideoRepository {
         val found = when {
             type == null -> null
             type != com.metrolist.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.MUSIC_VIDEO_TYPE_ATV -> videoId
-            else -> {
-                val name = plain(title)
-                val who = plain(artist.substringBefore(",").substringBefore(" & "))
-                search("$title $artist").take(5).firstOrNull { v ->
-                    val vt = plain(v.title)
-                    (vt.contains(name) || name.contains(vt)) && name.isNotBlank() &&
-                        (v.artists.any { plain(it.name).contains(who) || who.contains(plain(it.name)) } || vt.contains(who))
-                }?.id
-            }
+            else -> bestVideo(title, artist)
         }
         if (type != null) videoOf[videoId] = found ?: NONE
         found
+    }
+
+    /**
+     * The music video for a song by name: every candidate is scored (the song's words in its title,
+     * the right artist, an official video, not a cover / live / lyric version unless the song is) and
+     * the best one wins if it scores well enough. Tries "official video" first, then just the name.
+     */
+    private suspend fun bestVideo(title: String, artist: String): String? {
+        val songWords = plain(title)
+        val unwanted = listOf("cover", "live", "lyric", "lyrics", "karaoke", "instrumental", "remix", "slowed", "sped up", "reaction", "8d", "nightcore")
+            .filter { it !in songWords }
+        fun score(v: SongItem): Float {
+            val t = plain(v.title)
+            var s = overlap(title, v.title) * 3f
+            if (byArtist(v, artist)) s += 2f
+            if (v.musicVideoType == OMV) s += 1.5f
+            if (t.contains("official")) s += 0.5f
+            if (unwanted.any { t.contains(it) }) s -= 2.5f
+            return s
+        }
+        for (q in listOf("$title $artist official video", "$title $artist")) {
+            // Only the song's own artist's videos (or an official video with the whole name): a fan's
+            // upload of a classical piece isn't that song's music video.
+            val best = search(q).take(8)
+                .filter { byArtist(it, artist) || (it.musicVideoType == OMV && overlap(title, it.title) >= 0.99f) }
+                .map { it to score(it) }.maxByOrNull { it.second }
+            // The name mostly there and the artist right (or an official video with the full name).
+            if (best != null && best.second >= 4.2f) return best.first.id
+        }
+        return null
     }
 
     /** What plays after [target]: more from the same artist, then what's on the Videos page. */
