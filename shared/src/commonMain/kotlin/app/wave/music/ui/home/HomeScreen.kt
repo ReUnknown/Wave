@@ -286,7 +286,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     val playItem: (YTItem, Boolean) -> Unit = { item, shuffle ->
         // A music video (Recently played, search, rows) opens as a video; everything else plays.
         if (item is SongItem && item.isVideoSong && app.wave.music.data.VideoRepository.isRealVideo(item)) app.wave.music.playback.Video.watch(item.toVideoTarget())
-        else start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item))
+        else {
+            // A song you pick replaces a video right away, even before it's ready to play.
+            app.wave.music.playback.Video.stopForMusic()
+            start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item))
+        }
     }
     // "Listen" from a video: the song plays like any other you pick.
     androidx.compose.runtime.SideEffect { app.wave.music.playback.Video.playSong = { song -> playItem(song, false) } }

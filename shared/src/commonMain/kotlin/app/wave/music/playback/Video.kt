@@ -71,6 +71,12 @@ data class VideoTarget(
 object Video {
     var engine: VideoEngine? = null
 
+    /** Closes the video player (set by it). */
+    var closer: () -> Unit = {}
+
+    /** Music is starting: the video (full or in the mini player) steps aside for it. */
+    fun stopForMusic() { if (open != null) closer() }
+
     /** Plays a song as music (set by home: the song starts with more like it after). */
     var playSong: (com.metrolist.innertube.models.SongItem) -> Unit = {}
 

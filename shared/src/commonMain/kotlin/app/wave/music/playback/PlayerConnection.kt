@@ -83,9 +83,21 @@ object PlayerConnection {
     val state: StateFlow<PlayerUiState> get() = backend.state
     val position: Long get() = backend.position
 
-    fun play(request: PlayRequest, startPositionMs: Long = 0) = backend.play(request, startPositionMs)
-    fun playNext(request: PlayRequest) = backend.playNext(request)
-    fun addToQueue(request: PlayRequest) = backend.addToQueue(request)
+    /** Music starting (a song, a mix, a station) takes over from a video, mini player included. */
+    fun play(request: PlayRequest, startPositionMs: Long = 0) {
+        Video.stopForMusic()
+        backend.play(request, startPositionMs)
+    }
+    fun playNext(request: PlayRequest) {
+        // Nothing playing: this starts the music, so it takes over from a video too.
+        if (state.value.current == null) Video.stopForMusic()
+        backend.playNext(request)
+    }
+    fun addToQueue(request: PlayRequest) {
+        // Nothing playing: this starts the music, so it takes over from a video too.
+        if (state.value.current == null) Video.stopForMusic()
+        backend.addToQueue(request)
+    }
     fun play() = backend.play()
     fun togglePlay() = backend.togglePlay()
     fun next() = backend.next()

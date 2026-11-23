@@ -388,6 +388,7 @@ fun VideoPlayerHost() {
         }
         return
     }
+    androidx.compose.runtime.SideEffect { Video.closer = ::close }
     val state by engine.state.collectAsState()
     val history = remember { mutableListOf<VideoTarget>() }
     LaunchedEffect(target?.videoId) {
@@ -459,7 +460,7 @@ fun VideoPlayerHost() {
         val layout = when { edgeToEdge -> "edge"; wideRoom -> "wide"; else -> "upright" }
         // Back: menus and Up next first, then full screen goes upright, then the video shrinks into
         // the dock (following your swipe, like the music player).
-        val swipe = app.wave.music.ui.components.predictiveBack(enabled = full && !edgeToEdge && menu == null && !upNextOpen, onBack = ::minimize)
+        val swipe = app.wave.music.ui.components.predictiveBack(enabled = full && !edgeToEdge && menu == null && !upNextOpen, resetAfter = true, onBack = ::minimize)
         // The full player's motion, shared by its layers and the picture so they move as one.
         val motion = Modifier.graphicsLayer {
             alpha = open.coerceIn(0f, 1f)

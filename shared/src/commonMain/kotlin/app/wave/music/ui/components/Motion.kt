@@ -106,7 +106,7 @@ fun Modifier.sharedContainer(
  * If you cancel, the screen springs back.
  */
 @Composable
-fun predictiveBack(enabled: Boolean = true, onBack: () -> Unit): () -> Float {
+fun predictiveBack(enabled: Boolean = true, resetAfter: Boolean = false, onBack: () -> Unit): () -> Float {
     var progress by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
     val peeking = LocalPeeking.current
@@ -118,6 +118,9 @@ fun predictiveBack(enabled: Boolean = true, onBack: () -> Unit): () -> Float {
                 progress = it.progress
             }
             onBack()
+            // A screen that stays around after Back (the video, shrunk to the dock) starts straight
+            // again next time, instead of where the swipe left it.
+            if (resetAfter) progress = 0f
         } catch (e: CancellationException) {
             scope.launch { animate(progress, 0f, animationSpec = WaveMotion.settle()) { v, _ -> progress = v } }
             throw e
