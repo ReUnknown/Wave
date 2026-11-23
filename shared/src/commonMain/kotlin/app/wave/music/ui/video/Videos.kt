@@ -298,12 +298,12 @@ private fun close() {
 
 private fun playNext(target: VideoTarget) {
     val next = Video.upNext.firstOrNull() ?: return
-    Video.watch(next, Video.upNext.drop(1) + target)
+    Video.watch(next, Video.upNext.drop(1) + target, keepSize = true)
 }
 
 private fun playPrevious(target: VideoTarget, history: MutableList<VideoTarget>) {
     val prev = history.removeLastOrNull() ?: return
-    Video.watch(prev, listOf(target) + Video.upNext)
+    Video.watch(prev, listOf(target) + Video.upNext, keepSize = true)
 }
 
 private class VideoActions(
@@ -336,11 +336,16 @@ object VideoRender {
     var volume = false
 }
 
+/** Where the dock's song row wants the video's picture (the dock is the video's mini player). */
+object VideoDock {
+    val spot = mutableStateOf<Rect?>(null)
+}
+
 /**
- * The video player, over everything, while a video is open. Upright, the video sits at the top
- * (never cut off) with the controls under it the way the music player has them; turn the phone
- * sideways and the video fills the screen under frosted glass controls. Closing it stops it (there's
- * no mini player for videos).
+ * The video player while a video is open. Full: upright, the video at the top with the controls
+ * under it like the music player; turn the phone and it fills the screen under glass controls.
+ * Shrunk (⌄, the X, or Back): it moves into the dock like a song, still playing, and the dock's row
+ * opens it again (swipe it down to stop). One picture the whole time, gliding between the two.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -355,126 +360,150 @@ fun VideoPlayerHost() {
     val wideRoom = !landscapePhone && window.screenWidthDp >= 840 && window.screenWidthDp > window.screenHeightDp
     var fullscreenAsked by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val edgeToEdge = target != null && (landscapePhone || fullscreenAsked)
-    LaunchedEffect(target == null) { if (target == null) fullscreenAsked = false else engine?.holdOrientation(0) }
+    val full = target != null && !Video.minimized
+    val edgeToEdge = full && (landscapePhone || fullscreenAsked)
+    LaunchedEffect(target == null) { if (target == null) fullscreenAsked = false }
+    LaunchedEffect(full) { if (full) engine?.holdOrientation(0) }
     LaunchedEffect(edgeToEdge) { engine?.setBarsHidden(edgeToEdge) }
-    fun upright() {
-        if (fullscreenAsked) fullscreenAsked = false
-        if (landscapePhone || !computer) scope.launch {
-            // Turn back upright, then follow the phone again (so turning it sideways goes full screen).
+    /** Back upright (and then follow the phone again, so turning it goes full screen). */
+    fun turnUpright() {
+        if (landscapePhone || fullscreenAsked) scope.launch {
             engine?.holdOrientation(2)
             delay(2500)
-            if (Video.open != null) engine?.holdOrientation(0)
+            engine?.holdOrientation(0)
         }
+        fullscreenAsked = false
+    }
+    fun minimize() {
+        turnUpright()
+        Video.minimized = true
     }
 
-    androidx.compose.animation.AnimatedVisibility(
-        visible = target != null,
-        enter = androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.86f, stiffness = 420f)) { it / 3 } + fadeIn(tween(200)) + androidx.compose.animation.scaleIn(spring(dampingRatio = 0.86f, stiffness = 420f), initialScale = 0.94f),
-        exit = androidx.compose.animation.slideOutVertically(tween(260, easing = WaveMotion.EmphasizedAccelerate)) { it / 3 } + fadeOut(tween(200)),
-    ) {
-        val current = shown ?: return@AnimatedVisibility
-        // Back, the same everywhere: menus and Up next close first, then full screen goes back
-        // upright, then the video closes (shrinking away as you swipe, like every page in Wave).
-        val swipe = app.wave.music.ui.components.predictiveBack(enabled = target != null && !edgeToEdge, onBack = ::close)
-        Box(Modifier.fillMaxSize().backGesture(swipe)) {
-        // Ambient mode (upright, Settings › Playback): the background softly takes on the colors on
-        // screen as the video plays. Buttons keep the video's own colors, so nothing jumps around.
-        val base = app.wave.music.ui.theme.darkBaseScheme()
-        val artScheme = rememberArtColorScheme(current.thumbnail, base = base)
-        val ambientOn = WaveSettings.state.collectAsState().value.videoAmbient && !edgeToEdge
-        var glowTarget by remember(current.videoId) { mutableStateOf<Color?>(null) }
-        LaunchedEffect(current.videoId, ambientOn) {
-            if (!ambientOn) { glowTarget = null; return@LaunchedEffect }
-            while (true) {
-                delay(700)
-                val e = engine ?: continue
-                if (!e.state.value.firstFrame) continue
-                val pixels = e.framePixels() ?: continue
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.wave.music.ui.components.schemeFromPixels(pixels, base) }?.let { glowTarget = it.primaryContainer }
+    val current = shown ?: return
+    if (engine == null) {
+        if (target != null) MaterialTheme(colorScheme = app.wave.music.ui.theme.darkBaseScheme()) {
+            Box(Modifier.fillMaxSize().blocksTouchesBelow().background(MaterialTheme.colorScheme.background).clickable { close() }, contentAlignment = Alignment.Center) {
+                Text("Videos play in the Android app.", color = MaterialTheme.colorScheme.onBackground, style = body(16.sp))
             }
         }
-        val glow by androidx.compose.animation.animateColorAsState(glowTarget ?: artScheme.primaryContainer, tween(1400), label = "ambient")
-        CompositionLocalProviderGlow(if (ambientOn) glow else null) {
-        MaterialTheme(colorScheme = artScheme) {
-            val c = MaterialTheme.colorScheme
-            if (engine == null) {
-                Box(Modifier.fillMaxSize().blocksTouchesBelow().background(c.background).clickable { close() }, contentAlignment = Alignment.Center) {
-                    Text("Videos play in the Android app.", color = c.onBackground, style = body(16.sp))
-                }
-                return@MaterialTheme
-            }
-            val state by engine.state.collectAsState()
-            val history = remember { mutableListOf<VideoTarget>() }
-            LaunchedEffect(target?.videoId) {
-                val t = target ?: return@LaunchedEffect
-                // One player: a video takes over from the music (it doesn't wait paused underneath).
-                if (PlayerConnection.state.value.current != null) PlayerConnection.reset()
-                engine.load(t.videoId, Video.startAt)
-                Video.startAt = 0
-                if (Video.upNext.size < 3) Video.upNext = Video.upNext + VideoRepository.upNextFor(t).filter { n -> Video.upNext.none { it.videoId == n.videoId } }
-            }
-            // A song started while a video is open (you picked one): the video steps aside for it.
-            LaunchedEffect(target?.videoId) {
-                if (target == null) return@LaunchedEffect
-                androidx.compose.runtime.snapshotFlow { PlayerConnection.state.value.isPlaying }.drop(1)
-                    .collect { playing -> if (playing && Video.open != null) close() }
-            }
-            // Once it's playing, look up what's next so it starts right away.
-            LaunchedEffect(state.firstFrame, Video.upNext.firstOrNull()?.videoId) {
-                if (state.firstFrame) Video.upNext.take(2).forEach { engine.prefetch(it.videoId) }
-            }
-            LaunchedEffect(state.ended) { if (state.ended && Video.upNext.isNotEmpty() && target != null) { history += target; playNext(target) } }
+        return
+    }
+    val state by engine.state.collectAsState()
+    val history = remember { mutableListOf<VideoTarget>() }
+    LaunchedEffect(target?.videoId) {
+        val t = target ?: return@LaunchedEffect
+        // One player: a video takes over from the music (it doesn't wait paused underneath).
+        if (PlayerConnection.state.value.current != null) PlayerConnection.reset()
+        engine.load(t.videoId, Video.startAt)
+        Video.startAt = 0
+        if (Video.upNext.size < 3) Video.upNext = Video.upNext + VideoRepository.upNextFor(t).filter { n -> Video.upNext.none { it.videoId == n.videoId } }
+    }
+    // A song started while a video is open (you picked one): the video steps aside for it.
+    LaunchedEffect(target?.videoId) {
+        if (target == null) return@LaunchedEffect
+        androidx.compose.runtime.snapshotFlow { PlayerConnection.state.value.isPlaying }.drop(1)
+            .collect { playing -> if (playing && Video.open != null) close() }
+    }
+    // Watched: into Recently played as a video of its own (tapping it there plays the video).
+    LaunchedEffect(target?.videoId) {
+        val t = target ?: return@LaunchedEffect
+        app.wave.music.data.RecentPlays.addVideo(t.videoId, t.title, t.artist, 0)
+    }
+    // Once it's playing, look up what's next so it starts right away.
+    LaunchedEffect(state.firstFrame, Video.upNext.firstOrNull()?.videoId) {
+        if (state.firstFrame) Video.upNext.take(2).forEach { engine.prefetch(it.videoId) }
+    }
+    LaunchedEffect(state.ended) { if (state.ended && Video.upNext.isNotEmpty() && target != null) { history += target; playNext(target) } }
 
-            var menu by remember { mutableStateOf(VideoRender.menu?.let { OpenMenu(it.first, it.second) }) }
-            var upNextOpen by remember { mutableStateOf(VideoRender.upNext) }
-            val actions = VideoActions(
-                onClose = ::close,
-                onUpright = ::upright,
-                onFullscreen = { fullscreenAsked = true; if (!computer && window.screenWidthDp < window.screenHeightDp) engine.holdOrientation(1) },
-                onNext = { history += current; playNext(current) },
-                onPrevious = { playPrevious(current, history) },
-                hasPrevious = history.isNotEmpty(),
-                hasNext = Video.upNext.isNotEmpty(),
-                onMenu = { menu = OpenMenu("more", it) },
-                onUpNext = { upNextOpen = true },
-            )
-            val glassOver = dev.chrisbanes.haze.rememberHazeState()
-            val spot = remember { mutableStateOf<Rect?>(null) }
-            var origin by remember { mutableStateOf(Offset.Zero) }
-            val layout = when { edgeToEdge -> "edge"; wideRoom -> "wide"; else -> "upright" }
-            @Composable
-            fun Layer(front: Boolean) {
-                when (layout) {
-                    "upright" -> UprightLayout(engine, state, current, actions, history, front, spot, onMenu = { kind, at -> menu = OpenMenu(kind, at) })
-                    else -> FullLayout(engine, state, current, actions, history, edgeToEdge, front, spot, glassOver, onMenu = { kind, at -> menu = OpenMenu(kind, at) })
-                }
+    // How far open the full player is (it fades and settles while the picture glides to the dock).
+    val open by animateFloatAsState(if (full) 1f else 0f, if (full) spring(dampingRatio = 0.86f, stiffness = 420f) else tween(260, easing = WaveMotion.EmphasizedAccelerate), label = "videoOpen")
+    if (target == null && open == 0f) return
+
+    // Ambient mode (upright, Settings › Playback): the background softly takes on the colors on
+    // screen as the video plays. Buttons keep the video's own colors, so nothing jumps around.
+    val base = app.wave.music.ui.theme.darkBaseScheme()
+    val artScheme = rememberArtColorScheme(current.thumbnail, base = base)
+    val ambientOn = WaveSettings.state.collectAsState().value.videoAmbient && !edgeToEdge && full
+    var glowTarget by remember(current.videoId) { mutableStateOf<Color?>(null) }
+    LaunchedEffect(current.videoId, ambientOn) {
+        if (!ambientOn) return@LaunchedEffect
+        while (true) {
+            delay(700)
+            if (!engine.state.value.firstFrame) continue
+            val pixels = engine.framePixels() ?: continue
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.wave.music.ui.components.schemeFromPixels(pixels, base) }?.let { glowTarget = it.primaryContainer }
+        }
+    }
+    val glow by androidx.compose.animation.animateColorAsState(glowTarget ?: artScheme.primaryContainer, tween(1400), label = "ambient")
+
+    CompositionLocalProviderGlow(if (ambientOn) glow else null) {
+    MaterialTheme(colorScheme = artScheme) {
+        var menu by remember { mutableStateOf(VideoRender.menu?.let { OpenMenu(it.first, it.second) }) }
+        var upNextOpen by remember { mutableStateOf(VideoRender.upNext) }
+        LaunchedEffect(full) { if (!full) { menu = null; upNextOpen = false } }
+        val actions = VideoActions(
+            onClose = ::minimize,
+            onUpright = ::turnUpright,
+            onFullscreen = { fullscreenAsked = true; if (!computer && window.screenWidthDp < window.screenHeightDp) engine.holdOrientation(1) },
+            onNext = { history += current; playNext(current) },
+            onPrevious = { playPrevious(current, history) },
+            hasPrevious = history.isNotEmpty(),
+            hasNext = Video.upNext.isNotEmpty(),
+            onMenu = { menu = OpenMenu("more", it) },
+            onUpNext = { upNextOpen = true },
+        )
+        val glassOver = dev.chrisbanes.haze.rememberHazeState()
+        val menuGlass = dev.chrisbanes.haze.rememberHazeState()
+        val fullSpot = remember { mutableStateOf<Rect?>(null) }
+        var origin by remember { mutableStateOf(Offset.Zero) }
+        val layout = when { edgeToEdge -> "edge"; wideRoom -> "wide"; else -> "upright" }
+        // Back: menus and Up next first, then full screen goes upright, then the video shrinks into
+        // the dock (following your swipe, like the music player).
+        val swipe = app.wave.music.ui.components.predictiveBack(enabled = full && !edgeToEdge && menu == null && !upNextOpen, onBack = ::minimize)
+        // The full player's motion, shared by its layers and the picture so they move as one.
+        val motion = Modifier.graphicsLayer {
+            alpha = open.coerceIn(0f, 1f)
+            translationY = (1f - open) * size.height * 0.06f
+        }.backGesture(swipe)
+        @Composable
+        fun Layer(front: Boolean) {
+            when (layout) {
+                "upright" -> UprightLayout(engine, state, current, actions, history, front, fullSpot, onMenu = { kind, at -> menu = OpenMenu(kind, at) })
+                else -> FullLayout(engine, state, current, actions, history, edgeToEdge, front, fullSpot, glassOver, onMenu = { kind, at -> menu = OpenMenu(kind, at) })
             }
-            // Menus blur everything under them: the player is their glass's source.
-            val menuGlass = dev.chrisbanes.haze.rememberHazeState()
-            Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
-              Box(Modifier.fillMaxSize().hazeSource(menuGlass)) {
-                // 1. The background, with a hole where the video goes.
-                Layer(front = false)
-                // 2. The video, in that hole.
-                spot.value?.translate(-origin)?.let { r ->
-                    val density = LocalDensity.current
+        }
+        Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+            // 1. The full player's background, with a hole where the video goes.
+            if (open > 0f) Box(Modifier.fillMaxSize().then(motion).hazeSource(menuGlass)) { Layer(front = false) }
+            // 2. The one picture: in the full player's hole, or in the dock's song row when shrunk.
+            val dock = VideoDock.spot.value
+            val goal = (if (full || dock == null) fullSpot.value else dock)?.translate(-origin)
+            if (goal != null) {
+                val rect = remember { Animatable(goal, Rect.VectorConverter) }
+                LaunchedEffect(goal) { rect.animateTo(goal, spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)) }
+                val r = rect.value
+                val density = LocalDensity.current
+                val corner by animateDpAsState(if (full) (if (layout == "wide") 24.dp else 0.dp) else 12.dp, tween(260), label = "videoCorner")
+                // Shrunk with nowhere to go (the dock is hidden, e.g. by the keyboard): out of sight.
+                val hidden = !full && dock == null
+                Box(Modifier.fillMaxSize().then(if (full) motion else Modifier)) {
                     Box(
                         Modifier
                             .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                             .size(with(density) { r.width.toDp() }, with(density) { r.height.toDp() })
-                            .clip(RoundedCornerShape(if (layout == "edge") 0.dp else if (layout == "wide") 24.dp else 0.dp))
+                            .graphicsLayer { alpha = if (hidden) 0f else 1f }
+                            .clip(RoundedCornerShape(corner))
                             .background(Color.Black)
                             .hazeSource(glassOver),
                     ) {
                         engine.Surface(Modifier.fillMaxSize())
-                        LoadingCover(state, current, small = false)
+                        LoadingCover(state, current, small = !full)
                     }
                 }
-                // 3. Controls and words.
+            }
+            // 3. Controls, Up next and menus (full only).
+            if (open > 0f && full) Box(Modifier.fillMaxSize().then(motion)) {
                 Layer(front = true)
-              }
-                // 4. What's next: upright, its own page like the songs' Up next; sideways, a side panel.
                 if (layout == "upright") VideoQueue(state, current, upNextOpen, onClose = { upNextOpen = false }) { v ->
                     upNextOpen = false
                     history += current
@@ -484,17 +513,15 @@ fun VideoPlayerHost() {
                     history += current
                     Video.watch(v, Video.upNext.filter { it.videoId != v.videoId } + current)
                 }
-                // Back closes what's on top first (registered last, so it comes before the rest of Wave).
                 androidx.compose.runtime.key(menu != null, upNextOpen, edgeToEdge) {
                     androidx.compose.ui.backhandler.BackHandler(enabled = menu != null || upNextOpen || edgeToEdge) {
                         when {
                             menu != null -> menu = null
                             upNextOpen -> upNextOpen = false
-                            else -> upright()
+                            else -> turnUpright()
                         }
                     }
                 }
-                // 5. A glass menu, when one's open.
                 menu?.let { m ->
                     GlassMenu(menuGlass, m.anchor, origin, onClose = { menu = null }, title = when (m.kind) { "quality" -> "Quality"; "speed" -> "Speed"; else -> null }) {
                         when (m.kind) {
@@ -510,14 +537,14 @@ fun VideoPlayerHost() {
                             else -> {
                                 MenuRow("Play the song", "Just the music, from the start", false, icon = Icons.Rounded.Headphones) { menu = null; scope.launch { playTheSong(current) } }
                                 MenuRow("Share", null, false, icon = Icons.Rounded.Share) { menu = null; WavePlatform.current.share(current.title, "https://music.youtube.com/watch?v=${current.videoId}") }
+                                MenuRow("Stop the video", null, false, icon = Icons.Rounded.Close) { menu = null; close() }
                             }
                         }
                     }
                 }
             }
         }
-        }
-        }
+    }
     }
 }
 
@@ -566,7 +593,7 @@ private fun UprightLayout(engine: VideoEngine, state: VideoState, target: VideoT
         Column(Modifier.fillMaxSize()) {
             // The header: the music player's, button for button.
             Row(Modifier.topBarPadding().padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().graphicsLayer { alpha = if (front) 1f else 0f }) {
-                GlassButton(Icons.Rounded.KeyboardArrowDown, "Close the video", actions.onClose)
+                GlassButton(Icons.Rounded.KeyboardArrowDown, "Shrink to the mini player", actions.onClose)
                 Spacer(Modifier.weight(1f))
                 GlassButton(Icons.Rounded.Fullscreen, "Full screen", actions.onFullscreen)
                 Spacer(Modifier.width(8.dp))
@@ -1046,7 +1073,7 @@ private fun FullLayout(engine: VideoEngine, state: VideoState, target: VideoTarg
         ) {
             Column(Modifier.weight(1.75f).fillMaxHeight()) {
                 Row(Modifier.padding(bottom = 10.dp).graphicsLayer { alpha = if (front) 1f else 0f }, verticalAlignment = Alignment.CenterVertically) {
-                    CircleButton(Icons.Rounded.KeyboardArrowDown, "Close the video", c.onBackground.copy(alpha = 0.08f), c.onBackground, 44.dp, actions.onClose)
+                    CircleButton(Icons.Rounded.KeyboardArrowDown, "Shrink to the mini player", c.onBackground.copy(alpha = 0.08f), c.onBackground, 44.dp, actions.onClose)
                     Text("Now watching", Modifier.padding(start = 12.dp), color = c.onBackground.copy(alpha = 0.7f), style = body(15.sp, FontWeight.SemiBold))
                 }
                 Box(Modifier.fillMaxWidth().weight(1f, fill = false).aspectRatio(16f / 9f).reportSpot(spot, back)) {
@@ -1170,7 +1197,7 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                     // Sideways: close the video, or back to the upright player (also at the bottom right).
                     if (full) {
                         Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onClose), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Close, "Close the video", tint = Color.White)
+                            Icon(Icons.Rounded.Close, "Shrink to the mini player", tint = Color.White)
                         }
                         Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onUpright), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.FullscreenExit, "Leave full screen", tint = Color.White)

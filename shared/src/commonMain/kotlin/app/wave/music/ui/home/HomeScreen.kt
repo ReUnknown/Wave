@@ -1,5 +1,6 @@
 package app.wave.music.ui.home
 
+import app.wave.music.data.toVideoTarget
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Album
@@ -282,7 +283,11 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             pendingSong = null
         }
     }
-    val playItem: (YTItem, Boolean) -> Unit = { item, shuffle -> start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item)) }
+    val playItem: (YTItem, Boolean) -> Unit = { item, shuffle ->
+        // A music video (Recently played, search, rows) opens as a video; everything else plays.
+        if (item is SongItem && item.isVideoSong && app.wave.music.data.VideoRepository.isRealVideo(item)) app.wave.music.playback.Video.watch(item.toVideoTarget())
+        else start({ QueueBuilder.forItem(item, shuffle) }, pending = pendingFor(item))
+    }
     // "Listen" from a video: the song plays like any other you pick.
     androidx.compose.runtime.SideEffect { app.wave.music.playback.Video.playSong = { song -> playItem(song, false) } }
     val stack = remember { mutableStateListOf<Destination>().apply { RenderStart.page?.let { add(it) } } }
@@ -940,7 +945,10 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
             val dockSong = pendingSong ?: player.current
             val legacyMini = settings.legacyUi
             val songOnItsOwn = !legacyMini && (settings.separateMiniPlayer || settings.topSearch)
-            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && songOnItsOwn && dockSong != null)
+            // A video shrunk to the mini player takes the song's place in the dock.
+            val videoMini = app.wave.music.playback.Video.open?.takeIf { app.wave.music.playback.Video.minimized }
+            val videoState by (app.wave.music.playback.Video.engine?.state ?: kotlinx.coroutines.flow.MutableStateFlow(app.wave.music.playback.VideoState())).collectAsState()
+            val barVisible = tabsShown || (!shell && !showPlayer && !keyboardUp && (songOnItsOwn || legacyMini) && (dockSong != null || videoMini != null))
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -995,10 +1003,15 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
                     },
                     haze = barHaze,
                     // A video shrunk down takes the song's place in the dock (full, the dock leaves it out).
-                    now = if (legacyMini) null else dockSong,
-                    playing = player.isPlaying,
-                    loading = preparing,
-                    onOpenPlayer = { openPlayer(null) },
+                    now = when {
+                        videoMini != null -> app.wave.music.playback.NowPlaying(videoMini.videoId, videoMini.title, videoMini.artist, videoMini.thumbnail)
+                        legacyMini -> null
+                        else -> dockSong
+                    },
+                    playing = if (videoMini != null) videoState.playing else player.isPlaying,
+                    loading = if (videoMini != null) !videoState.firstFrame && videoState.error == null else preparing,
+                    onOpenPlayer = { if (videoMini != null) app.wave.music.playback.Video.minimized = false else openPlayer(null) },
+                    video = videoMini != null,
                     showTabs = dockTabs,
                     split = songOnItsOwn,
                     oneRow = oneRow,

@@ -78,8 +78,10 @@ fun WaveApp(
             var signingIn by rememberSaveable { mutableStateOf(false) }
 
             val playing by remember { PlayerConnection.state.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(false)
-            DisposableEffect(playing) {
-                onPlayingChanged(playing)
+            // A video playing keeps the screen on too (while Wave is open).
+            val videoPlaying = app.wave.music.playback.Video.engine?.state?.collectAsState()?.value?.playing == true
+            DisposableEffect(playing || videoPlaying) {
+                onPlayingChanged(playing || videoPlaying)
                 onDispose { onPlayingChanged(false) }
             }
 
