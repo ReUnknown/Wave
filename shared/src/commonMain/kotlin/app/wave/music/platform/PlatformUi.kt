@@ -25,8 +25,16 @@ object PrismaLook {
     var dense by androidx.compose.runtime.mutableStateOf(false)
     /** Battery saver look is on: no cover background, still waves. */
     var saving by androidx.compose.runtime.mutableStateOf(false)
-    /** Fewer moving things (Calm motion, or battery saver). */
+    /** Fewer moving things (Calm motion, Reduce motion, or battery saver). */
     var calm by androidx.compose.runtime.mutableStateOf(false)
+    /** Accessibility › Reduce motion (or the phone's own "remove animations"): no bounces. */
+    var reduceMotion by androidx.compose.runtime.mutableStateOf(false)
+    /** Accessibility › High contrast. */
+    var highContrast by androidx.compose.runtime.mutableStateOf(false)
+    /** Accessibility › Fix low contrast automatically. */
+    var autoContrast by androidx.compose.runtime.mutableStateOf(true)
+    /** A screen reader (TalkBack) is on, or Keep controls on screen: nothing tucks itself away. */
+    var keepControls by androidx.compose.runtime.mutableStateOf(false)
 
     /** A corner radius in the chosen style (and squarer in Legacy). */
     fun corner(base: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp = base * when {

@@ -1,0 +1,573 @@
+Customize
+Modern or Legacy, layout, buttons, haptics
+Appearance
+Theme, background, blur, text size, colors
+Accessibility
+Contrast, text size, motion, TalkBack
+Language
+The language Wave speaks
+Playback & sound
+Quality, fades, more songs when a queue ends
+Style, motion, size, timing
+Storage
+Saved songs and covers, history, erase
+Battery
+Battery saver, calmer motion
+About
+Version, updates, what's new, credits
+Attribution
+What's new
+Update
+Home rows
+Make it yours
+Listening
+This phone
+Back
+Settings
+Not signed in
+Sign in for your playlists and likes
+YouTube Music account
+Sign in
+Sign out
+Wave {0} is ready
+Close
+Look
+Style
+Modern is Wave 2.0; Legacy is a modern take on Wave 1.0
+Modern
+Legacy
+Corners
+How round cards, menus and the bar are
+Rounded
+Squircle
+Sharp
+Denser home
+Smaller cards, so you see more at once
+Pick and arrange what's on your home, with a preview
+Getting around
+Navigation
+The bar at the bottom, or a search bar at the top that also opens your library
+Bottom bar
+Top search
+Open Wave on
+The tab you see first
+Home
+Library
+Search
+Mini player and player
+Mini player on its own
+Always on its own with the top search
+Floats above the bar instead of joining it
+Mini player beside the tabs
+Big screens: one row at the bottom instead of two
+Previous and next in the mini player
+Off leaves just the play button
+Buttons beside play
+In the player: skip songs, or jump 10 seconds
+Skip songs
+10 seconds
+Feel
+Haptics
+The little buzzes when you tap and drag
+On
+Subtle
+Off
+Theme
+Follow your phone, or always light or dark
+System
+Light
+Dark
+Match song colors
+Wave takes on the colors of what's playing
+Background
+With song colors on: the cover blurred behind everything, a glow at the top, or plain
+Cover
+Glow
+Plain
+Blur
+Frosted glass on the bar, menus and page tops
+Full
+AMOLED black
+Pure black backgrounds in dark mode
+Text size
+On top of your phone's own text size
+Smaller
+Default
+Bigger
+Seeing
+High contrast
+Black or white backgrounds, stronger text and colors, and solid surfaces instead of frosted glass
+Fix low contrast automatically
+When a song's colors would make text hard to read, Wave adjusts them
+Text
+Bigger or smaller text all through Wave
+Biggest
+Follow your phone's text size
+Your phone's text size applies on top of Wave's
+Motion
+Reduce motion
+On, because your phone is set to remove animations
+No bounces, still waves and fewer moving things
+TalkBack
+Keep controls on screen
+On while TalkBack is running: video controls never tuck themselves away
+Video controls stay put instead of tucking away. Turns on by itself with TalkBack
+Wave is in English everywhere. Other languages are being filled in, so some text may still show in English.
+Phone's language
+English
+Videos
+Ambient mode
+Upright videos: the player's colors follow what's on screen as it plays
+Sound
+Audio quality
+The best Wave can get
+Best on Wi-Fi, lighter on mobile data
+Uses the least data
+Low
+Auto
+High
+Fade between songs
+Songs play one after another
+Each song fades into the next over {0} seconds
+Even volume
+Loud songs are turned down so everything sounds the same
+Queue
+Auto-load more songs
+When your queue ends, Wave keeps going with songs like the last one
+Skip silence
+Trims the quiet gaps in songs
+Wave checks each song's lyrics against the song and fixes the timing by itself when something's off.
+Light up
+Word by word as they're sung, or the whole line at once
+Word by word
+Line by line
+Words lift gently as they're sung; held notes can glow too
+Still
+Lift
+Lift & glow
+Size
+How big the lines are
+Small
+Medium
+Large
+Alignment
+Lines on the left, or centered
+Left
+Center
+Blur other lines
+Lines away from the one being sung soften, so it stands out
+Timing
+Fix timing automatically
+When lyrics run early or late, Wave lines them up with the song. Off: exactly as the lyrics source times them
+Battery saver is on. Wave is going easy on your battery.
+Battery saver is off. These kick in when you turn it on.
+When battery saver is on
+Simpler look
+No blur or cover background, and the progress line holds still
+Lighter audio
+Plays lower quality, which takes less work and data
+All the time
+Save battery while playing
+The phone's audio chip plays when Wave isn't on screen (off with Skip silence)
+Calm motion
+Fewer moving things, like the wavy progress line
+Space
+Saved songs and covers
+Clear saved songs and covers
+They load again when you need them
+Mobile data
+Save mobile data
+On mobile data, Wave plays lighter audio and loads smaller covers
+History
+Clear search history
+Your recent searches
+Search history cleared
+Clear saved pages
+Home, albums and artists load fresh
+Saved pages cleared
+Everything
+Erase info
+Signs you out and resets Wave as if it were just installed
+Erase everything?
+You'll be signed out, and your settings, searches, history and saved pages are cleared from this phone. Your YouTube Music account isn't touched.
+Erase
+Cancel
+%.1f GB
+{0} MB
+{0} of {1}
+Version {0}
+  GitHub
+Updates
+Tap Check to look for a new version
+Checking…
+You're up to date
+Couldn't check right now
+Wave {0} is ready to download
+Downloading Wave {0}…
+Wave {0} is ready to install
+Install
+Check
+Update automatically
+Wave looks for a new version once a day
+Show me around
+The quick tour of Wave again
+Every release, newest first, straight from GitHub
+What Wave is built on and inspired by
+Report a bug
+Opens a new issue on GitHub
+Go back to Wave 1.x
+How to switch back to the finished version
+Going back to Wave 1.x
+Android can't step an app back a version, so it's a quick reinstall:\n\n
+1. Uninstall Wave (your likes and playlists live in your YouTube Music account, so they're safe; Wave's own settings and saved songs are cleared).\n
+2. Download the latest Wave 1.x APK from GitHub and open it.\n
+3. Sign in again.\n\n
+Wave 1.x only offers finished versions, so you'll stay on it until you choose otherwise.
+Get Wave 1.x
+Stay on 2.0
+Wave is free software under the GNU GPL v3. It isn't affiliated with or endorsed by YouTube or Google.
+How Wave talks to YouTube Music (GPL v3)
+Wave's whole interface (Apache 2.0)
+Components, shapes and motion (Apache 2.0)
+Playback and the notification controls (Apache 2.0)
+The frosted glass, by Chris Banes (Apache 2.0)
+Loading covers (Apache 2.0)
+Networking (Apache 2.0)
+Drag to reorder Up next, by Calvin Liang (Apache 2.0)
+Time-synced lyrics
+Word-by-word lyrics
+Thank you to everyone who works on these. Wave isn't affiliated with any of them.
+Couldn't reach GitHub. Check your connection and try again.
+You have this
+New
+Beta
+NEW VERSION
+Wave {0} is here
+See what's new
+Wave {0}
+You have {0}
+See it on GitHub
+Downloading {0}%
+Install now
+Download update
+Room for both
+Less room means songs download again more often. Applies when Wave restarts.
+Big cards picked from what you play
+What you played lately
+Playlists you made or saved
+Mixes and rows YouTube Music makes for you
+Live stations like the music you play
+Music videos from the artists you play
+Your home
+Drag rows to move them, switch them off to hide them. The preview shows how it'll look.
+Rows
+row-{0}
+Drag to move {0}
+Hidden from your home
+From YouTube Music
+Tap a row to hide it, tap again to bring it back.
+Reset to how Wave starts
+Your Google account
+Your library
+Playlists
+Albums & artists
+All settings & Customize
+Sign in with Google
+Not signed in. Likes stay on this device.
+Signed in with Google
+Search your library
+Search music & your library
+ Home
+ Library
+Your account
+Update ready
+tab-{0}
+Previous song
+Next song
+New from {0}
+Album for you
+Made for you
+Artist for you
+Song for you
+For you
+Radio for you
+Top picks for you
+Recently played
+Your playlists
+Music videos
+s-h-{0}
+s-{0}
+s{0}
+See all
+Play
+More
+Your playlists, likes and history show up here once you're signed in.
+Liked songs
+Played lately
+New playlist
+Liked music
+Wave 2.0 is here
+A whole new look, frosted glass, a new player and lyrics, light mode and loads to customize. Your account, likes and settings are all still here.
+Continue
+Your Wave
+Welcome to Wave 2.0
+A fresh look, all yours to shape. Your account, likes and settings came along. Prefer how it was? Settings › Customize › Legacy.
+Skip
+Wave 2.0
+Picks for you
+Albums, playlists and new releases chosen for you. Tap a card to open it, or its play button to start it right away.
+Songs to play
+Tap a song to play it with the rest of the mix. Hold it for more.
+Menus from the ⋮
+Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to queue, add to a playlist, start radio, go to the artist.
+Your picks, mixes and what you played lately. Tap it again to jump back to the top.
+Liked songs, your playlists, albums and artists you saved, and your history.
+Songs, artists, albums and playlists, with filters. Your library shows up as you type.
+Search, and your library
+This searches everything, with filters. The button inside flips to your library and back.
+What's playing
+Tap the mini player and the player grows out of it. Swipe it down to close the song.
+In the player
+Up next to reorder what's coming, Lyrics that line up with the song by themselves, and volume and speed under the little handle. Back or swipe down to tuck it away.
+Your picture opens Settings. Customize has Modern or Legacy, the bar or a search bar, corners and buttons. Appearance has light mode, the background and blur.
+That's the tour
+Want it again later? Settings › About › Show me around.
+Next
+Done
+UPDATE READY
+Later
+WHAT'S NEW
+You're on Wave {0}
+All notes
+Nice
+Play next
+Add to queue
+Add to playlist
+Start a mix
+Go to artist
+Couldn't play that right now
+Mix
+Added to queue
+Playing next
+Song {0} of {1} · {2}
+Open player
+Remix on
+Remix
+{0} days ago
+Stopped at song {0} of {1} · {2}
+Resume at song {0}
+Start over
+Shuffle
+Couldn't load your home
+Try again
+Your recent spins
+header-{0}
+Search songs, artists, albums
+Downloading Wave {0} · {1}%
+Wave {0} is ready · Install
+Wave {0} is available · Update
+Not now
+Good morning,
+Good afternoon,
+Good evening,
+Play all
+Shuffle all
+ else 
+JUMP BACK IN
+Make your own mix
+Album
+Playlist
+Likes stay on this phone
+Everything you've liked
+Recent searches
+Clear
+Remove
+Search for songs, artists, albums and playlists.
+q-{0}
+Fill in "{0}"
+\\b(radio|fm|am|station|stations|live)\\b
+Search didn't go through. Check your connection.
+Nothing found for "{0}"
+Songs, artists, albums
+Clear search
+\\b(radio|stations?|live)\\b
+Live radio
+Radio for "{0}"
+Real stations, playing right now
+Find radio stations for "{0}"
+Song
+Artist
+\\s*[(\\[](official|music|lyric|video|audio|visuali[sz]er|4k|hd)[^)\\]]*[)\\]]
+Couldn't find the song for this video
+All videos
+Music videos from the artists you play.
+Couldn't find videos right now. Check your connection and try again.
+Watch
+Videos play in the Android app.
+1080p HD
+720p HD
+Normal
+Best for your connection
+Quality
+Speed
+Loop this video
+Play the song
+Just the music, from the start
+Up next
+Finding more videos…
+{0} videos
+Share
+Open in YouTube
+Stop the video
+Shrink to the mini player
+Full screen
+More options
+Previous video
+Watch again
+Next video
+Normal speed
+Close Up next
+Coming up
+Remove {0} from Up next
+10 s back
+10 s on
+Loading video
+Now watching
+Stop looping
+Leave full screen
+LIVE
+Stop
+Listen live
+All stations
+Radio
+Search by name or genre
+Real stations, live from around the world.
+Stations, genres, cities
+No stations found for “{0}”.
+Near you
+Around the world
+Couldn't reach the radio directory. Check your connection and try again.
+{0} kbps
+Your YouTube Music.\nNothing in the way.
+No ads. Just your mixes, your playlists and the songs you keep coming back to.
+Continue without an account
+Pick your look
+You can switch any time in Settings › Customize.
+Prisma: blur, big art and a dock at the bottom.
+A modern take on Wave 1.0: its colors, cards and floating player.
+How do you get around?
+Both get you to home, search and your library.
+Home, Library and Search along the bottom.
+A search bar at the top that also opens your library.
+Float it above the bar instead of joining it
+A few looks you can change any time.
+A quick tour of Wave once you're in
+Get started
+Start listening
+Welcome to Wave
+YouTube Music, simple and beautiful. A few quick choices and you're in.
+Bring your music
+Sign in for your playlists, likes and mixes. Or just look around.
+Looking around as a guest
+You can sign in later from Settings
+Signed in
+Sign in instead
+Continue as guest
+Recent
+Matches
+In your library
+No music found for "{0}"
+TOP RESULT
+View artist
+/(default|mqdefault|hqdefault|sddefault|maxresdefault)\\.jpg
+=w{0}-h{1}
+Couldn't
+Can't
+Couldn't load this page
+Save, add or share
+Play {0} next
+ARTIST
+artist-{0}
+{0}: Top songs
+ALBUM
+{0} songs
+Other versions
+PLAYLIST
+YOUR LIBRARY
+{0} songs you've played recently
+{0} playlists
+Liked
+{0} albums · {1} artists
+Shuffle albums
+Following
+Albums
+Nothing saved yet. Save albums or follow artists in YouTube Music and they'll show up here.
+Sign in with Google to follow artists
+Following {0}
+Unfollowed {0}
+Couldn't update that
+Subscribed to {0}
+Subscribe to {0}
+  Following
+  Follow
+Sign in with Google to make playlists
+Looking for a music video…
+Watch the music video
+ feat. 
+Go to {0}
+Go to album
+Remove from this playlist
+Removed from playlist
+Couldn't remove it
+Open artist page
+Open album
+Open playlist
+Rename playlist
+Delete playlist
+Added to {0}
+Couldn't add it
+Name
+Renamed
+Couldn't rename it
+Created {0}
+Couldn't create the playlist
+Save
+Create
+Delete playlist?
+"{0}" will be removed from your YouTube Music library.
+Deleted
+Couldn't delete it
+Delete
+Speed {0}
+Wave volume {0}%
+Hide volume and speed
+Show volume and speed
+Pause
+Stop and close the player
+Close queue
+Remove {0} from the queue
+Drag to reorder {0}
+No lyrics for this one
+Instrumental, or nobody has added them yet.
+These lyrics aren't time-synced · 
+Lyrics from {0}
+Close lyrics
+Collapse player
+Expand player
+Shrink player
+Back 10 seconds
+Forward 10 seconds
+Shuffle on
+Shuffle off
+Repeat all
+Repeat one
+Repeat off
+Playing live
+Tuning in…
+Stopped
+Stop any time. Playing again picks up where the station is now.
+Tap play to hear what's on right now.
+End of queue
+  Lyrics
+Like
+picks:1,recent:1,playlists:1,feed:1,radio:1

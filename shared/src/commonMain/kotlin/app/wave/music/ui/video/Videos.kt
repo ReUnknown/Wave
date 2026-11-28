@@ -79,10 +79,10 @@ import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
+import app.wave.music.ui.i18n.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.wave.music.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -1216,12 +1216,13 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
     val c = MaterialTheme.colorScheme
     var shown by remember { mutableStateOf(true) }
     var touched by remember { mutableIntStateOf(0) }
-    LaunchedEffect(shown, state.playing, touched) { if (shown && state.playing) { delay(3500); shown = false } }
+    // They tuck away while it plays, unless they're kept on screen (Accessibility, or TalkBack).
+    LaunchedEffect(shown, state.playing, touched, PrismaLook.keepControls) { if (shown && state.playing && !PrismaLook.keepControls) { delay(3500); shown = false } }
     var position by remember { mutableLongStateOf(0L) }
     LaunchedEffect(target.videoId) { while (true) { position = engine.positionMs; delay(200) } }
     var jump by remember { mutableIntStateOf(0) }
     LaunchedEffect(jump) { if (jump != 0) { delay(650); jump = 0 } }
-    val visible = shown || !state.playing || state.error != null
+    val visible = shown || !state.playing || state.error != null || PrismaLook.keepControls
     val dim by animateFloatAsState(if (visible) 1f else 0f, tween(220), label = "dim")
     // Frosted glass over the video, like Wave's dock.
     val glass = Modifier

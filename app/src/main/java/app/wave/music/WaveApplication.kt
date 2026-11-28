@@ -89,6 +89,17 @@ private class AndroidPlatform(private val app: Application) : Platform {
     }
     override val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = saver
 
+    // TalkBack (or another screen reader that explores by touch), kept up to date.
+    private val readerOn = kotlinx.coroutines.flow.MutableStateFlow(false).also { flow ->
+        val a11y = app.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        flow.value = a11y?.isTouchExplorationEnabled == true
+        a11y?.addTouchExplorationStateChangeListener { on -> flow.value = on }
+    }
+    override val screenReader: kotlinx.coroutines.flow.StateFlow<Boolean> get() = readerOn
+
+    override val systemReduceMotion: Boolean
+        get() = runCatching { android.provider.Settings.Global.getFloat(app.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
+
     // Mobile data, kept up to date as the phone changes networks.
     private val meteredNow = kotlinx.coroutines.flow.MutableStateFlow(false).also { flow ->
         val connectivity = app.getSystemService(android.net.ConnectivityManager::class.java)

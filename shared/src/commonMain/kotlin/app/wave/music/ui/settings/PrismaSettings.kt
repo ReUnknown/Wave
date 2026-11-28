@@ -1,5 +1,14 @@
 package app.wave.music.ui.settings
 
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.InvertColors
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.AccessibilityNew
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Restore
@@ -76,11 +85,11 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.ViewCompact
 import androidx.compose.material.icons.rounded.Wallpaper
-import androidx.compose.material3.Icon
+import app.wave.music.ui.i18n.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import app.wave.music.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -132,6 +141,8 @@ private const val GITHUB = "https://github.com/ReUnknown/Wave"
 enum class SettingsSection(val id: String, val title: String, val summary: String, val icon: ImageVector) {
     Customize("customize", "Customize", "Modern or Legacy, layout, buttons, haptics", Icons.Rounded.Dashboard),
     Looks("looks", "Appearance", "Theme, background, blur, text size, colors", Icons.Rounded.Palette),
+    Accessibility("accessibility", "Accessibility", "Contrast, text size, motion, TalkBack", Icons.Rounded.AccessibilityNew),
+    Language("language", "Language", "The language Wave speaks", Icons.Rounded.Translate),
     Playback("playback", "Playback & sound", "Quality, fades, more songs when a queue ends", Icons.Rounded.MusicNote),
     Lyrics("lyrics", "Lyrics", "Style, motion, size, timing", Icons.Rounded.Lyrics),
     Storage("storage", "Storage", "Saved songs and covers, history, erase", Icons.Rounded.Storage),
@@ -146,7 +157,7 @@ enum class SettingsSection(val id: String, val title: String, val summary: Strin
         fun of(id: String) = entries.firstOrNull { it.id == id } ?: Customize
         /** The ones listed on the main settings page, in groups. */
         val groups = listOf(
-            "Make it yours" to listOf(Customize, Looks),
+            "Make it yours" to listOf(Customize, Looks, Accessibility, Language),
             "Listening" to listOf(Playback, Lyrics),
             "This phone" to listOf(Storage, Battery),
             "Wave" to listOf(About),
@@ -170,7 +181,7 @@ private fun SettingsPageFrame(title: String, onBack: () -> Unit, content: LazyLi
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = c.onBackground) }
             }
-            if (title.isNotEmpty()) item { Text(title, Modifier.padding(start = 20.dp, top = 14.dp, bottom = 12.dp), color = c.onBackground, style = display(34.sp).copy(letterSpacing = (-0.6).sp)) }
+            if (title.isNotEmpty()) item { Text(title, Modifier.padding(start = 20.dp, top = 14.dp, bottom = 12.dp).semantics { heading() }, color = c.onBackground, style = display(34.sp).copy(letterSpacing = (-0.6).sp)) }
             content()
         }
     }
@@ -324,6 +335,46 @@ fun PrismaSettingsPage(section: SettingsSection, onBack: () -> Unit, open: (Sett
                 item { Toggle(Icons.Rounded.DarkMode, "AMOLED black", "Pure black backgrounds in dark mode", settings.amoled) { on -> change { it.copy(amoled = on) } } }
                 item {
                     Choice(Icons.Rounded.FormatSize, "Text size", "On top of your phone's own text size", listOf(0.9f to "Smaller", 1f to "Default", 1.12f to "Bigger"), settings.textScale) { v -> change { it.copy(textScale = v) } }
+                }
+            }
+            SettingsSection.Accessibility -> {
+                item { GroupLabel("Seeing") }
+                item { Toggle(Icons.Rounded.Contrast, "High contrast", "Black or white backgrounds, stronger text and colors, and solid surfaces instead of frosted glass", settings.highContrast) { on -> change { it.copy(highContrast = on) } } }
+                item { Toggle(Icons.Rounded.InvertColors, "Fix low contrast automatically", "When a song's colors would make text hard to read, Wave adjusts them", settings.autoContrast) { on -> change { it.copy(autoContrast = on) } } }
+                item { GroupLabel("Text") }
+                item {
+                    Choice(Icons.Rounded.FormatSize, "Text size", "Bigger or smaller text all through Wave", listOf(0.9f to "Smaller", 1f to "Default", 1.15f to "Bigger", 1.3f to "Biggest"), settings.textScale) { v -> change { it.copy(textScale = v) } }
+                }
+                item { Toggle(Icons.Rounded.TextFields, "Follow your phone's text size", "Your phone's text size applies on top of Wave's", settings.followSystemText) { on -> change { it.copy(followSystemText = on) } } }
+                item { GroupLabel("Motion") }
+                item {
+                    Toggle(
+                        Icons.Rounded.SelfImprovement, "Reduce motion",
+                        if (WavePlatform.current.systemReduceMotion) "On, because your phone is set to remove animations" else "No bounces, still waves and fewer moving things",
+                        settings.reduceMotion || WavePlatform.current.systemReduceMotion,
+                    ) { on -> change { it.copy(reduceMotion = on) } }
+                }
+                item { GroupLabel("TalkBack") }
+                item {
+                    val reader by WavePlatform.current.screenReader.collectAsState()
+                    Toggle(
+                        Icons.Rounded.RecordVoiceOver, "Keep controls on screen",
+                        if (reader) "On while TalkBack is running: video controls never tuck themselves away" else "Video controls stay put instead of tucking away. Turns on by itself with TalkBack",
+                        settings.keepControls || reader,
+                    ) { on -> change { it.copy(keepControls = on) } }
+                }
+            }
+            SettingsSection.Language -> {
+                item {
+                    Text(
+                        "Wave is in English everywhere. Other languages are being filled in, so some text may still show in English.",
+                        Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp),
+                        color = c.onBackground.copy(alpha = 0.65f), style = body(14.sp).copy(lineHeight = 19.sp),
+                    )
+                }
+                item { LanguageRow("", "Phone's language", app.wave.music.i18n.L10n.languages.firstOrNull { it.code == java.util.Locale.getDefault().language }?.name ?: "English", settings.language.isBlank()) { change { it.copy(language = "") } } }
+                app.wave.music.i18n.L10n.languages.forEach { lang ->
+                    item(key = "lang-" + lang.code) { LanguageRow(lang.code, lang.name, lang.english, settings.language == lang.code) { change { it.copy(language = lang.code) } } }
                 }
             }
             SettingsSection.Playback -> {
@@ -707,11 +758,34 @@ private fun Tag(text: String, fill: androidx.compose.ui.graphics.Color, ink: and
     }
 }
 
+/** One language: its own name, what it is in English (left as is, never translated), and a check. */
+@Composable
+private fun LanguageRow(code: String, name: String, sub: String, selected: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(if (selected) c.primary else c.secondaryContainer), contentAlignment = Alignment.Center) {
+            if (code.isBlank()) Icon(Icons.Rounded.PhoneAndroid, null, tint = if (selected) c.onPrimary else c.onSecondaryContainer)
+            else androidx.compose.material3.Text(code.uppercase(), color = if (selected) c.onPrimary else c.onSecondaryContainer, style = display(15.sp))
+        }
+        Column(Modifier.weight(1f)) {
+            // A language's name is shown in that language, whatever Wave is in.
+            if (code.isBlank()) Text(name, color = c.onBackground, style = display(17.sp, FontWeight.SemiBold))
+            else androidx.compose.material3.Text(name, color = c.onBackground, style = display(17.sp, FontWeight.SemiBold))
+            androidx.compose.material3.Text(sub, color = c.onBackground.copy(alpha = 0.6f), style = body(13.sp))
+        }
+        if (selected) Icon(Icons.Rounded.Check, null, tint = c.primary)
+    }
+}
+
 @Composable
 private fun GroupLabel(text: String) {
     Text(
         text.uppercase(),
-        Modifier.padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 8.dp),
+        Modifier.padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 8.dp).semantics { heading() },
         color = MaterialTheme.colorScheme.primary,
         style = body(12.sp, FontWeight.Bold).copy(letterSpacing = 0.8.sp),
     )
@@ -797,7 +871,10 @@ private fun <T> Choice(icon: ImageVector, title: String, description: String, op
                 Box(
                     Modifier.weight(1f).height(44.dp).pressable(RoundedCornerShape(start, end, end, start), fill, pressedScale = 0.94f) { onPick(value) },
                     contentAlignment = Alignment.Center,
-                ) { Text(label, color = ink, style = body(14.sp, FontWeight.SemiBold), maxLines = 1) }
+                ) {
+                    // Four choices (or a long language) get smaller text, so no word is cut off.
+                    Text(label, Modifier.padding(horizontal = 4.dp), color = ink, style = body(if (options.size >= 4) 12.sp else 14.sp, FontWeight.SemiBold), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }

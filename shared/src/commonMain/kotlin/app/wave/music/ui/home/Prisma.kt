@@ -1,5 +1,7 @@
 package app.wave.music.ui.home
 
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.offset
@@ -59,9 +61,9 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import dev.chrisbanes.haze.hazeEffect
-import androidx.compose.material3.Icon
+import app.wave.music.ui.i18n.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.wave.music.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -652,6 +654,8 @@ private fun PrismaSectionTitle(title: String, label: String? = null, first: Bool
         Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            // TalkBack: section titles are headings, so you can jump from one to the next.
+            .semantics(mergeDescendants = true) { heading() }
             .padding(start = 16.dp, end = 16.dp, top = if (first) 4.dp else if (app.wave.music.platform.PrismaLook.dense) 14.dp else 22.dp, bottom = if (app.wave.music.platform.PrismaLook.dense) 6.dp else 10.dp),
     ) {
         if (!label.isNullOrBlank()) Text(label.uppercase(), color = c.onBackground.copy(alpha = 0.6f), style = body(11.sp, FontWeight.Bold).copy(letterSpacing = 1.sp))

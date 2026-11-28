@@ -78,11 +78,11 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
+import app.wave.music.ui.i18n.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.wave.music.ui.i18n.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -262,7 +262,8 @@ fun HomeScreen(session: Session, onSignOut: () -> Unit) {
     }
     val resume by remember { ResumeStore.observe() }.collectAsState(null)
 
-    LaunchedEffect(session, attempt) {
+    // A new language reloads home too (YouTube Music's rows come in that language).
+    LaunchedEffect(session, attempt, app.wave.music.i18n.L10n.code) {
         if (ui !is HomeUi.Ready) ui = HomeUi.Loading
         // First page shows as soon as it lands; more sections fill in underneath.
         runCatching { HomeRepository.feed(refresh = attempt > 0).collect { ui = HomeUi.Ready(it) } }

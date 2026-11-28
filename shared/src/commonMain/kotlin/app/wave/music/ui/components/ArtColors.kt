@@ -167,7 +167,7 @@ internal fun animateScheme(target: ColorScheme): ColorScheme {
     val surfaceContainer by animateColorAsState(target.surfaceContainer, spec)
     val surfaceContainerHigh by animateColorAsState(target.surfaceContainerHigh, spec)
     val surfaceContainerHighest by animateColorAsState(target.surfaceContainerHighest, spec)
-    return target.copy(
+    return app.wave.music.ui.theme.accessible(target.copy(
         primary = primary,
         onPrimary = onPrimary,
         primaryContainer = primaryContainer,
@@ -181,5 +181,5 @@ internal fun animateScheme(target: ColorScheme): ColorScheme {
         surfaceContainer = surfaceContainer,
         surfaceContainerHigh = surfaceContainerHigh,
         surfaceContainerHighest = surfaceContainerHighest,
-    )
+    ))
 }

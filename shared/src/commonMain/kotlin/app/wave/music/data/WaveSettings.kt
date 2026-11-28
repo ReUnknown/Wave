@@ -107,6 +107,18 @@ data class Settings(
     val lastSeenVersion: String = "",
     /** Videos (upright): the player's colors follow what's on screen as it plays. */
     val videoAmbient: Boolean = true,
+    /** Settings › Language: a language code, or "" to follow the phone. */
+    val language: String = "",
+    /** Accessibility: stronger colors and text, solid surfaces instead of frosted glass. */
+    val highContrast: Boolean = false,
+    /** Accessibility: when colors (a song's, mostly) make text hard to read, they're adjusted. */
+    val autoContrast: Boolean = true,
+    /** Accessibility: no bounces, still waves, fewer moving things (the phone's setting counts too). */
+    val reduceMotion: Boolean = false,
+    /** Accessibility: the phone's own text size applies on top of Wave's. */
+    val followSystemText: Boolean = true,
+    /** Accessibility: video controls stay on screen instead of tucking away (on with TalkBack). */
+    val keepControls: Boolean = false,
 )
 
 /** Home's rows: which ones show, in what order. */
@@ -160,6 +172,12 @@ object WaveSettings {
     private val hiddenSectionsKey = stringPreferencesKey("hidden_sections")
     private val lastSeenKey = stringPreferencesKey("last_seen_version")
     private val videoAmbientKey = booleanPreferencesKey("video_ambient")
+    private val languageKey = stringPreferencesKey("language")
+    private val highContrastKey = booleanPreferencesKey("high_contrast")
+    private val autoContrastKey = booleanPreferencesKey("auto_contrast")
+    private val reduceMotionKey = booleanPreferencesKey("reduce_motion")
+    private val followSystemTextKey = booleanPreferencesKey("follow_system_text")
+    private val keepControlsKey = booleanPreferencesKey("keep_controls")
     private val popupShownKey = stringPreferencesKey("update_popup_shown_for")
     private val bannerClosedKey = stringPreferencesKey("update_banner_closed_for")
     private val setupCompletedKey = booleanPreferencesKey("setup_completed")
@@ -231,6 +249,12 @@ object WaveSettings {
             hiddenSections = p[hiddenSectionsKey] ?: "",
             lastSeenVersion = p[lastSeenKey] ?: if (p[matchColors] != null) "earlier" else "",
             videoAmbient = p[videoAmbientKey] ?: true,
+            language = p[languageKey] ?: "",
+            highContrast = p[highContrastKey] ?: false,
+            autoContrast = p[autoContrastKey] ?: true,
+            reduceMotion = p[reduceMotionKey] ?: false,
+            followSystemText = p[followSystemTextKey] ?: true,
+            keepControls = p[keepControlsKey] ?: false,
             updatePopupShownFor = p[popupShownKey] ?: "",
             updateBannerClosedFor = p[bannerClosedKey] ?: "",
             lyricsWords = p[lyWordsKey] ?: true,
@@ -290,6 +314,12 @@ object WaveSettings {
             it[hiddenSectionsKey] = next.hiddenSections
             it[lastSeenKey] = next.lastSeenVersion
             it[videoAmbientKey] = next.videoAmbient
+            it[languageKey] = next.language
+            it[highContrastKey] = next.highContrast
+            it[autoContrastKey] = next.autoContrast
+            it[reduceMotionKey] = next.reduceMotion
+            it[followSystemTextKey] = next.followSystemText
+            it[keepControlsKey] = next.keepControls
             it[popupShownKey] = next.updatePopupShownFor
             it[bannerClosedKey] = next.updateBannerClosedFor
             it[setupCompletedKey] = next.setupDone

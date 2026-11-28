@@ -94,7 +94,9 @@ object RenderApp {
         WavePlatform.current = DesktopPlatform
         app.wave.music.ui.components.BlurBudget.light = true
         kotlinx.coroutines.runBlocking { app.wave.music.data.WaveSettings.load() }
-        val mode = args.getOrNull(3) ?: "home"
+        val rawMode = args.getOrNull(3) ?: "home"
+        // Prefixes for renders in another language or look: es-, de-, hc- (high contrast).
+        val mode = rawMode.removePrefix("es-").removePrefix("de-").removePrefix("hc-")
         val w = args.getOrNull(1)?.toIntOrNull() ?: 1120
         val h = args.getOrNull(2)?.toIntOrNull() ?: 740
         PlayerConnection.backend = if (mode == "home") idleBackend() else fakeBackend()
@@ -103,6 +105,10 @@ object RenderApp {
             val now = NowPlaying(st.mediaId, st.name, st.about.ifBlank { "Live radio" }, st.favicon)
             (PlayerConnection.state as? MutableStateFlow<PlayerUiState>)?.value = PlayerUiState(current = now, isPlaying = true, queue = listOf(now), index = 0)
         }
+        app.wave.music.data.WaveSettings.preview { it.copy(language = "en", highContrast = false) }
+        if (rawMode.startsWith("es-")) app.wave.music.data.WaveSettings.preview { it.copy(language = "es") }
+        if (rawMode.startsWith("de-")) app.wave.music.data.WaveSettings.preview { it.copy(language = "de") }
+        if (rawMode.contains("hc-")) app.wave.music.data.WaveSettings.preview { it.copy(highContrast = true) }
         when (mode) {
             "topsearch" -> app.wave.music.data.WaveSettings.preview { it.copy(topSearch = true) }
             "radiofirst" -> app.wave.music.data.WaveSettings.preview { it.copy(homeRows = "radio:1,picks:0,recent:1,playlists:1,feed:1") }
@@ -180,12 +186,12 @@ object RenderApp {
             while (app.wave.music.ui.home.RenderStart.openedAtNanos == 0L && t < 20_000_000_000L) { Thread.sleep(50); t += 50_000_000L; image = scene.render(t) }
             val at = app.wave.music.ui.home.RenderStart.openedAtNanos
             for (step in 1..4) { image = scene.render(at + step * 50_000_000L) }
-            File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            File(out, "app-$w-$rawMode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
             println("done"); kotlin.system.exitProcess(0)
         }
         val frames = if (mode == "intromid") 21 else 150
         for (i in 1..frames) { Thread.sleep(100); image = scene.render(i * 100_000_000L) }
-        File(out, "app-$w-$mode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        File(out, "app-$w-$rawMode.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
         println("done")
         kotlin.system.exitProcess(0)
     }

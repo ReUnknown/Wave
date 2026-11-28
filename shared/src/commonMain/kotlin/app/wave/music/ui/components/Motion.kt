@@ -59,7 +59,8 @@ object WaveMotion {
     val ContainerTransform = BoundsTransform { _, _ -> tween(360, easing = Emphasized) }
 
     /** Small, physical feedback: presses, toggles, icons. */
-    fun <T> bouncy() = spring<T>(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)
+    fun <T> bouncy() = if (app.wave.music.platform.PrismaLook.reduceMotion) spring<T>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh)
+        else spring<T>(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)
     fun <T> settle() = spring<T>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
 }
 

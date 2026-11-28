@@ -1,0 +1,546 @@
+Customize ⟶ Anpassen
+Modern or Legacy, layout, buttons, haptics ⟶ Modern oder Klassisch, Layout, Tasten, Vibration
+Appearance ⟶ Darstellung
+Theme, background, blur, text size, colors ⟶ Design, Hintergrund, Unschärfe, Textgröße, Farben
+Accessibility ⟶ Bedienungshilfen
+Contrast, text size, motion, TalkBack ⟶ Kontrast, Textgröße, Bewegung, TalkBack
+Language ⟶ Sprache
+The language Wave speaks ⟶ Die Sprache, in der Wave spricht
+Playback & sound ⟶ Wiedergabe & Ton
+Quality, fades, more songs when a queue ends ⟶ Qualität, Überblendungen, mehr Songs am Ende der Warteschlange
+Style, motion, size, timing ⟶ Stil, Bewegung, Größe, Timing
+Storage ⟶ Speicher
+Saved songs and covers, history, erase ⟶ Gespeicherte Songs und Cover, Verlauf, Löschen
+Battery ⟶ Akku
+Battery saver, calmer motion ⟶ Energiesparmodus, ruhigere Bewegung
+About ⟶ Über
+Version, updates, what's new, credits ⟶ Version, Updates, Neuigkeiten, Danksagungen
+Attribution ⟶ Quellen
+What's new ⟶ Neuigkeiten
+Update ⟶ Aktualisieren
+Home rows ⟶ Zeilen auf der Startseite
+Make it yours ⟶ Ganz nach deinem Geschmack
+Listening ⟶ Hören
+This phone ⟶ Dieses Handy
+Back ⟶ Zurück
+Settings ⟶ Einstellungen
+Not signed in ⟶ Nicht angemeldet
+Sign in for your playlists and likes ⟶ Melde dich an für deine Playlists und Likes
+YouTube Music account ⟶ YouTube Music-Konto
+Sign in ⟶ Anmelden
+Sign out ⟶ Abmelden
+Wave {0} is ready ⟶ Wave {0} ist bereit
+Close ⟶ Schließen
+Look ⟶ Aussehen
+Style ⟶ Stil
+Modern is Wave 2.0; Legacy is a modern take on Wave 1.0 ⟶ Modern ist Wave 2.0; Klassisch ist eine moderne Version von Wave 1.0
+Modern ⟶ Modern
+Legacy ⟶ Klassisch
+Corners ⟶ Ecken
+How round cards, menus and the bar are ⟶ Wie rund Karten, Menüs und die Leiste sind
+Rounded ⟶ Rund
+Squircle ⟶ Weich
+Sharp ⟶ Eckig
+Denser home ⟶ Kompaktere Startseite
+Smaller cards, so you see more at once ⟶ Kleinere Karten, damit du mehr auf einmal siehst
+Pick and arrange what's on your home, with a preview ⟶ Wähle und ordne, was auf deiner Startseite steht, mit Vorschau
+Getting around ⟶ Navigation
+Navigation ⟶ Navigation
+The bar at the bottom, or a search bar at the top that also opens your library ⟶ Die Leiste unten oder eine Suchleiste oben, die auch deine Mediathek öffnet
+Bottom bar ⟶ Leiste unten
+Top search ⟶ Suche oben
+Open Wave on ⟶ Wave öffnen auf
+The tab you see first ⟶ Der Tab, den du zuerst siehst
+Home ⟶ Start
+Library ⟶ Mediathek
+Search ⟶ Suche
+Mini player and player ⟶ Miniplayer und Player
+Mini player on its own ⟶ Miniplayer separat
+Always on its own with the top search ⟶ Mit der Suche oben immer separat
+Floats above the bar instead of joining it ⟶ Schwebt über der Leiste, statt mit ihr verbunden zu sein
+Mini player beside the tabs ⟶ Miniplayer neben den Tabs
+Big screens: one row at the bottom instead of two ⟶ Große Bildschirme: eine Zeile unten statt zwei
+Previous and next in the mini player ⟶ Zurück und Weiter im Miniplayer
+Off leaves just the play button ⟶ Aus lässt nur die Wiedergabetaste übrig
+Buttons beside play ⟶ Tasten neben Wiedergabe
+In the player: skip songs, or jump 10 seconds ⟶ Im Player: Songs überspringen oder 10 Sekunden springen
+Skip songs ⟶ Songs überspringen
+10 seconds ⟶ 10 Sekunden
+Feel ⟶ Gefühl
+Haptics ⟶ Vibration
+The little buzzes when you tap and drag ⟶ Das kleine Vibrieren beim Tippen und Ziehen
+On ⟶ An
+Subtle ⟶ Dezent
+Off ⟶ Aus
+Theme ⟶ Design
+Follow your phone, or always light or dark ⟶ Wie das Handy oder immer hell bzw. dunkel
+System ⟶ System
+Light ⟶ Hell
+Dark ⟶ Dunkel
+Match song colors ⟶ Songfarben übernehmen
+Wave takes on the colors of what's playing ⟶ Wave übernimmt die Farben dessen, was gerade läuft
+Background ⟶ Hintergrund
+With song colors on: the cover blurred behind everything, a glow at the top, or plain ⟶ Mit Songfarben: das Cover unscharf hinter allem, ein Leuchten oben oder schlicht
+Cover ⟶ Cover
+Glow ⟶ Leuchten
+Plain ⟶ Schlicht
+Blur ⟶ Unschärfe
+Frosted glass on the bar, menus and page tops ⟶ Milchglas auf der Leiste, den Menüs und oben auf Seiten
+Full ⟶ Voll
+AMOLED black ⟶ AMOLED-Schwarz
+Pure black backgrounds in dark mode ⟶ Reinschwarze Hintergründe im dunklen Modus
+Text size ⟶ Textgröße
+On top of your phone's own text size ⟶ Zusätzlich zur Textgröße deines Handys
+Smaller ⟶ Kleiner
+Default ⟶ Standard
+Bigger ⟶ Größer
+Seeing ⟶ Sehen
+High contrast ⟶ Hoher Kontrast
+Black or white backgrounds, stronger text and colors, and solid surfaces instead of frosted glass ⟶ Schwarze oder weiße Hintergründe, kräftigerer Text und Farben und feste Flächen statt Milchglas
+Fix low contrast automatically ⟶ Geringen Kontrast automatisch korrigieren
+When a song's colors would make text hard to read, Wave adjusts them ⟶ Wenn die Farben eines Songs Text schwer lesbar machen, passt Wave sie an
+Text ⟶ Text
+Bigger or smaller text all through Wave ⟶ Größerer oder kleinerer Text in ganz Wave
+Biggest ⟶ Riesig
+Follow your phone's text size ⟶ Textgröße des Handys übernehmen
+Your phone's text size applies on top of Wave's ⟶ Die Textgröße deines Handys kommt zu der von Wave hinzu
+Motion ⟶ Bewegung
+Reduce motion ⟶ Bewegung reduzieren
+On, because your phone is set to remove animations ⟶ An, weil auf deinem Handy Animationen ausgeschaltet sind
+No bounces, still waves and fewer moving things ⟶ Kein Federn, ruhige Wellen und weniger Bewegung
+TalkBack ⟶ TalkBack
+Keep controls on screen ⟶ Steuerung eingeblendet lassen
+On while TalkBack is running: video controls never tuck themselves away ⟶ An, solange TalkBack läuft: Die Videosteuerung blendet sich nie von selbst aus
+Video controls stay put instead of tucking away. Turns on by itself with TalkBack ⟶ Die Videosteuerung bleibt sichtbar, statt sich auszublenden. Schaltet sich mit TalkBack von selbst ein
+Wave is in English everywhere. Other languages are being filled in, so some text may still show in English. ⟶ Wave ist überall auf Englisch. Andere Sprachen werden noch ergänzt, daher kann manches noch auf Englisch erscheinen.
+Phone's language ⟶ Sprache des Handys
+English ⟶ Englisch
+Videos ⟶ Videos
+Ambient mode ⟶ Ambient-Modus
+Upright videos: the player's colors follow what's on screen as it plays ⟶ Videos im Hochformat: Die Farben des Players folgen dem Bild
+Sound ⟶ Ton
+Audio quality ⟶ Audioqualität
+The best Wave can get ⟶ Die beste, die Wave bekommt
+Best on Wi-Fi, lighter on mobile data ⟶ Beste im WLAN, leichter bei mobilen Daten
+Uses the least data ⟶ Verbraucht die wenigsten Daten
+Low ⟶ Niedrig
+Auto ⟶ Auto
+High ⟶ Hoch
+Fade between songs ⟶ Überblenden zwischen Songs
+Songs play one after another ⟶ Songs laufen nacheinander
+Each song fades into the next over {0} seconds ⟶ Jeder Song blendet über {0} Sekunden in den nächsten über
+Even volume ⟶ Gleichmäßige Lautstärke
+Loud songs are turned down so everything sounds the same ⟶ Laute Songs werden leiser gestellt, damit alles gleich klingt
+Queue ⟶ Warteschlange
+Auto-load more songs ⟶ Automatisch mehr Songs laden
+When your queue ends, Wave keeps going with songs like the last one ⟶ Wenn deine Warteschlange endet, spielt Wave ähnliche Songs wie den letzten weiter
+Skip silence ⟶ Stille überspringen
+Trims the quiet gaps in songs ⟶ Schneidet stille Stellen aus Songs
+Wave checks each song's lyrics against the song and fixes the timing by itself when something's off. ⟶ Wave vergleicht die Lyrics jedes Songs mit dem Song und korrigiert das Timing selbst, wenn etwas nicht passt.
+Light up ⟶ Hervorheben
+Word by word as they're sung, or the whole line at once ⟶ Wort für Wort, während gesungen wird, oder die ganze Zeile auf einmal
+Word by word ⟶ Wort für Wort
+Line by line ⟶ Zeile für Zeile
+Words lift gently as they're sung; held notes can glow too ⟶ Wörter heben sich sanft, wenn sie gesungen werden; lange Töne können auch leuchten
+Still ⟶ Ruhig
+Lift ⟶ Anheben
+Lift & glow ⟶ Anheben & leuchten
+Size ⟶ Größe
+How big the lines are ⟶ Wie groß die Zeilen sind
+Small ⟶ Klein
+Medium ⟶ Mittel
+Large ⟶ Groß
+Alignment ⟶ Ausrichtung
+Lines on the left, or centered ⟶ Zeilen links oder zentriert
+Left ⟶ Links
+Center ⟶ Mitte
+Blur other lines ⟶ Andere Zeilen unscharf
+Lines away from the one being sung soften, so it stands out ⟶ Zeilen abseits der gesungenen werden weicher, damit sie heraussticht
+Timing ⟶ Timing
+Fix timing automatically ⟶ Timing automatisch korrigieren
+When lyrics run early or late, Wave lines them up with the song. Off: exactly as the lyrics source times them ⟶ Laufen Lyrics zu früh oder zu spät, richtet Wave sie am Song aus. Aus: genau so, wie die Quelle sie taktet
+Battery saver is on. Wave is going easy on your battery. ⟶ Der Energiesparmodus ist an. Wave schont deinen Akku.
+Battery saver is off. These kick in when you turn it on. ⟶ Der Energiesparmodus ist aus. Das hier greift, sobald du ihn einschaltest.
+When battery saver is on ⟶ Im Energiesparmodus
+Simpler look ⟶ Schlichteres Aussehen
+No blur or cover background, and the progress line holds still ⟶ Keine Unschärfe und kein Cover-Hintergrund, und die Fortschrittslinie bleibt ruhig
+Lighter audio ⟶ Leichteres Audio
+Plays lower quality, which takes less work and data ⟶ Spielt geringere Qualität, die weniger Arbeit und Daten braucht
+All the time ⟶ Immer
+Save battery while playing ⟶ Akku bei der Wiedergabe sparen
+The phone's audio chip plays when Wave isn't on screen (off with Skip silence) ⟶ Der Audiochip des Handys übernimmt, wenn Wave nicht auf dem Bildschirm ist (aus bei Stille überspringen)
+Calm motion ⟶ Ruhige Bewegung
+Fewer moving things, like the wavy progress line ⟶ Weniger Bewegung, etwa bei der welligen Fortschrittslinie
+Space ⟶ Platz
+Saved songs and covers ⟶ Gespeicherte Songs und Cover
+Clear saved songs and covers ⟶ Gespeicherte Songs und Cover löschen
+They load again when you need them ⟶ Sie laden neu, wenn du sie brauchst
+Mobile data ⟶ Mobile Daten
+Save mobile data ⟶ Mobile Daten sparen
+On mobile data, Wave plays lighter audio and loads smaller covers ⟶ Bei mobilen Daten spielt Wave leichteres Audio und lädt kleinere Cover
+History ⟶ Verlauf
+Clear search history ⟶ Suchverlauf löschen
+Your recent searches ⟶ Deine letzten Suchen
+Search history cleared ⟶ Suchverlauf gelöscht
+Clear saved pages ⟶ Gespeicherte Seiten löschen
+Home, albums and artists load fresh ⟶ Startseite, Alben und Künstler laden neu
+Saved pages cleared ⟶ Gespeicherte Seiten gelöscht
+Everything ⟶ Alles
+Erase info ⟶ Daten löschen
+Signs you out and resets Wave as if it were just installed ⟶ Meldet dich ab und setzt Wave wie frisch installiert zurück
+Erase everything? ⟶ Alles löschen?
+You'll be signed out, and your settings, searches, history and saved pages are cleared from this phone. Your YouTube Music account isn't touched. ⟶ Du wirst abgemeldet, und deine Einstellungen, Suchen, dein Verlauf und gespeicherte Seiten werden von diesem Handy gelöscht. Dein YouTube Music-Konto bleibt unberührt.
+Erase ⟶ Löschen
+Cancel ⟶ Abbrechen
+{0} of {1} ⟶ {0} von {1}
+Version {0} ⟶ Version {0}
+Updates ⟶ Updates
+Tap Check to look for a new version ⟶ Tippe auf Prüfen, um nach einer neuen Version zu suchen
+Checking… ⟶ Wird geprüft…
+You're up to date ⟶ Du bist auf dem neuesten Stand
+Couldn't check right now ⟶ Konnte gerade nicht prüfen
+Wave {0} is ready to download ⟶ Wave {0} kann heruntergeladen werden
+Downloading Wave {0}… ⟶ Wave {0} wird heruntergeladen…
+Wave {0} is ready to install ⟶ Wave {0} kann installiert werden
+Install ⟶ Installieren
+Check ⟶ Prüfen
+Update automatically ⟶ Automatisch aktualisieren
+Wave looks for a new version once a day ⟶ Wave sucht einmal am Tag nach einer neuen Version
+Show me around ⟶ Rundgang starten
+The quick tour of Wave again ⟶ Den kurzen Rundgang durch Wave noch einmal
+Every release, newest first, straight from GitHub ⟶ Alle Versionen, die neueste zuerst, direkt von GitHub
+What Wave is built on and inspired by ⟶ Worauf Wave aufbaut und was es inspiriert
+Report a bug ⟶ Fehler melden
+Opens a new issue on GitHub ⟶ Öffnet eine neue Meldung auf GitHub
+Go back to Wave 1.x ⟶ Zurück zu Wave 1.x
+How to switch back to the finished version ⟶ So wechselst du zurück zur fertigen Version
+Going back to Wave 1.x ⟶ Zurück zu Wave 1.x
+Android can't step an app back a version, so it's a quick reinstall:\n\n ⟶ Android kann eine App nicht auf eine ältere Version zurücksetzen, deshalb ist eine Neuinstallation nötig:\n\n
+1. Uninstall Wave (your likes and playlists live in your YouTube Music account, so they're safe; Wave's own settings and saved songs are cleared).\n ⟶ 1. Deinstalliere Wave (deine Likes und Playlists liegen in deinem YouTube Music-Konto und sind sicher; Waves Einstellungen und gespeicherte Songs werden gelöscht).\n
+2. Download the latest Wave 1.x APK from GitHub and open it.\n ⟶ 2. Lade die neueste Wave 1.x-APK von GitHub herunter und öffne sie.\n
+3. Sign in again.\n\n ⟶ 3. Melde dich wieder an.\n\n
+Wave 1.x only offers finished versions, so you'll stay on it until you choose otherwise. ⟶ Wave 1.x bietet nur fertige Versionen an, du bleibst also dabei, bis du dich anders entscheidest.
+Get Wave 1.x ⟶ Wave 1.x holen
+Stay on 2.0 ⟶ Bei 2.0 bleiben
+Wave is free software under the GNU GPL v3. It isn't affiliated with or endorsed by YouTube or Google. ⟶ Wave ist freie Software unter der GNU GPL v3. Es steht in keiner Verbindung zu YouTube oder Google und wird von ihnen nicht unterstützt.
+How Wave talks to YouTube Music (GPL v3) ⟶ Wie Wave mit YouTube Music spricht (GPL v3)
+Wave's whole interface (Apache 2.0) ⟶ Die gesamte Oberfläche von Wave (Apache 2.0)
+Components, shapes and motion (Apache 2.0) ⟶ Komponenten, Formen und Bewegung (Apache 2.0)
+Playback and the notification controls (Apache 2.0) ⟶ Wiedergabe und die Steuerung in der Benachrichtigung (Apache 2.0)
+The frosted glass, by Chris Banes (Apache 2.0) ⟶ Das Milchglas, von Chris Banes (Apache 2.0)
+Loading covers (Apache 2.0) ⟶ Laden der Cover (Apache 2.0)
+Networking (Apache 2.0) ⟶ Netzwerk (Apache 2.0)
+Drag to reorder Up next, by Calvin Liang (Apache 2.0) ⟶ Ziehen zum Sortieren von Als Nächstes, von Calvin Liang (Apache 2.0)
+Time-synced lyrics ⟶ Synchronisierte Lyrics
+Word-by-word lyrics ⟶ Lyrics Wort für Wort
+Thank you to everyone who works on these. Wave isn't affiliated with any of them. ⟶ Danke an alle, die daran arbeiten. Wave steht mit keinem von ihnen in Verbindung.
+Couldn't reach GitHub. Check your connection and try again. ⟶ GitHub ist nicht erreichbar. Prüfe deine Verbindung und versuch es noch einmal.
+You have this ⟶ Hast du
+New ⟶ Neu
+Beta ⟶ Beta
+NEW VERSION ⟶ NEUE VERSION
+Wave {0} is here ⟶ Wave {0} ist da
+See what's new ⟶ Neuigkeiten ansehen
+Wave {0} ⟶ Wave {0}
+You have {0} ⟶ Du hast {0}
+See it on GitHub ⟶ Auf GitHub ansehen
+Downloading {0}% ⟶ Wird geladen {0} %
+Install now ⟶ Jetzt installieren
+Download update ⟶ Update herunterladen
+Room for both ⟶ Platz für beides
+Less room means songs download again more often. Applies when Wave restarts. ⟶ Weniger Platz heißt, dass Songs öfter neu geladen werden. Gilt nach einem Neustart von Wave.
+Big cards picked from what you play ⟶ Große Karten, ausgewählt nach dem, was du hörst
+What you played lately ⟶ Was du zuletzt gehört hast
+Playlists you made or saved ⟶ Playlists, die du erstellt oder gespeichert hast
+Mixes and rows YouTube Music makes for you ⟶ Mixe und Zeilen, die YouTube Music für dich erstellt
+Live stations like the music you play ⟶ Live-Sender, die zu deiner Musik passen
+Music videos from the artists you play ⟶ Musikvideos der Künstler, die du hörst
+Your home ⟶ Deine Startseite
+Drag rows to move them, switch them off to hide them. The preview shows how it'll look. ⟶ Ziehe Zeilen, um sie zu verschieben, schalte sie aus, um sie auszublenden. Die Vorschau zeigt, wie es aussieht.
+Rows ⟶ Zeilen
+Drag to move {0} ⟶ Ziehen, um {0} zu verschieben
+Hidden from your home ⟶ Auf der Startseite ausgeblendet
+From YouTube Music ⟶ Von YouTube Music
+Tap a row to hide it, tap again to bring it back. ⟶ Tippe auf eine Zeile, um sie auszublenden, und noch einmal, um sie zurückzuholen.
+Reset to how Wave starts ⟶ Auf den Ausgangszustand zurücksetzen
+Your Google account ⟶ Dein Google-Konto
+Your library ⟶ Deine Mediathek
+Playlists ⟶ Playlists
+Albums & artists ⟶ Alben & Künstler
+All settings & Customize ⟶ Alle Einstellungen & Anpassen
+Sign in with Google ⟶ Mit Google anmelden
+Not signed in. Likes stay on this device. ⟶ Nicht angemeldet. Likes bleiben auf diesem Gerät.
+Signed in with Google ⟶ Mit Google angemeldet
+Search your library ⟶ In deiner Mediathek suchen
+Search music & your library ⟶ Musik & deine Mediathek durchsuchen
+Your account ⟶ Dein Konto
+Update ready ⟶ Update bereit
+Previous song ⟶ Vorheriger Song
+Next song ⟶ Nächster Song
+New from {0} ⟶ Neu von {0}
+Album for you ⟶ Album für dich
+Made for you ⟶ Für dich gemacht
+Artist for you ⟶ Künstler für dich
+Song for you ⟶ Song für dich
+For you ⟶ Für dich
+Radio for you ⟶ Radio für dich
+Top picks for you ⟶ Top-Tipps für dich
+Recently played ⟶ Zuletzt gehört
+Your playlists ⟶ Deine Playlists
+Music videos ⟶ Musikvideos
+See all ⟶ Alle ansehen
+Play ⟶ Abspielen
+More ⟶ Mehr
+Your playlists, likes and history show up here once you're signed in. ⟶ Deine Playlists, Likes und dein Verlauf erscheinen hier, sobald du angemeldet bist.
+Liked songs ⟶ Songs mit „Mag ich“
+Played lately ⟶ Zuletzt gehört
+New playlist ⟶ Neue Playlist
+Liked music ⟶ Musik mit „Mag ich“
+Wave 2.0 is here ⟶ Wave 2.0 ist da
+A whole new look, frosted glass, a new player and lyrics, light mode and loads to customize. Your account, likes and settings are all still here. ⟶ Ein ganz neues Aussehen, Milchglas, ein neuer Player und neue Lyrics, ein heller Modus und jede Menge zum Anpassen. Dein Konto, deine Likes und Einstellungen sind alle noch da.
+Continue ⟶ Weiter
+Your Wave ⟶ Dein Wave
+Welcome to Wave 2.0 ⟶ Willkommen bei Wave 2.0
+A fresh look, all yours to shape. Your account, likes and settings came along. Prefer how it was? Settings › Customize › Legacy. ⟶ Ein frisches Aussehen, ganz nach deinen Wünschen. Dein Konto, deine Likes und Einstellungen sind mitgekommen. Lieber wie früher? Einstellungen › Anpassen › Klassisch.
+Skip ⟶ Überspringen
+Wave 2.0 ⟶ Wave 2.0
+Picks for you ⟶ Tipps für dich
+Albums, playlists and new releases chosen for you. Tap a card to open it, or its play button to start it right away. ⟶ Alben, Playlists und Neuerscheinungen, für dich ausgewählt. Tippe auf eine Karte zum Öffnen oder auf ihre Wiedergabetaste, um sofort zu starten.
+Songs to play ⟶ Songs zum Abspielen
+Tap a song to play it with the rest of the mix. Hold it for more. ⟶ Tippe auf einen Song, um ihn mit dem Rest des Mixes abzuspielen. Halte ihn gedrückt für mehr.
+Menus from the ⋮ ⟶ Menüs über ⋮
+Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to queue, add to a playlist, start radio, go to the artist. ⟶ Tippe auf ein beliebiges ⋮ (oder halte einen Song oder ein Album gedrückt) und das Menü wächst direkt daraus: als Nächstes spielen, zur Warteschlange, zu einer Playlist, einen Mix starten, zum Künstler.
+Your picks, mixes and what you played lately. Tap it again to jump back to the top. ⟶ Deine Tipps, Mixe und was du zuletzt gehört hast. Tippe erneut, um nach oben zu springen.
+Liked songs, your playlists, albums and artists you saved, and your history. ⟶ Songs mit „Mag ich“, deine Playlists, gespeicherte Alben und Künstler und dein Verlauf.
+Songs, artists, albums and playlists, with filters. Your library shows up as you type. ⟶ Songs, Künstler, Alben und Playlists, mit Filtern. Deine Mediathek erscheint beim Tippen.
+Search, and your library ⟶ Suche und deine Mediathek
+This searches everything, with filters. The button inside flips to your library and back. ⟶ Hier suchst du in allem, mit Filtern. Die Taste darin wechselt zu deiner Mediathek und zurück.
+What's playing ⟶ Was gerade läuft
+Tap the mini player and the player grows out of it. Swipe it down to close the song. ⟶ Tippe auf den Miniplayer und der Player wächst daraus hervor. Wische ihn nach unten, um den Song zu schließen.
+In the player ⟶ Im Player
+Up next to reorder what's coming, Lyrics that line up with the song by themselves, and volume and speed under the little handle. Back or swipe down to tuck it away. ⟶ Als Nächstes zum Sortieren, Lyrics, die sich selbst am Song ausrichten, und Lautstärke und Tempo unter dem kleinen Griff. Zurück oder nach unten wischen zum Einklappen.
+Your picture opens Settings. Customize has Modern or Legacy, the bar or a search bar, corners and buttons. Appearance has light mode, the background and blur. ⟶ Dein Bild öffnet die Einstellungen. Unter Anpassen findest du Modern oder Klassisch, die Leiste oder eine Suchleiste, Ecken und Tasten. Unter Darstellung den hellen Modus, den Hintergrund und die Unschärfe.
+That's the tour ⟶ Das war der Rundgang
+Want it again later? Settings › About › Show me around. ⟶ Später noch einmal? Einstellungen › Über › Rundgang starten.
+Next ⟶ Weiter
+Done ⟶ Fertig
+UPDATE READY ⟶ UPDATE BEREIT
+Later ⟶ Später
+WHAT'S NEW ⟶ NEUIGKEITEN
+You're on Wave {0} ⟶ Du hast Wave {0}
+All notes ⟶ Alle Hinweise
+Nice ⟶ Super
+Play next ⟶ Als Nächstes spielen
+Add to queue ⟶ Zur Warteschlange
+Add to playlist ⟶ Zu einer Playlist
+Start a mix ⟶ Mix starten
+Go to artist ⟶ Zum Künstler
+Couldn't play that right now ⟶ Konnte das gerade nicht abspielen
+Mix ⟶ Mix
+Added to queue ⟶ Zur Warteschlange hinzugefügt
+Playing next ⟶ Wird als Nächstes gespielt
+Song {0} of {1} · {2} ⟶ Song {0} von {1} · {2}
+Open player ⟶ Player öffnen
+Remix on ⟶ Remix an
+Remix ⟶ Remix
+{0} days ago ⟶ vor {0} Tagen
+Stopped at song {0} of {1} · {2} ⟶ Angehalten bei Song {0} von {1} · {2}
+Resume at song {0} ⟶ Bei Song {0} weitermachen
+Start over ⟶ Von vorn
+Shuffle ⟶ Zufällig
+Couldn't load your home ⟶ Deine Startseite konnte nicht geladen werden
+Try again ⟶ Erneut versuchen
+Your recent spins ⟶ Zuletzt gehört
+Search songs, artists, albums ⟶ Songs, Künstler, Alben suchen
+Downloading Wave {0} · {1}% ⟶ Wave {0} wird geladen · {1} %
+Wave {0} is ready · Install ⟶ Wave {0} ist bereit · Installieren
+Wave {0} is available · Update ⟶ Wave {0} ist verfügbar · Aktualisieren
+Not now ⟶ Nicht jetzt
+Good morning, ⟶ Guten Morgen,
+Good afternoon, ⟶ Guten Tag,
+Good evening, ⟶ Guten Abend,
+Play all ⟶ Alle abspielen
+Shuffle all ⟶ Alle zufällig
+JUMP BACK IN ⟶ NOCH MAL HÖREN
+Make your own mix ⟶ Erstelle deinen eigenen Mix
+Album ⟶ Album
+Playlist ⟶ Playlist
+Likes stay on this phone ⟶ Likes bleiben auf diesem Handy
+Everything you've liked ⟶ Alles, was du magst
+Recent searches ⟶ Letzte Suchen
+Clear ⟶ Löschen
+Remove ⟶ Entfernen
+Search for songs, artists, albums and playlists. ⟶ Suche nach Songs, Künstlern, Alben und Playlists.
+Fill in "{0}" ⟶ „{0}“ übernehmen
+Search didn't go through. Check your connection. ⟶ Die Suche hat nicht geklappt. Prüfe deine Verbindung.
+Nothing found for "{0}" ⟶ Nichts gefunden für „{0}“
+Songs, artists, albums ⟶ Songs, Künstler, Alben
+Clear search ⟶ Suche löschen
+Live radio ⟶ Live-Radio
+Radio for "{0}" ⟶ Radio für „{0}“
+Real stations, playing right now ⟶ Echte Sender, die gerade laufen
+Find radio stations for "{0}" ⟶ Radiosender für „{0}“ finden
+Song ⟶ Song
+Artist ⟶ Künstler
+Couldn't find the song for this video ⟶ Der Song zu diesem Video wurde nicht gefunden
+All videos ⟶ Alle Videos
+Music videos from the artists you play. ⟶ Musikvideos der Künstler, die du hörst.
+Couldn't find videos right now. Check your connection and try again. ⟶ Gerade keine Videos gefunden. Prüfe deine Verbindung und versuch es noch einmal.
+Watch ⟶ Ansehen
+Videos play in the Android app. ⟶ Videos laufen in der Android-App.
+Normal ⟶ Normal
+Best for your connection ⟶ Am besten für deine Verbindung
+Quality ⟶ Qualität
+Speed ⟶ Tempo
+Loop this video ⟶ Video wiederholen
+Play the song ⟶ Song abspielen
+Just the music, from the start ⟶ Nur die Musik, von Anfang an
+Up next ⟶ Als Nächstes
+Finding more videos… ⟶ Weitere Videos werden gesucht…
+{0} videos ⟶ {0} Videos
+Share ⟶ Teilen
+Open in YouTube ⟶ In YouTube öffnen
+Stop the video ⟶ Video beenden
+Shrink to the mini player ⟶ Zum Miniplayer verkleinern
+Full screen ⟶ Vollbild
+More options ⟶ Weitere Optionen
+Previous video ⟶ Vorheriges Video
+Watch again ⟶ Noch einmal ansehen
+Next video ⟶ Nächstes Video
+Normal speed ⟶ Normales Tempo
+Close Up next ⟶ Als Nächstes schließen
+Coming up ⟶ Demnächst
+Remove {0} from Up next ⟶ {0} aus Als Nächstes entfernen
+10 s back ⟶ 10 s zurück
+10 s on ⟶ 10 s vor
+Loading video ⟶ Video wird geladen
+Now watching ⟶ Läuft gerade
+Stop looping ⟶ Wiederholen beenden
+Leave full screen ⟶ Vollbild beenden
+LIVE ⟶ LIVE
+Stop ⟶ Stopp
+Listen live ⟶ Live hören
+All stations ⟶ Alle Sender
+Radio ⟶ Radio
+Search by name or genre ⟶ Nach Name oder Genre suchen
+Real stations, live from around the world. ⟶ Echte Sender, live aus der ganzen Welt.
+Stations, genres, cities ⟶ Sender, Genres, Städte
+No stations found for “{0}”. ⟶ Keine Sender für „{0}“ gefunden.
+Near you ⟶ In deiner Nähe
+Around the world ⟶ Rund um die Welt
+Couldn't reach the radio directory. Check your connection and try again. ⟶ Das Senderverzeichnis ist nicht erreichbar. Prüfe deine Verbindung und versuch es noch einmal.
+Your YouTube Music.\nNothing in the way. ⟶ Dein YouTube Music.\nNichts im Weg.
+No ads. Just your mixes, your playlists and the songs you keep coming back to. ⟶ Keine Werbung. Nur deine Mixe, deine Playlists und die Songs, zu denen du immer wieder zurückkehrst.
+Continue without an account ⟶ Ohne Konto fortfahren
+Pick your look ⟶ Wähle dein Aussehen
+You can switch any time in Settings › Customize. ⟶ Du kannst jederzeit unter Einstellungen › Anpassen wechseln.
+Prisma: blur, big art and a dock at the bottom. ⟶ Prisma: Unschärfe, große Cover und ein Dock unten.
+A modern take on Wave 1.0: its colors, cards and floating player. ⟶ Eine moderne Version von Wave 1.0: seine Farben, Karten und der schwebende Player.
+How do you get around? ⟶ Wie möchtest du navigieren?
+Both get you to home, search and your library. ⟶ Beide führen zur Startseite, zur Suche und zu deiner Mediathek.
+Home, Library and Search along the bottom. ⟶ Start, Mediathek und Suche unten.
+A search bar at the top that also opens your library. ⟶ Eine Suchleiste oben, die auch deine Mediathek öffnet.
+Float it above the bar instead of joining it ⟶ Über der Leiste schweben lassen, statt sie zu verbinden
+A few looks you can change any time. ⟶ Ein paar Looks, die du jederzeit ändern kannst.
+A quick tour of Wave once you're in ⟶ Ein kurzer Rundgang durch Wave, sobald du drin bist
+Get started ⟶ Los geht's
+Start listening ⟶ Jetzt hören
+Welcome to Wave ⟶ Willkommen bei Wave
+YouTube Music, simple and beautiful. A few quick choices and you're in. ⟶ YouTube Music, einfach und schön. Ein paar kurze Entscheidungen und schon bist du drin.
+Bring your music ⟶ Bring deine Musik mit
+Sign in for your playlists, likes and mixes. Or just look around. ⟶ Melde dich an für deine Playlists, Likes und Mixe. Oder schau dich einfach um.
+Looking around as a guest ⟶ Als Gast umschauen
+You can sign in later from Settings ⟶ Du kannst dich später in den Einstellungen anmelden
+Signed in ⟶ Angemeldet
+Sign in instead ⟶ Lieber anmelden
+Continue as guest ⟶ Als Gast fortfahren
+Recent ⟶ Zuletzt
+Matches ⟶ Treffer
+In your library ⟶ In deiner Mediathek
+No music found for "{0}" ⟶ Keine Musik für „{0}“ gefunden
+TOP RESULT ⟶ TOP-ERGEBNIS
+View artist ⟶ Künstler ansehen
+Couldn't load this page ⟶ Diese Seite konnte nicht geladen werden
+Save, add or share ⟶ Speichern, hinzufügen oder teilen
+Play {0} next ⟶ {0} als Nächstes spielen
+ARTIST ⟶ KÜNSTLER
+{0}: Top songs ⟶ {0}: Top-Songs
+ALBUM ⟶ ALBUM
+{0} songs ⟶ {0} Songs
+Other versions ⟶ Andere Versionen
+PLAYLIST ⟶ PLAYLIST
+YOUR LIBRARY ⟶ DEINE MEDIATHEK
+{0} songs you've played recently ⟶ {0} Songs, die du zuletzt gehört hast
+{0} playlists ⟶ {0} Playlists
+Liked ⟶ Gefällt mir
+{0} albums · {1} artists ⟶ {0} Alben · {1} Künstler
+Shuffle albums ⟶ Alben zufällig
+Following ⟶ Folge ich
+Albums ⟶ Alben
+Nothing saved yet. Save albums or follow artists in YouTube Music and they'll show up here. ⟶ Noch nichts gespeichert. Speichere Alben oder folge Künstlern in YouTube Music, dann erscheinen sie hier.
+Sign in with Google to follow artists ⟶ Melde dich mit Google an, um Künstlern zu folgen
+Following {0} ⟶ Du folgst {0}
+Unfollowed {0} ⟶ Du folgst {0} nicht mehr
+Couldn't update that ⟶ Konnte das nicht aktualisieren
+Subscribed to {0} ⟶ {0} abonniert
+Subscribe to {0} ⟶ {0} abonnieren
+Follow ⟶ Folgen
+Sign in with Google to make playlists ⟶ Melde dich mit Google an, um Playlists zu erstellen
+Looking for a music video… ⟶ Musikvideo wird gesucht…
+Watch the music video ⟶ Musikvideo ansehen
+Go to {0} ⟶ Zu {0}
+Go to album ⟶ Zum Album
+Remove from this playlist ⟶ Aus dieser Playlist entfernen
+Removed from playlist ⟶ Aus der Playlist entfernt
+Couldn't remove it ⟶ Konnte nicht entfernt werden
+Open artist page ⟶ Künstlerseite öffnen
+Open album ⟶ Album öffnen
+Open playlist ⟶ Playlist öffnen
+Rename playlist ⟶ Playlist umbenennen
+Delete playlist ⟶ Playlist löschen
+Added to {0} ⟶ Zu {0} hinzugefügt
+Couldn't add it ⟶ Konnte nicht hinzugefügt werden
+Name ⟶ Name
+Renamed ⟶ Umbenannt
+Couldn't rename it ⟶ Konnte nicht umbenannt werden
+Created {0} ⟶ {0} erstellt
+Couldn't create the playlist ⟶ Die Playlist konnte nicht erstellt werden
+Save ⟶ Speichern
+Create ⟶ Erstellen
+Delete playlist? ⟶ Playlist löschen?
+"{0}" will be removed from your YouTube Music library. ⟶ „{0}“ wird aus deiner YouTube Music-Mediathek entfernt.
+Deleted ⟶ Gelöscht
+Couldn't delete it ⟶ Konnte nicht gelöscht werden
+Delete ⟶ Löschen
+Speed {0} ⟶ Tempo {0}
+Wave volume {0}% ⟶ Wave-Lautstärke {0} %
+Hide volume and speed ⟶ Lautstärke und Tempo ausblenden
+Show volume and speed ⟶ Lautstärke und Tempo einblenden
+Pause ⟶ Pause
+Stop and close the player ⟶ Stoppen und Player schließen
+Close queue ⟶ Warteschlange schließen
+Remove {0} from the queue ⟶ {0} aus der Warteschlange entfernen
+Drag to reorder {0} ⟶ Ziehen, um {0} zu verschieben
+No lyrics for this one ⟶ Keine Lyrics für diesen Song
+Instrumental, or nobody has added them yet. ⟶ Instrumental, oder noch niemand hat sie hinzugefügt.
+These lyrics aren't time-synced · ⟶ Diese Lyrics sind nicht synchronisiert ·
+Lyrics from {0} ⟶ Lyrics von {0}
+Close lyrics ⟶ Lyrics schließen
+Collapse player ⟶ Player einklappen
+Expand player ⟶ Player erweitern
+Shrink player ⟶ Player verkleinern
+Back 10 seconds ⟶ 10 Sekunden zurück
+Forward 10 seconds ⟶ 10 Sekunden vor
+Shuffle on ⟶ Zufällig an
+Shuffle off ⟶ Zufällig aus
+Repeat all ⟶ Alle wiederholen
+Repeat one ⟶ Einen wiederholen
+Repeat off ⟶ Kein Wiederholen
+Playing live ⟶ Läuft live
+Tuning in… ⟶ Wird eingestellt…
+Stopped ⟶ Gestoppt
+Stop any time. Playing again picks up where the station is now. ⟶ Stoppe jederzeit. Beim erneuten Abspielen geht es dort weiter, wo der Sender gerade ist.
+Tap play to hear what's on right now. ⟶ Tippe auf Wiedergabe, um zu hören, was gerade läuft.
+End of queue ⟶ Ende der Warteschlange
+Lyrics ⟶ Lyrics
+Like ⟶ Mag ich

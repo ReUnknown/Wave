@@ -1,0 +1,555 @@
+// Made by shared/i18n-src/build.py from fr.txt. Edit that file, not this one.
+package app.wave.music.i18n
+
+internal object Fr {
+    val text: String get() = listOf(
+        """Customize	Personnaliser
+Modern or Legacy, layout, buttons, haptics	Moderne ou Classique, mise en page, boutons, vibrations
+Appearance	Apparence
+Theme, background, blur, text size, colors	Thème, fond, flou, taille du texte, couleurs
+Accessibility	Accessibilité
+Contrast, text size, motion, TalkBack	Contraste, taille du texte, animations, TalkBack
+Language	Langue
+The language Wave speaks	La langue dans laquelle Wave s'affiche
+Playback & sound	Lecture et son
+Quality, fades, more songs when a queue ends	Qualité, fondus, plus de titres à la fin de la file
+Style, motion, size, timing	Style, animation, taille, synchronisation
+Storage	Stockage
+Saved songs and covers, history, erase	Titres et pochettes enregistrés, historique, effacer
+Battery	Batterie
+Battery saver, calmer motion	Économiseur de batterie, animations plus calmes
+About	À propos
+Version, updates, what's new, credits	Version, mises à jour, nouveautés, crédits
+Attribution	Attributions
+What's new	Nouveautés
+Update	Mettre à jour
+Home rows	Rangées de l'accueil
+Make it yours	À votre image
+Listening	Écoute
+This phone	Ce téléphone
+Back	Retour
+Settings	Paramètres
+Not signed in	Non connecté
+Sign in for your playlists and likes	Connectez-vous pour vos playlists et vos titres aimés
+YouTube Music account	Compte YouTube Music
+Sign in	Se connecter
+Sign out	Se déconnecter
+Wave {0} is ready	Wave {0} est prêt
+Close	Fermer
+Look	Aspect
+Style	Style
+Modern is Wave 2.0; Legacy is a modern take on Wave 1.0	Moderne, c'est Wave 2.0 ; Classique est une version moderne de Wave 1.0
+Modern	Moderne
+Legacy	Classique
+Corners	Coins
+How round cards, menus and the bar are	L'arrondi des cartes, des menus et de la barre
+Rounded	Arrondis
+Squircle	Doux
+Sharp	Droits
+Denser home	Accueil plus compact
+Smaller cards, so you see more at once	Des cartes plus petites pour en voir plus d'un coup
+Pick and arrange what's on your home, with a preview	Choisissez et organisez votre accueil, avec un aperçu
+Getting around	Se déplacer
+Navigation	Navigation
+The bar at the bottom, or a search bar at the top that also opens your library	La barre en bas, ou une barre de recherche en haut qui ouvre aussi votre bibliothèque
+Bottom bar	Barre du bas
+Top search	Recherche en haut
+Open Wave on	Ouvrir Wave sur
+The tab you see first	L'onglet affiché en premier
+Home	Accueil
+Library	Bibliothèque
+Search	Rechercher
+Mini player and player	Mini-lecteur et lecteur
+Mini player on its own	Mini-lecteur séparé
+Always on its own with the top search	Toujours séparé avec la recherche en haut
+Floats above the bar instead of joining it	Flotte au-dessus de la barre au lieu de s'y rattacher
+Mini player beside the tabs	Mini-lecteur à côté des onglets
+Big screens: one row at the bottom instead of two	Grands écrans : une seule rangée en bas au lieu de deux
+Previous and next in the mini player	Précédent et suivant dans le mini-lecteur
+Off leaves just the play button	Désactivé ne laisse que le bouton lecture
+Buttons beside play	Boutons à côté de lecture
+In the player: skip songs, or jump 10 seconds	Dans le lecteur : changer de titre ou avancer de 10 secondes
+Skip songs	Changer de titre
+10 seconds	10 secondes
+Feel	Ressenti
+Haptics	Vibrations
+The little buzzes when you tap and drag	Les petites vibrations quand vous touchez et faites glisser
+On	Activé
+Subtle	Légères
+Off	Désactivé
+Theme	Thème
+Follow your phone, or always light or dark	Comme le téléphone, ou toujours clair ou sombre
+System	Système
+Light	Clair
+Dark	Sombre
+Match song colors	Couleurs du titre
+Wave takes on the colors of what's playing	Wave prend les couleurs de ce qui est en lecture
+Background	Fond
+With song colors on: the cover blurred behind everything, a glow at the top, or plain	Avec les couleurs du titre : la pochette floutée derrière tout, une lueur en haut, ou uni
+Cover	Pochette
+Glow	Lueur
+Plain	Uni
+Blur	Flou
+Frosted glass on the bar, menus and page tops	Verre dépoli sur la barre, les menus et le haut des pages
+Full	Complet
+AMOLED black	Noir AMOLED
+Pure black backgrounds in dark mode	Fonds noir pur en mode sombre
+Text size	Taille du texte
+On top of your phone's own text size	En plus de la taille du texte du téléphone
+Smaller	Petit
+Default	Normal
+Bigger	Grand
+Seeing	Vision
+High contrast	Contraste élevé
+Black or white backgrounds, stronger text and colors, and solid surfaces instead of frosted glass	Fonds noirs ou blancs, texte et couleurs plus marqués, et surfaces pleines au lieu du verre dépoli
+Fix low contrast automatically	Corriger automatiquement le faible contraste
+When a song's colors would make text hard to read, Wave adjusts them	Quand les couleurs d'un titre rendent le texte difficile à lire, Wave les ajuste
+Text	Texte
+Bigger or smaller text all through Wave	Un texte plus grand ou plus petit partout dans Wave
+Biggest	Énorme
+Follow your phone's text size	Suivre la taille du texte du téléphone
+Your phone's text size applies on top of Wave's	La taille du texte du téléphone s'ajoute à celle de Wave
+Motion	Animations
+Reduce motion	Réduire les animations
+On, because your phone is set to remove animations	Activé, car votre téléphone désactive les animations
+No bounces, still waves and fewer moving things	Pas de rebonds, des vagues immobiles et moins de mouvement
+TalkBack	TalkBack
+Keep controls on screen	Garder les commandes à l'écran
+On while TalkBack is running: video controls never tuck themselves away	Activé quand TalkBack fonctionne : les commandes vidéo ne se masquent jamais seules
+Video controls stay put instead of tucking away. Turns on by itself with TalkBack	Les commandes vidéo restent affichées au lieu de se masquer. S'active seul avec TalkBack
+Wave is in English everywhere. Other languages are being filled in, so some text may still show in English.	Wave est entièrement en anglais. Les autres langues sont en cours, donc certains textes peuvent encore s'afficher en anglais.
+Phone's language	Langue du téléphone
+English	Anglais
+Videos	Vidéos
+Ambient mode	Mode ambiant
+Upright videos: the player's colors follow what's on screen as it plays	Vidéos à la verticale : les couleurs du lecteur suivent ce qui s'affiche
+Sound	Son
+Audio quality	Qualité audio
+The best Wave can get	La meilleure possible
+Best on Wi-Fi, lighter on mobile data	La meilleure en Wi-Fi, plus légère en données mobiles
+Uses the least data	Utilise le moins de données
+Low	Basse
+Auto	Auto
+High	Haute
+Fade between songs	Fondu entre les titres
+Songs play one after another	Les titres s'enchaînent
+Each song fades into the next over {0} seconds	Chaque titre se fond dans le suivant sur {0} secondes
+Even volume	Volume égalisé
+Loud songs are turned down so everything sounds the same	Les titres trop forts sont baissés pour un volume homogène
+Queue	File d'attente
+Auto-load more songs	Charger plus de titres automatiquement
+When your queue ends, Wave keeps going with songs like the last one	À la fin de votre file, Wave continue avec des titres proches du dernier
+Skip silence	Passer les silences
+Trims the quiet gaps in songs	Supprime les blancs dans les titres
+Wave checks each song's lyrics against the song and fixes the timing by itself when something's off.	Wave compare les paroles de chaque titre avec la musique et corrige la synchronisation tout seul en cas de décalage.
+Light up	Mise en avant
+Word by word as they're sung, or the whole line at once	Mot par mot au fil du chant, ou la ligne entière d'un coup
+Word by word	Mot par mot
+Line by line	Ligne par ligne
+Words lift gently as they're sung; held notes can glow too	Les mots se soulèvent doucement quand ils sont chantés ; les notes tenues peuvent aussi briller
+Still	Immobile
+Lift	Soulever
+Lift & glow	Soulever et briller
+Size	Taille
+How big the lines are	La taille des lignes
+Small	Petite
+Medium	Moyenne
+Large	Grande
+Alignment	Alignement
+Lines on the left, or centered	Lignes à gauche ou centrées
+Left	Gauche
+Center	Centre
+Blur other lines	Flouter les autres lignes
+Lines away from the one being sung soften, so it stands out	Les lignes éloignées de celle chantée s'estompent pour la faire ressortir
+Timing	Synchronisation
+Fix timing automatically	Corriger la synchronisation automatiquement
+When lyrics run early or late, Wave lines them up with the song. Off: exactly as the lyrics source times them	Si les paroles sont en avance ou en retard, Wave les cale sur la musique. Désactivé : exactement comme la source les synchronise
+Battery saver is on. Wave is going easy on your battery.	L'économiseur de batterie est activé. Wave ménage votre batterie.
+Battery saver is off. These kick in when you turn it on.	L'économiseur de batterie est désactivé. Ceci s'applique quand vous l'activez.
+When battery saver is on	Avec l'économiseur de batterie
+Simpler look	Aspect plus simple
+No blur or cover background, and the progress line holds still	Pas de flou ni de pochette en fond, et la ligne de progression reste immobile
+Lighter audio	Audio plus léger
+Plays lower quality, which takes less work and data	Lit une qualité inférieure, qui demande moins d'effort et de données
+All the time	Tout le temps
+Save battery while playing	Économiser la batterie pendant la lecture
+The phone's audio chip plays when Wave isn't on screen (off with Skip silence)	La puce audio du téléphone prend le relais quand Wave n'est pas à l'écran (désactivé avec Passer les silences)
+Calm motion	Animations calmes
+Fewer moving things, like the wavy progress line	Moins de mouvement, comme la ligne de progression ondulée
+Space	Espace
+Saved songs and covers	Titres et pochettes enregistrés
+Clear saved songs and covers	Effacer les titres et pochettes enregistrés
+They load again when you need them	Ils se rechargent quand vous en avez besoin
+Mobile data	Données mobiles
+Save mobile data	Économiser les données mobiles
+On mobile data, Wave plays lighter audio and loads smaller covers	En données mobiles, Wave lit un audio plus léger et charge des pochettes plus petites
+History	Historique
+Clear search history	Effacer l'historique de recherche
+Your recent searches	Vos recherches récentes
+Search history cleared	Historique de recherche effacé
+Clear saved pages	Effacer les pages enregistrées
+Home, albums and artists load fresh	L'accueil, les albums et les artistes se rechargent
+Saved pages cleared	Pages enregistrées effacées
+Everything	Tout
+Erase info	Effacer les données
+Signs you out and resets Wave as if it were just installed	Vous déconnecte et remet Wave comme à l'installation
+Erase everything?	Tout effacer ?
+You'll be signed out, and your settings, searches, history and saved pages are cleared from this phone. Your YouTube Music account isn't touched.	Vous serez déconnecté, et vos paramètres, recherches, historique et pages enregistrées seront effacés de ce téléphone. Votre compte YouTube Music n'est pas modifié.
+Erase	Effacer
+Cancel	Annuler
+{0} of {1}	{0} sur {1}
+Version {0}	Version {0}
+Updates	Mises à jour
+Tap Check to look for a new version	Touchez Vérifier pour chercher une nouvelle version
+Checking…	Vérification…
+You're up to date	Vous êtes à jour
+Couldn't check right now	Impossible de vérifier pour le moment
+Wave {0} is ready to download	Wave {0} est prêt à télécharger
+Downloading Wave {0}…	Téléchargement de Wave {0}…
+Wave {0} is ready to install	Wave {0} est prêt à installer
+Install	Installer
+Check	Vérifier
+Update automatically	Mettre à jour automatiquement
+Wave looks for a new version once a day	Wave cherche une nouvelle version une fois par jour
+Show me around	Faire la visite
+The quick tour of Wave again	Revoir la visite rapide de Wave
+Every release, newest first, straight from GitHub	Toutes les versions, les plus récentes d'abord, depuis GitHub
+What Wave is built on and inspired by	Ce sur quoi Wave repose et ce qui l'inspire
+Report a bug	Signaler un bug
+Opens a new issue on GitHub	Ouvre un nouveau signalement sur GitHub
+Go back to Wave 1.x	Revenir à Wave 1.x
+How to switch back to the finished version	Comment revenir à la version finale
+Going back to Wave 1.x	Revenir à Wave 1.x
+Android can't step an app back a version, so it's a quick reinstall:\n\n	Android ne peut pas ramener une app à une version antérieure, il faut donc la réinstaller :\n\n
+1. Uninstall Wave (your likes and playlists live in your YouTube Music account, so they're safe; Wave's own settings and saved songs are cleared).\n	1. Désinstallez Wave (vos titres aimés et playlists sont dans votre compte YouTube Music, ils ne risquent rien ; les paramètres et titres enregistrés de Wave sont effacés).\n
+2. Download the latest Wave 1.x APK from GitHub and open it.\n	2. Téléchargez le dernier APK de Wave 1.x sur GitHub et ouvrez-le.\n
+3. Sign in again.\n\n	3. Reconnectez-vous.\n\n
+Wave 1.x only offers finished versions, so you'll stay on it until you choose otherwise.	Wave 1.x ne propose que des versions finales, vous y resterez donc jusqu'à ce que vous en décidiez autrement.
+Get Wave 1.x	Obtenir Wave 1.x
+Stay on 2.0	Rester sur 2.0
+Wave is free software under the GNU GPL v3. It isn't affiliated with or endorsed by YouTube or Google.	Wave est un logiciel libre sous GNU GPL v3. Il n'est ni affilié à YouTube ou Google, ni approuvé par eux.
+How Wave talks to YouTube Music (GPL v3)	Comment Wave communique avec YouTube Music (GPL v3)
+Wave's whole interface (Apache 2.0)	Toute l'interface de Wave (Apache 2.0)
+Components, shapes and motion (Apache 2.0)	Composants, formes et animations (Apache 2.0)
+Playback and the notification controls (Apache 2.0)	La lecture et les commandes de la notification (Apache 2.0)
+The frosted glass, by Chris Banes (Apache 2.0)	Le verre dépoli, par Chris Banes (Apache 2.0)
+Loading covers (Apache 2.0)	Le chargement des pochettes (Apache 2.0)
+Networking (Apache 2.0)	Le réseau (Apache 2.0)
+Drag to reorder Up next, by Calvin Liang (Apache 2.0)	Glisser pour réorganiser À suivre, par Calvin Liang (Apache 2.0)
+Time-synced lyrics	Paroles synchronisées
+Word-by-word lyrics	Paroles mot par mot
+Thank you to everyone who works on these. Wave isn't affiliated with any of them.	Merci à toutes les personnes qui y contribuent. Wave n'est affilié à aucun d'entre eux.
+Couldn't reach GitHub. Check your connection and try again.	Impossible de joindre GitHub. Vérifiez votre connexion et réessayez.
+You have this	Vous l'avez
+New	Nouvelle
+Beta	Bêta
+NEW VERSION	NOUVELLE VERSION
+Wave {0} is here	Wave {0} est arrivé
+See what's new	Voir les nouveautés
+Wave {0}	Wave {0}
+You have {0}	Vous avez la {0}
+See it on GitHub	Voir sur GitHub
+Downloading {0}%	Téléchargement {0} %
+Install now	Installer maintenant
+Download update	Télécharger la mise à jour
+Room for both	Espace pour les deux
+Less room means songs download again more often. Applies when Wave restarts.	Moins d'espace signifie que les titres sont retéléchargés plus souvent. S'applique au redémarrage de Wave.
+Big cards picked from what you play	De grandes cartes choisies selon vos écoutes
+What you played lately	Ce que vous avez écouté récemment
+Playlists you made or saved	Les playlists créées ou enregistrées
+Mixes and rows YouTube Music makes for you	Les mix et rangées que YouTube Music crée pour vous
+Live stations like the music you play	Des radios en direct proches de vos écoutes
+Music videos from the artists you play	Des clips des artistes que vous écoutez
+Your home	Votre accueil
+Drag rows to move them, switch them off to hide them. The preview shows how it'll look.	Faites glisser les rangées pour les déplacer, désactivez-les pour les masquer. L'aperçu montre le résultat.
+Rows	Rangées
+Drag to move {0}	Faire glisser pour déplacer {0}
+Hidden from your home	Masqué de votre accueil
+From YouTube Music	De YouTube Music
+Tap a row to hide it, tap again to bring it back.	Touchez une rangée pour la masquer, touchez à nouveau pour la remettre.
+Reset to how Wave starts	Rétablir l'accueil d'origine
+Your Google account	Votre compte Google
+Your library	Votre bibliothèque
+Playlists	Playlists
+Albums & artists	Albums et artistes
+All settings & Customize	Tous les paramètres et Personnaliser
+Sign in with Google	Se connecter avec Google
+Not signed in. Likes stay on this device.	Non connecté. Les titres aimés restent sur cet appareil.
+Signed in with Google	Connecté avec Google
+Search your library	Rechercher dans votre bibliothèque
+Search music & your library	Rechercher de la musique et dans votre bibliothèque
+Your account	Votre compte
+Update ready	Mise à jour prête
+Previous song	Titre précédent
+Next song	Titre suivant
+New from {0}	Nouveauté de {0}
+Album for you	Album pour vous
+Made for you	Conçu pour vous
+Artist for you	Artiste pour vous
+Song for you	Titre pour vous
+For you	Pour vous
+Radio for you	Radio pour vous
+Top picks for you	Sélection pour vous
+Recently played	Écoutés récemment
+Your playlists	Vos playlists
+Music videos	Clips
+See all	Tout voir
+Play	Lire
+More	Plus
+Your playlists, likes and history show up here once you're signed in.	Vos playlists, titres aimés et historique s'affichent ici une fois connecté.
+Liked songs	Titres aimés
+Played lately	Écoutés récemment
+New playlist	Nouvelle playlist
+Liked music	Titres aimés
+Wave 2.0 is here	Wave 2.0 est arrivé
+A whole new look, frosted glass, a new player and lyrics, light mode and loads to customize. Your account, likes and settings are all still here.	Un tout nouveau look, du verre dépoli, un nouveau lecteur et de nouvelles paroles, un mode clair et plein de choses à personnaliser. Votre compte, vos titres aimés et vos paramètres sont toujours là.
+Continue	Continuer
+Your Wave	Votre Wave
+Welcome to Wave 2.0	Bienvenue dans Wave 2.0
+A fresh look, all yours to shape. Your account, likes and settings came along. Prefer how it was? Settings › Customize › Legacy.	Un nouveau look, à façonner comme vous voulez. Votre compte, vos titres aimés et vos paramètres ont suivi. Vous préférez l'ancien ? Paramètres › Personnaliser › Classique.
+Skip	Passer
+Wave 2.0	Wave 2.0
+Picks for you	Sélections pour vous
+Albums, playlists and new releases chosen for you. Tap a card to open it, or its play button to start it right away.	Albums, playlists et nouveautés choisis pour vous. Touchez une carte pour l'ouvrir, ou son bouton lecture pour la lancer tout de suite.
+Songs to play	Titres à écouter
+Tap a song to play it with the rest of the mix. Hold it for more.	Touchez un titre pour le lire avec le reste du mix. Appuyez longuement pour plus d'options.
+Menus from the ⋮	Menus du ⋮
+Press any ⋮ (or hold a song or album) and the menu grows right out of it: play next, add to queue, add to a playlist, start radio, go to the artist.	Touchez n'importe quel ⋮ (ou appuyez longuement sur un titre ou un album) et le menu en sort : lire ensuite, ajouter à la file, ajouter à une playlist, lancer un mix, aller à l'artiste.
+Your picks, mixes and what you played lately. Tap it again to jump back to the top.	Vos sélections, mix et écoutes récentes. Touchez à nouveau pour remonter en haut.
+Liked songs, your playlists, albums and artists you saved, and your history.	Titres aimés, vos playlists, albums et artistes enregistrés, et votre historique.
+Songs, artists, albums and playlists, with filters. Your library shows up as you type.	Titres, artistes, albums et playlists, avec des filtres. Votre bibliothèque apparaît pendant la saisie.
+Search, and your library	La recherche et votre bibliothèque
+This searches everything, with filters. The button inside flips to your library and back.	Ici, on cherche partout, avec des filtres. Le bouton à l'intérieur bascule vers votre bibliothèque et inversement.
+What's playing	En cours de lecture
+Tap the mini player and the player grows out of it. Swipe it down to close the song.	Touchez le mini-lecteur et le lecteur s'ouvre à partir de lui. Faites-le glisser vers le bas pour fermer le titre.
+In the player	Dans le lecteur
+Up next to reorder what's coming, Lyrics that line up with the song by themselves, and volume and speed under the little handle. Back or swipe down to tuck it away.	À suivre pour réorganiser la suite, des Paroles qui se calent toutes seules sur la musique, et le volume et la vitesse sous la petite poignée. Retour ou glissez vers le bas pour le ranger.
+""",
+        """Your picture opens Settings. Customize has Modern or Legacy, the bar or a search bar, corners and buttons. Appearance has light mode, the background and blur.	Votre photo ouvre les Paramètres. Personnaliser propose Moderne ou Classique, la barre ou une barre de recherche, les coins et les boutons. Apparence propose le mode clair, le fond et le flou.
+That's the tour	C'est tout pour la visite
+Want it again later? Settings › About › Show me around.	Envie de la revoir ? Paramètres › À propos › Faire la visite.
+Next	Suivant
+Done	Terminé
+UPDATE READY	MISE À JOUR PRÊTE
+Later	Plus tard
+WHAT'S NEW	NOUVEAUTÉS
+You're on Wave {0}	Vous êtes sur Wave {0}
+All notes	Toutes les notes
+Nice	Super
+Play next	Lire ensuite
+Add to queue	Ajouter à la file
+Add to playlist	Ajouter à une playlist
+Start a mix	Lancer un mix
+Go to artist	Aller à l'artiste
+Couldn't play that right now	Impossible de lire ce titre pour le moment
+Mix	Mix
+Added to queue	Ajouté à la file
+Playing next	Lu ensuite
+Song {0} of {1} · {2}	Titre {0} sur {1} · {2}
+Open player	Ouvrir le lecteur
+Remix on	Remix activé
+Remix	Remix
+{0} days ago	il y a {0} jours
+Stopped at song {0} of {1} · {2}	Arrêté au titre {0} sur {1} · {2}
+Resume at song {0}	Reprendre au titre {0}
+Start over	Recommencer
+Shuffle	Aléatoire
+Couldn't load your home	Impossible de charger votre accueil
+Try again	Réessayer
+Your recent spins	Vos dernières écoutes
+Search songs, artists, albums	Rechercher des titres, artistes, albums
+Downloading Wave {0} · {1}%	Téléchargement de Wave {0} · {1} %
+Wave {0} is ready · Install	Wave {0} est prêt · Installer
+Wave {0} is available · Update	Wave {0} est disponible · Mettre à jour
+Not now	Pas maintenant
+Good morning,	Bonjour,
+Good afternoon,	Bon après-midi,
+Good evening,	Bonsoir,
+Play all	Tout lire
+Shuffle all	Tout en aléatoire
+JUMP BACK IN	À RÉÉCOUTER
+Make your own mix	Créez votre propre mix
+Album	Album
+Playlist	Playlist
+Likes stay on this phone	Les titres aimés restent sur ce téléphone
+Everything you've liked	Tout ce que vous avez aimé
+Recent searches	Recherches récentes
+Clear	Effacer
+Remove	Retirer
+Search for songs, artists, albums and playlists.	Recherchez des titres, artistes, albums et playlists.
+Fill in "{0}"	Compléter "{0}"
+Search didn't go through. Check your connection.	La recherche n'a pas abouti. Vérifiez votre connexion.
+Nothing found for "{0}"	Aucun résultat pour "{0}"
+Songs, artists, albums	Titres, artistes, albums
+Clear search	Effacer la recherche
+Live radio	Radio en direct
+Radio for "{0}"	Radio pour "{0}"
+Real stations, playing right now	De vraies radios, en direct
+Find radio stations for "{0}"	Trouver des radios pour "{0}"
+Song	Titre
+Artist	Artiste
+Couldn't find the song for this video	Impossible de trouver le titre de cette vidéo
+All videos	Toutes les vidéos
+Music videos from the artists you play.	Des clips des artistes que vous écoutez.
+Couldn't find videos right now. Check your connection and try again.	Impossible de trouver des vidéos pour le moment. Vérifiez votre connexion et réessayez.
+Watch	Regarder
+Videos play in the Android app.	Les vidéos se lisent dans l'app Android.
+Normal	Normale
+Best for your connection	La meilleure pour votre connexion
+Quality	Qualité
+Speed	Vitesse
+Loop this video	Lire en boucle
+Play the song	Écouter le titre
+Just the music, from the start	Juste la musique, depuis le début
+Up next	À suivre
+Finding more videos…	Recherche d'autres vidéos…
+{0} videos	{0} vidéos
+Share	Partager
+Open in YouTube	Ouvrir dans YouTube
+Stop the video	Arrêter la vidéo
+Shrink to the mini player	Réduire au mini-lecteur
+Full screen	Plein écran
+More options	Plus d'options
+Previous video	Vidéo précédente
+Watch again	Revoir
+Next video	Vidéo suivante
+Normal speed	Vitesse normale
+Close Up next	Fermer À suivre
+Coming up	À venir
+Remove {0} from Up next	Retirer {0} de À suivre
+10 s back	10 s en arrière
+10 s on	10 s en avant
+Loading video	Chargement de la vidéo
+Now watching	En cours de visionnage
+Stop looping	Arrêter la boucle
+Leave full screen	Quitter le plein écran
+LIVE	EN DIRECT
+Stop	Arrêter
+Listen live	Écouter en direct
+All stations	Toutes les radios
+Radio	Radio
+Search by name or genre	Rechercher par nom ou genre
+Real stations, live from around the world.	De vraies radios, en direct du monde entier.
+Stations, genres, cities	Radios, genres, villes
+No stations found for “{0}”.	Aucune radio trouvée pour « {0} ».
+Near you	Près de chez vous
+Around the world	Dans le monde
+Couldn't reach the radio directory. Check your connection and try again.	Impossible de joindre l'annuaire des radios. Vérifiez votre connexion et réessayez.
+Your YouTube Music.\nNothing in the way.	Votre YouTube Music.\nSans rien qui gêne.
+No ads. Just your mixes, your playlists and the songs you keep coming back to.	Sans pub. Juste vos mix, vos playlists et les titres que vous réécoutez sans cesse.
+Continue without an account	Continuer sans compte
+Pick your look	Choisissez votre look
+You can switch any time in Settings › Customize.	Vous pouvez changer à tout moment dans Paramètres › Personnaliser.
+Prisma: blur, big art and a dock at the bottom.	Prisma : du flou, de grandes pochettes et une barre en bas.
+A modern take on Wave 1.0: its colors, cards and floating player.	Une version moderne de Wave 1.0 : ses couleurs, ses cartes et son lecteur flottant.
+How do you get around?	Comment voulez-vous naviguer ?
+Both get you to home, search and your library.	Les deux mènent à l'accueil, à la recherche et à votre bibliothèque.
+Home, Library and Search along the bottom.	Accueil, Bibliothèque et Rechercher en bas.
+A search bar at the top that also opens your library.	Une barre de recherche en haut qui ouvre aussi votre bibliothèque.
+Float it above the bar instead of joining it	Le faire flotter au-dessus de la barre au lieu de l'y rattacher
+A few looks you can change any time.	Quelques réglages d'apparence modifiables à tout moment.
+A quick tour of Wave once you're in	Une visite rapide de Wave une fois dedans
+Get started	Commencer
+Start listening	Commencer l'écoute
+Welcome to Wave	Bienvenue dans Wave
+YouTube Music, simple and beautiful. A few quick choices and you're in.	YouTube Music, simple et beau. Quelques choix rapides et c'est parti.
+Bring your music	Retrouvez votre musique
+Sign in for your playlists, likes and mixes. Or just look around.	Connectez-vous pour vos playlists, titres aimés et mix. Ou faites simplement un tour.
+Looking around as a guest	Visite en tant qu'invité
+You can sign in later from Settings	Vous pourrez vous connecter plus tard depuis les Paramètres
+Signed in	Connecté
+Sign in instead	Plutôt se connecter
+Continue as guest	Continuer en tant qu'invité
+Recent	Récents
+Matches	Résultats
+In your library	Dans votre bibliothèque
+No music found for "{0}"	Aucune musique trouvée pour "{0}"
+TOP RESULT	MEILLEUR RÉSULTAT
+View artist	Voir l'artiste
+Couldn't load this page	Impossible de charger cette page
+Save, add or share	Enregistrer, ajouter ou partager
+Play {0} next	Lire {0} ensuite
+ARTIST	ARTISTE
+{0}: Top songs	{0} : Titres populaires
+ALBUM	ALBUM
+{0} songs	{0} titres
+Other versions	Autres versions
+PLAYLIST	PLAYLIST
+YOUR LIBRARY	VOTRE BIBLIOTHÈQUE
+{0} songs you've played recently	{0} titres écoutés récemment
+{0} playlists	{0} playlists
+Liked	Aimé
+{0} albums · {1} artists	{0} albums · {1} artistes
+Shuffle albums	Albums en aléatoire
+Following	Abonné
+Albums	Albums
+Nothing saved yet. Save albums or follow artists in YouTube Music and they'll show up here.	Rien d'enregistré pour l'instant. Enregistrez des albums ou suivez des artistes dans YouTube Music et ils apparaîtront ici.
+Sign in with Google to follow artists	Connectez-vous avec Google pour suivre des artistes
+Following {0}	Vous suivez {0}
+Unfollowed {0}	Vous ne suivez plus {0}
+Couldn't update that	Impossible de mettre à jour
+Subscribed to {0}	Abonné à {0}
+Subscribe to {0}	S'abonner à {0}
+Follow	Suivre
+Sign in with Google to make playlists	Connectez-vous avec Google pour créer des playlists
+Looking for a music video…	Recherche d'un clip…
+Watch the music video	Regarder le clip
+Go to {0}	Aller à {0}
+Go to album	Aller à l'album
+Remove from this playlist	Retirer de cette playlist
+Removed from playlist	Retiré de la playlist
+Couldn't remove it	Impossible de retirer
+Open artist page	Ouvrir la page de l'artiste
+Open album	Ouvrir l'album
+Open playlist	Ouvrir la playlist
+Rename playlist	Renommer la playlist
+Delete playlist	Supprimer la playlist
+Added to {0}	Ajouté à {0}
+Couldn't add it	Impossible d'ajouter
+Name	Nom
+Renamed	Renommée
+Couldn't rename it	Impossible de renommer
+Created {0}	{0} créée
+Couldn't create the playlist	Impossible de créer la playlist
+Save	Enregistrer
+Create	Créer
+Delete playlist?	Supprimer la playlist ?
+"{0}" will be removed from your YouTube Music library.	"{0}" sera retirée de votre bibliothèque YouTube Music.
+Deleted	Supprimée
+Couldn't delete it	Impossible de supprimer
+Delete	Supprimer
+Speed {0}	Vitesse {0}
+Wave volume {0}%	Volume de Wave {0} %
+Hide volume and speed	Masquer le volume et la vitesse
+Show volume and speed	Afficher le volume et la vitesse
+Pause	Pause
+Stop and close the player	Arrêter et fermer le lecteur
+Close queue	Fermer la file
+Remove {0} from the queue	Retirer {0} de la file
+Drag to reorder {0}	Faire glisser pour réorganiser {0}
+No lyrics for this one	Pas de paroles pour ce titre
+Instrumental, or nobody has added them yet.	Instrumental, ou personne ne les a encore ajoutées.
+These lyrics aren't time-synced ·	Ces paroles ne sont pas synchronisées ·
+Lyrics from {0}	Paroles de {0}
+Close lyrics	Fermer les paroles
+Collapse player	Réduire le lecteur
+Expand player	Agrandir le lecteur
+Shrink player	Rétrécir le lecteur
+Back 10 seconds	Reculer de 10 secondes
+Forward 10 seconds	Avancer de 10 secondes
+Shuffle on	Aléatoire
+Shuffle off	Sans aléatoire
+Repeat all	Tout répéter
+Repeat one	Répéter un titre
+Repeat off	Sans répéter
+Playing live	En direct
+Tuning in…	Connexion…
+Stopped	Arrêté
+Stop any time. Playing again picks up where the station is now.	Arrêtez quand vous voulez. En relançant, vous reprenez là où en est la radio.
+Tap play to hear what's on right now.	Touchez lecture pour écouter ce qui passe en ce moment.
+End of queue	Fin de la file
+Lyrics	Paroles
+Like	J'aime
+""",
+    ).joinToString("")
+}

@@ -48,6 +48,10 @@ interface Platform {
     val metered: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
     /** The phone's battery saver is on. */
     val powerSave: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+    /** A screen reader (TalkBack) is running. */
+    val screenReader: kotlinx.coroutines.flow.StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(false)
+    /** The phone is set to remove animations. */
+    val systemReduceMotion: Boolean get() = false
 
 }
 

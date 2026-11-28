@@ -51,8 +51,11 @@ fun WaveTheme(content: @Composable () -> Unit) {
     val dark = when (theme.theme) { 1 -> false; 2 -> true; else -> system }
     val colorScheme = app.wave.music.platform.systemColorScheme(dark)
         ?: if (dark) WaveDarkBlue else androidx.compose.material3.lightColorScheme()
+    // Accessibility: high contrast, or readable colors whatever the theme.
+    val hc = app.wave.music.platform.PrismaLook.highContrast
+    val auto = app.wave.music.platform.PrismaLook.autoContrast
     MaterialExpressiveTheme(
-        colorScheme = colorScheme,
+        colorScheme = androidx.compose.runtime.remember(colorScheme, hc, auto) { accessible(colorScheme) },
         motionScheme = MotionScheme.expressive(),
         typography = WaveTypography,
         content = content,

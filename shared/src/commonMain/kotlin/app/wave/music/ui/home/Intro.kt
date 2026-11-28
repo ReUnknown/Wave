@@ -46,7 +46,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import app.wave.music.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -553,7 +553,7 @@ private fun MenuPreview() {
     ) {
         items.forEach { (icon, label) ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                androidx.compose.material3.Icon(icon, null, tint = c.onSurface, modifier = Modifier.size(20.dp))
+                app.wave.music.ui.i18n.Icon(icon, null, tint = c.onSurface, modifier = Modifier.size(20.dp))
                 Text(label, color = c.onSurface, style = TextStyle(fontFamily = prismaTextFont, fontSize = 14.sp, fontWeight = FontWeight.Medium))
             }
         }

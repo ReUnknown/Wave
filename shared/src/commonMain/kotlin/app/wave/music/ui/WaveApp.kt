@@ -52,11 +52,20 @@ fun WaveApp(
           val onMobileData by app.wave.music.platform.WavePlatform.current.metered.collectAsState()
           app.wave.music.ui.components.DataSaver.on = look.saveData && onMobileData
           val saving = phoneSaving && look.saverLook
+          val screenReader by app.wave.music.platform.WavePlatform.current.screenReader.collectAsState()
+          val reduce = look.reduceMotion || app.wave.music.platform.WavePlatform.current.systemReduceMotion
+          // Settings › Language (or the phone's).
+          remember(look.language) { app.wave.music.i18n.L10n.apply(look.language) }
           app.wave.music.platform.PrismaLook.apply {
               legacy = look.legacyUi
               this.saving = saving
-              calm = look.calmMotion || saving
-              blur = if (saving) 0 else look.blurLevel
+              reduceMotion = reduce
+              highContrast = look.highContrast
+              autoContrast = look.autoContrast
+              keepControls = look.keepControls || screenReader
+              calm = look.calmMotion || saving || reduce
+              // High contrast: solid surfaces instead of see-through glass.
+              blur = if (saving || look.highContrast) 0 else look.blurLevel
               corners = look.cornerStyle
               dense = look.denseHome
           }
@@ -64,7 +73,7 @@ fun WaveApp(
           val baseHaptics = androidx.compose.ui.platform.LocalHapticFeedback.current
           val haptics = remember(baseHaptics, look.haptics) { app.wave.music.ui.components.FilteredHaptics(baseHaptics, look.haptics) }
           CompositionLocalProvider(
-              androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(baseDensity.density, baseDensity.fontScale * look.textScale),
+              androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(baseDensity.density, (if (look.followSystemText) baseDensity.fontScale else 1f) * look.textScale),
               androidx.compose.ui.platform.LocalHapticFeedback provides haptics,
           ) {
           CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.material3.MaterialTheme.colorScheme.onBackground) {
