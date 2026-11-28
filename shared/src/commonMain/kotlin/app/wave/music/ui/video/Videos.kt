@@ -499,8 +499,6 @@ fun VideoPlayerHost() {
                     MenuRow("Play the song", "Just the music, from the start", false, icon = Icons.Rounded.Headphones) { dismiss { scope.launch { playTheSong(current) } } }
                     MenuRow("Up next", if (Video.upNext.isEmpty()) "Finding more videos…" else "${Video.upNext.size} videos", false, icon = Icons.AutoMirrored.Rounded.QueueMusic) { dismiss { upNextOpen = true } }
                     MenuRow("Loop this video", null, state.loop, icon = Icons.Rounded.RepeatOne) { dismiss { engine.setLoop(!state.loop) } }
-                    MenuRow("Quality", qualityNow, false, icon = Icons.Rounded.Tune, more = true) { menu = OpenMenu("quality", m.anchor) }
-                    MenuRow("Speed", speedNow, false, icon = Icons.Rounded.Speed, more = true) { menu = OpenMenu("speed", m.anchor) }
                     MenuRow("Share", null, false, icon = Icons.Rounded.Share) { dismiss { WavePlatform.current.share(current.title, "https://music.youtube.com/watch?v=${current.videoId}") } }
                     MenuRow("Open in YouTube", null, false, icon = Icons.AutoMirrored.Rounded.OpenInNew) { dismiss { WavePlatform.current.openUrl("https://www.youtube.com/watch?v=${current.videoId}") } }
                     MenuRow("Stop the video", null, false, icon = Icons.Rounded.Close) { dismiss { close() } }
@@ -1363,28 +1361,6 @@ private fun GlassPill(glass: Modifier, icon: ImageVector, label: String, on: Boo
     ) {
         Icon(icon, null, tint = if (on) c.onPrimary else Color.White, modifier = Modifier.size(18.dp))
         Text(label, color = if (on) c.onPrimary else Color.White, style = body(14.sp, FontWeight.SemiBold), maxLines = 1)
-    }
-}
-
-/** A round button inside the glass bar: no fill of its own, a soft one when pressed. */
-@Composable
-private fun SoftButton(icon: ImageVector, label: String, size: Dp, enabled: Boolean = true, onClick: () -> Unit) {
-    Box(Modifier.size(size).pressable(CircleShape, Color.White.copy(alpha = 0.08f), pressedScale = 0.86f, enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, label, tint = Color.White.copy(alpha = if (enabled) 1f else 0.35f), modifier = Modifier.size(size * 0.54f))
-    }
-}
-
-/** The quality button: Auto (with the size showing) or the size you picked. */
-@Composable
-private fun QualityChip(state: VideoState, glass: Modifier, onSpot: (Rect) -> Unit, onClick: () -> Unit) {
-    if (state.heights.none { it >= 144 }) return
-    Row(
-        Modifier.height(44.dp).onGloballyPositioned { onSpot(it.boundsInRoot()) }.clip(CircleShape).then(glass).clickable(onClick = onClick).padding(start = 14.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(Icons.Rounded.Tune, null, tint = Color.White, modifier = Modifier.size(18.dp))
-        Text(state.cap?.let { "${it}p" } ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: "")), color = Color.White, style = body(14.sp, FontWeight.SemiBold))
     }
 }
 

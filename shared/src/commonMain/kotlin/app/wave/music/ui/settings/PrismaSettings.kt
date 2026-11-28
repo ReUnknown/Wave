@@ -811,7 +811,10 @@ private sealed interface NoteLine {
     class Plain(val text: String) : NoteLine
 }
 
-private fun parseNotes(notes: String): List<NoteLine> = notes.lines().mapNotNull { raw ->
+/** Release notes as Wave shows them: without the "Installing by hand" part (that's for GitHub). */
+internal fun appNotes(notes: String): String = notes.split(Regex("(?im)^#+\\s*installing by hand.*$")).first().trim()
+
+private fun parseNotes(notes: String): List<NoteLine> = appNotes(notes).lines().mapNotNull { raw ->
     val line = raw.trim().replace("**", "").replace("__", "")
     when {
         line.isBlank() -> null
@@ -910,7 +913,7 @@ private fun UpdatePage(onBack: () -> Unit) {
                         color = c.primary, style = body(14.sp, FontWeight.SemiBold),
                     )
                 }
-                item { Box(Modifier.height(96.dp)) }
+                item { Box(Modifier.height(110.dp)) }
             }
         }
         // One button at the bottom: Download, then a filling progress bar, then Install.
@@ -921,6 +924,8 @@ private fun UpdatePage(onBack: () -> Unit) {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
+                    // Above the bottom bar and mini player, which would otherwise cover it.
+                    .padding(bottom = LocalMiniPlayerSpace.current)
                     .padding(horizontal = 24.dp, vertical = 20.dp)
                     .widthIn(max = 520.dp)
                     .fillMaxWidth()

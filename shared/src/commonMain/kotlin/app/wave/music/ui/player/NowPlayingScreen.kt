@@ -503,26 +503,6 @@ private fun WideNowPlaying(
     }
 }
 
-/** The cover as a big rounded card; a new song's cover fades in over the old one. */
-@Composable
-private fun Cover(song: NowPlaying, side: androidx.compose.ui.unit.Dp) {
-    AnimatedContent(
-        targetState = song.artworkUrl,
-        transitionSpec = { fadeIn(tween(320, easing = WaveMotion.Emphasized)) togetherWith fadeOut(tween(1, delayMillis = 320)) },
-        label = "cover",
-    ) { art ->
-        AsyncImage(
-            model = art,
-            contentDescription = song.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(side)
-                .shadow(28.dp, RoundedCornerShape(40.dp))
-                .clip(RoundedCornerShape(40.dp)),
-        )
-    }
-}
-
 /** Wide layouts: a handle under the controls that pulls out volume and speed. */
 @Composable
 private fun ExtrasDrawer(state: PlayerUiState, modifier: Modifier = Modifier) {
@@ -552,41 +532,6 @@ private fun PanelButton(icon: ImageVector, label: String, key: String, open: Boo
     ) {
         Icon(icon, null, tint = ink)
         Text("  $label", color = ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-    }
-}
-
-/** Roomy wide layout: Lyrics and Up next live side by side with the player, one tap apart. */
-@Composable
-private fun SidePanel(state: PlayerUiState, modifier: Modifier, startOnQueue: Boolean = false) {
-    val c = MaterialTheme.colorScheme
-    var tab by rememberSaveable { mutableStateOf(if (startOnQueue) 1 else 0) }
-    Column(
-        modifier
-            .clip(RoundedCornerShape(32.dp))
-            .background(Color.Black.copy(alpha = 0.2f)),
-    ) {
-        Row(Modifier.padding(12.dp).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            listOf("Lyrics", "Up next").forEachIndexed { i, label ->
-                val on = tab == i
-                val fill by animateColorAsState(if (on) c.primary else c.surfaceContainerHighest.copy(alpha = 0.6f), tween(160), label = "panelTab")
-                val ink by animateColorAsState(if (on) c.onPrimary else c.onSurface, tween(160), label = "panelTabInk")
-                val shape = if (i == 0) RoundedCornerShape(22.dp, 8.dp, 8.dp, 22.dp) else RoundedCornerShape(8.dp, 22.dp, 22.dp, 8.dp)
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .pressable(shape, fill, pressedScale = 0.95f) { tab = i },
-                    contentAlignment = Alignment.Center,
-                ) { Text(label, color = ink, fontWeight = FontWeight.SemiBold) }
-            }
-        }
-        Crossfade(tab, Modifier.weight(1f).fillMaxWidth(), animationSpec = tween(200), label = "panel") { shown ->
-            if (shown == 0) {
-                LyricsScreen(state, onClose = {}, embedded = true)
-            } else {
-                QueueScreen(state, onClose = {}, embedded = true)
-            }
-        }
     }
 }
 

@@ -66,9 +66,8 @@ data class VideoTarget(
     val title: String,
     val artist: String,
     val thumbnail: String?,
-    /** The song this is the video of (its own id and album cover), when it came from one. */
+    /** The song this is the video of, when it came from one. */
     val songId: String? = null,
-    val songArt: String? = null,
 )
 
 object Video {

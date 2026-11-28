@@ -295,7 +295,6 @@ fun AppTour(playing: Boolean, topSearch: Boolean, oneRow: Boolean, onDone: () ->
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
         val d = density.density
-        val nav = with(density) { androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars.getBottom(this).toFloat() }
         val full = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val screen = full
         // Until you press Next, the stops keep up with what's on screen (home may still be loading);
@@ -428,7 +427,7 @@ fun OpeningWave(onDone: () -> Unit) {
 fun UpdatePopup(version: String, notes: String, onSeeIt: () -> Unit, onLater: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val peek = remember(notes) {
-        notes.lines().map { it.trim() }.filter { it.startsWith("- ") || it.startsWith("* ") }
+        app.wave.music.ui.settings.appNotes(notes).lines().map { it.trim() }.filter { it.startsWith("- ") || it.startsWith("* ") }
             .map { it.drop(2).replace("**", "") }.take(3)
     }
     Box(
@@ -482,7 +481,7 @@ fun UpdatePopup(version: String, notes: String, onSeeIt: () -> Unit, onLater: ()
 fun JustUpdatedPopup(version: String, notes: String, onAll: () -> Unit, onDone: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val lines = remember(notes) {
-        notes.lines().map { it.trim() }.filter { it.startsWith("- ") || it.startsWith("* ") }
+        app.wave.music.ui.settings.appNotes(notes).lines().map { it.trim() }.filter { it.startsWith("- ") || it.startsWith("* ") }
             .map { it.drop(2).replace("**", "").replace("__", "") }.take(6)
     }
     Box(

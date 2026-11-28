@@ -92,10 +92,6 @@ object VideoRepository {
 
     private fun plain(s: String) = s.lowercase().replace(Regex("\\(.*?\\)|\\[.*?]"), "").replace(Regex("[^\\p{L}\\p{N} ]"), " ").replace(Regex("\\s+"), " ").trim()
 
-    /** One key for a song and its music video ("Blinding Lights (Official Video)" is "Blinding Lights"). */
-    fun sameSong(title: String, artist: String): String =
-        plain(title.replace(Regex("(?i)official|music video|lyric video|lyrics|video|audio|hd|4k"), "")) + "|" + plain(artist.substringBefore(",").substringBefore(" & "))
-
     /** Known already (no network): the video for [videoId], "" for none, or null when not checked yet. */
     fun knownVideoFor(videoId: String): String? = videoOf[videoId]?.let { if (it == NONE) "" else it }
 

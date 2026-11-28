@@ -79,8 +79,6 @@ private fun body(size: TextUnit, weight: FontWeight = FontWeight.Normal) = TextS
 /** Plays a station live. */
 fun playStation(station: Station) = PlayerConnection.play(QueueBuilder.forStation(station))
 
-/** Whether what's playing is a live station. */
-val PlayerUiState.isLive: Boolean get() = app.wave.music.data.isRadioId(current?.videoId)
 
 /**
  * Live radio's one button: stop, or start again. Starting again reconnects, so you hear the
