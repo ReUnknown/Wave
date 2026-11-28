@@ -13,8 +13,8 @@ android {
         applicationId = "app.wave.music"
         minSdk = 31
         targetSdk = 37
-        versionCode = 214
-        versionName = "2.0.0-beta.15"
+        versionCode = 215
+        versionName = "2.0.0-beta.16"
         // Every phone, tablet and Googlebook Wave targets is 64-bit: no 32-bit native code.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
