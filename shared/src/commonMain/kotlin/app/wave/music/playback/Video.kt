@@ -27,6 +27,8 @@ data class VideoState(
     val firstFrame: Boolean = false,
     /** Playback speed (1 is normal). */
     val speed: Float = 1f,
+    /** Plays the same video over and over. */
+    val loop: Boolean = false,
 )
 
 /**
@@ -41,6 +43,7 @@ interface VideoEngine {
     fun togglePlay()
     fun seekTo(ms: Long)
     fun setSpeed(speed: Float) {}
+    fun setLoop(on: Boolean) {}
     /** A tiny copy of the picture showing now (for ambient mode), or null when there isn't one. */
     fun framePixels(): IntArray? = null
     /** Looks a video up ahead of time, so it starts right away when it's opened. */

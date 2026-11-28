@@ -1,5 +1,10 @@
 package app.wave.music.ui.video
 
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.Settings
 import app.wave.music.data.WaveSettings
 import app.wave.music.ui.components.backGesture
 import androidx.compose.animation.core.animateFloat
@@ -473,9 +478,40 @@ fun VideoPlayerHost() {
                 else -> FullLayout(engine, state, current, actions, history, edgeToEdge, front, fullSpot, glassOver, onMenu = { kind, at -> menu = OpenMenu(kind, at) })
             }
         }
+        val menuRows: @Composable (OpenMenu, (() -> Unit) -> Unit) -> Unit = { m, dismiss ->
+            fun qualityName(h: Int) = when { h >= 2160 -> "4K"; h >= 1440 -> "1440p"; h >= 1080 -> "1080p HD"; h >= 720 -> "720p HD"; else -> "${h}p" }
+            val qualityNow = state.cap?.let(::qualityName) ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: ""))
+            val speedNow = if (state.speed == 1f) "Normal" else speedName(state.speed)
+            when (m.kind) {
+                "quality" -> {
+                    MenuRow("Auto", "Best for your connection", state.cap == null) { dismiss { engine.setQuality(null) } }
+                    state.heights.filter { it >= 144 }.distinct().sortedDescending().forEach { h -> MenuRow(qualityName(h), null, state.cap == h) { dismiss { engine.setQuality(h) } } }
+                }
+                "speed" -> listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v ->
+                    MenuRow(if (v == 1f) "Normal" else speedName(v), null, state.speed == v) { dismiss { engine.setSpeed(v) } }
+                }
+                "settings" -> {
+                    MenuRow("Quality", qualityNow, false, icon = Icons.Rounded.Tune, more = true) { menu = OpenMenu("quality", m.anchor) }
+                    MenuRow("Speed", speedNow, false, icon = Icons.Rounded.Speed, more = true) { menu = OpenMenu("speed", m.anchor) }
+                    MenuRow("Loop this video", null, state.loop, icon = Icons.Rounded.RepeatOne) { dismiss { engine.setLoop(!state.loop) } }
+                }
+                else -> {
+                    MenuRow("Play the song", "Just the music, from the start", false, icon = Icons.Rounded.Headphones) { dismiss { scope.launch { playTheSong(current) } } }
+                    MenuRow("Up next", if (Video.upNext.isEmpty()) "Finding more videos…" else "${Video.upNext.size} videos", false, icon = Icons.AutoMirrored.Rounded.QueueMusic) { dismiss { upNextOpen = true } }
+                    MenuRow("Loop this video", null, state.loop, icon = Icons.Rounded.RepeatOne) { dismiss { engine.setLoop(!state.loop) } }
+                    MenuRow("Quality", qualityNow, false, icon = Icons.Rounded.Tune, more = true) { menu = OpenMenu("quality", m.anchor) }
+                    MenuRow("Speed", speedNow, false, icon = Icons.Rounded.Speed, more = true) { menu = OpenMenu("speed", m.anchor) }
+                    MenuRow("Share", null, false, icon = Icons.Rounded.Share) { dismiss { WavePlatform.current.share(current.title, "https://music.youtube.com/watch?v=${current.videoId}") } }
+                    MenuRow("Open in YouTube", null, false, icon = Icons.AutoMirrored.Rounded.OpenInNew) { dismiss { WavePlatform.current.openUrl("https://www.youtube.com/watch?v=${current.videoId}") } }
+                    MenuRow("Stop the video", null, false, icon = Icons.Rounded.Close) { dismiss { close() } }
+                }
+            }
+        }
         Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+          // Everything in here is what a menu blurs: the player, the video itself and its controls.
+          Box(Modifier.fillMaxSize().hazeSource(menuGlass)) {
             // 1. The full player's background, with a hole where the video goes.
-            if (open > 0f) Box(Modifier.fillMaxSize().then(motion).hazeSource(menuGlass)) { Layer(front = false) }
+            if (open > 0f) Box(Modifier.fillMaxSize().then(motion)) { Layer(front = false) }
             // 2. The one picture: in the full player's hole, or in the dock's song row when shrunk.
             val dock = VideoDock.spot.value
             val goal = (if (full || dock == null) fullSpot.value else dock)?.translate(-origin)
@@ -502,9 +538,11 @@ fun VideoPlayerHost() {
                     }
                 }
             }
-            // 3. Controls, Up next and menus (full only).
+            // 3. The controls (full only).
+            if (open > 0f && full) Box(Modifier.fillMaxSize().then(motion)) { Layer(front = true) }
+          }
+            // 4. Up next and menus, over (and blurring) everything above.
             if (open > 0f && full) Box(Modifier.fillMaxSize().then(motion)) {
-                Layer(front = true)
                 if (layout == "upright") VideoQueue(state, current, upNextOpen, onClose = { upNextOpen = false }) { v ->
                     upNextOpen = false
                     history += current
@@ -524,22 +562,10 @@ fun VideoPlayerHost() {
                     }
                 }
                 menu?.let { m ->
-                    GlassMenu(menuGlass, m.anchor, origin, onClose = { menu = null }, title = when (m.kind) { "quality" -> "Quality"; "speed" -> "Speed"; else -> null }) {
-                        when (m.kind) {
-                            "quality" -> {
-                                val sizes = state.heights.filter { it >= 144 }.distinct().sortedDescending()
-                                fun name(h: Int) = when { h >= 2160 -> "4K"; h >= 1440 -> "1440p"; h >= 1080 -> "1080p HD"; h >= 720 -> "720p HD"; else -> "${h}p" }
-                                MenuRow("Auto", "Best for your connection", state.cap == null) { engine.setQuality(null); menu = null }
-                                sizes.forEach { h -> MenuRow(name(h), null, state.cap == h) { engine.setQuality(h); menu = null } }
-                            }
-                            "speed" -> listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v ->
-                                MenuRow(if (v == 1f) "Normal" else "${v.toString().removeSuffix(".0")}×", null, state.speed == v) { engine.setSpeed(v); menu = null }
-                            }
-                            else -> {
-                                MenuRow("Play the song", "Just the music, from the start", false, icon = Icons.Rounded.Headphones) { menu = null; scope.launch { playTheSong(current) } }
-                                MenuRow("Share", null, false, icon = Icons.Rounded.Share) { menu = null; WavePlatform.current.share(current.title, "https://music.youtube.com/watch?v=${current.videoId}") }
-                                MenuRow("Stop the video", null, false, icon = Icons.Rounded.Close) { menu = null; close() }
-                            }
+                    // Each menu (and each submenu) grows out of the button that opened it.
+                    androidx.compose.runtime.key(m.kind) {
+                        GlassMenu(menuGlass, m.anchor, origin, onClose = { if (menu === m) menu = null }, title = when (m.kind) { "quality" -> "Quality"; "speed" -> "Speed"; "settings" -> "Settings"; else -> null }) { dismiss ->
+                            menuRows(m, dismiss)
                         }
                     }
                 }
@@ -975,50 +1001,100 @@ private fun UpNextRow(v: VideoTarget, onClick: () -> Unit) {
     }
 }
 
-/** A frosted glass menu over the video, like every menu in Wave 2.0, growing out of its button. */
+/** Where a menu sits, worked out as it's laid out (its shape reads it to start from the button). */
+private class MenuSpot { var x = 0f; var y = 0f }
+
+/**
+ * A frosted glass menu, like every menu in Wave 2.0. It grows out of the button that opened it, the
+ * way the song ⋮ does: it starts as the button's own shape and color and opens up into the menu,
+ * then folds back into the button when it closes. [content] gets a dismiss that runs an action and
+ * folds the menu away.
+ */
 @Composable
-private fun GlassMenu(glassOver: dev.chrisbanes.haze.HazeState?, anchor: Rect, origin: Offset, onClose: () -> Unit, title: String?, content: @Composable () -> Unit) {
+private fun GlassMenu(glass: dev.chrisbanes.haze.HazeState?, anchor: Rect, origin: Offset, onClose: () -> Unit, title: String?, from: Color = Color.White.copy(alpha = 0.16f), content: @Composable ((() -> Unit) -> Unit) -> Unit) {
     val c = MaterialTheme.colorScheme
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { progress.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 520f)) }
-    val shape = RoundedCornerShape(PrismaLook.corner(24.dp))
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 420f)) }
+    val dismiss: (() -> Unit) -> Unit = { action ->
+        action()
+        if (!closing) {
+            closing = true
+            scope.launch {
+                progress.animateTo(0f, tween(200, easing = WaveMotion.EmphasizedAccelerate))
+                onClose()
+            }
+        }
+    }
+    val spot = remember { MenuSpot() }
+    val density = LocalDensity.current
+    val radius = with(density) { PrismaLook.corner(24.dp).toPx() }
+    val local = anchor.translate(-origin)
+    val shape = remember(local) {
+        object : androidx.compose.ui.graphics.Shape {
+            override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
+                val p = progress.value.coerceIn(0f, 1.04f)
+                val start = local.translate(-spot.x, -spot.y)
+                fun l(a: Float, b: Float) = a + (b - a) * p
+                val r = Rect(
+                    l(start.left, 0f).coerceAtLeast(0f), l(start.top, 0f).coerceAtLeast(0f),
+                    l(start.right, size.width).coerceAtMost(size.width), l(start.bottom, size.height).coerceAtMost(size.height),
+                )
+                val corner = l(start.height / 2f, radius).coerceAtMost(r.minDimension / 2f)
+                return androidx.compose.ui.graphics.Outline.Rounded(androidx.compose.ui.geometry.RoundRect(r, androidx.compose.ui.geometry.CornerRadius(corner)))
+            }
+        }
+    }
     androidx.compose.ui.layout.Layout(
         content = {
-            Column(
+            Box(
                 Modifier
-                    .width(240.dp)
+                    .width(250.dp)
                     .graphicsLayer {
-                        val p = progress.value
-                        alpha = p.coerceIn(0f, 1f)
-                        scaleX = 0.85f + 0.15f * p
-                        scaleY = 0.7f + 0.3f * p
-                        shadowElevation = 16.dp.toPx() * p
                         this.shape = shape
                         clip = true
+                        shadowElevation = 16.dp.toPx() * progress.value.coerceIn(0f, 1f)
                     }
-                    .glass(glassOver, 28.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainerHigh.copy(alpha = 0.62f))), c.surfaceContainerHigh)
-                    .background(Color.White.copy(alpha = 0.04f))
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .padding(vertical = 6.dp),
+                    .glass(glass, 28.dp, c.background, listOf(dev.chrisbanes.haze.HazeTint(c.surfaceContainerHigh.copy(alpha = 0.62f))), Color.Transparent)
+                    .drawBehind {
+                        // Starts as the button's own color, then gives way to the frosted glass.
+                        val k = (progress.value * 1.6f).coerceIn(0f, 1f)
+                        val glassFill = if (glass != null && PrismaLook.blur > 0) Color.White.copy(alpha = 0.04f) else c.surfaceContainerHigh
+                        drawRect(androidx.compose.ui.graphics.lerp(from, glassFill, k))
+                    }
+                    .pointerInput(Unit) { detectTapGestures { } },
             ) {
-                title?.let { Text(it, Modifier.padding(start = 18.dp, top = 8.dp, bottom = 4.dp), color = c.onSurface.copy(alpha = 0.6f), style = body(12.sp, FontWeight.Bold)) }
-                content()
+                Column(
+                    Modifier
+                        .graphicsLayer {
+                            val p = progress.value
+                            alpha = ((p - 0.3f) / 0.6f).coerceIn(0f, 1f)
+                            translationY = (1f - p.coerceIn(0f, 1f)) * -10.dp.toPx()
+                        }
+                        .padding(vertical = 6.dp),
+                ) {
+                    title?.let { Text(it, Modifier.padding(start = 18.dp, top = 8.dp, bottom = 4.dp), color = c.onSurface.copy(alpha = 0.6f), style = body(12.sp, FontWeight.Bold)) }
+                    content(dismiss)
+                }
             }
         },
-        modifier = Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } },
+        modifier = Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { dismiss {} } },
     ) { measurables, constraints ->
         val p = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
-        val a = anchor.translate(-origin)
         val margin = 12.dp.roundToPx()
-        val x = (if (a.center.x > constraints.maxWidth / 2f) a.right - p.width else a.left).roundToInt().coerceIn(margin, (constraints.maxWidth - p.width - margin).coerceAtLeast(margin))
-        val below = a.bottom + 8.dp.toPx() + p.height < constraints.maxHeight - margin
-        val y = (if (below) a.bottom + 8.dp.toPx() else a.top - 8.dp.toPx() - p.height).roundToInt().coerceAtLeast(margin)
+        // Shares a corner with its button, opening toward the side with room.
+        val x = (if (local.center.x > constraints.maxWidth / 2f) local.right - p.width else local.left).roundToInt().coerceIn(margin, (constraints.maxWidth - p.width - margin).coerceAtLeast(margin))
+        val below = local.top + p.height < constraints.maxHeight - margin
+        val y = (if (below) local.top else local.bottom - p.height).roundToInt().coerceIn(margin, (constraints.maxHeight - p.height - margin).coerceAtLeast(margin))
+        spot.x = x.toFloat()
+        spot.y = y.toFloat()
         layout(constraints.maxWidth, constraints.maxHeight) { p.place(x, y) }
     }
 }
 
 @Composable
-private fun MenuRow(label: String, sub: String?, selected: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
+private fun MenuRow(label: String, sub: String?, selected: Boolean, icon: ImageVector? = null, more: Boolean = false, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         icon?.let { Icon(it, null, tint = c.onSurface, modifier = Modifier.size(20.dp)) }
@@ -1027,6 +1103,7 @@ private fun MenuRow(label: String, sub: String?, selected: Boolean, icon: ImageV
             sub?.let { Text(it, color = c.onSurface.copy(alpha = 0.6f), style = body(12.sp)) }
         }
         if (selected) Icon(Icons.Rounded.Check, null, tint = c.primary, modifier = Modifier.size(20.dp))
+        if (more) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
     }
 }
 
@@ -1048,7 +1125,8 @@ private fun LoadingCover(state: VideoState, target: VideoTarget, small: Boolean)
                     LoadingIndicator(Modifier.size(if (small) 34.dp else 72.dp), color = Color.White)
                     if (!small) Text("Loading video", color = Color.White, style = body(15.sp, FontWeight.SemiBold))
                 } else if (!small) {
-                    Text(state.error, Modifier.padding(horizontal = 24.dp), color = Color.White, style = body(15.sp, FontWeight.SemiBold))
+                    // Under the play button, so the two never overlap.
+                    Text(state.error, Modifier.padding(start = 24.dp, end = 24.dp, top = 150.dp), color = Color.White, style = body(15.sp, FontWeight.SemiBold))
                 }
             }
         }
@@ -1128,10 +1206,11 @@ private fun UpNext(modifier: Modifier, target: VideoTarget, history: MutableList
 }
 
 /**
- * Wave 2.0's controls over the picture: frosted glass, like the dock. A glass bar along the bottom
- * holds the name, a wave you drag through, and play (a big pill between jumps of 10 seconds); glass
- * buttons in the top corners shrink it and pick the quality. The middle stays clear for the video.
- * Tap to show or hide them (they tuck away while it plays); double-tap a side to jump 10 seconds.
+ * Controls over the picture: laid out like YouTube (name and buttons along the top, previous · play ·
+ * next in the middle, time and the line along the bottom) but made of Wave 2.0's parts: frosted
+ * glass buttons, the song-colored play button, the wave you drag through. Quality, speed and loop
+ * sit right on screen as glass pills. Tap to show or hide them (they tuck away while it plays);
+ * double-tap either side to jump 10 seconds.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -1139,24 +1218,19 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
     val c = MaterialTheme.colorScheme
     var shown by remember { mutableStateOf(true) }
     var touched by remember { mutableIntStateOf(0) }
-    var menuOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(shown, state.playing, touched, menuOpen) { if (shown && state.playing && !menuOpen) { delay(3500); shown = false } }
+    LaunchedEffect(shown, state.playing, touched) { if (shown && state.playing) { delay(3500); shown = false } }
     var position by remember { mutableLongStateOf(0L) }
     LaunchedEffect(target.videoId) { while (true) { position = engine.positionMs; delay(200) } }
     var jump by remember { mutableIntStateOf(0) }
     LaunchedEffect(jump) { if (jump != 0) { delay(650); jump = 0 } }
-    val visible = shown || !state.playing || menuOpen || state.error != null
-    val panel = RoundedCornerShape(PrismaLook.corner(if (full) 30.dp else 24.dp))
+    val visible = shown || !state.playing || state.error != null
+    val dim by animateFloatAsState(if (visible) 1f else 0f, tween(220), label = "dim")
+    // Frosted glass over the video, like Wave's dock.
     val glass = Modifier
-        .glass(glassOver, 28.dp, Color.Black, listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.35f))), Color.Black.copy(alpha = 0.55f))
+        .glass(glassOver, 26.dp, Color.Black, listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.3f))), Color.Black.copy(alpha = 0.5f))
         .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
-    fun Modifier.glassPanel() = clip(panel)
-        .glass(glassOver, 28.dp, Color.Black, listOf(dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.35f))), Color.Black.copy(alpha = 0.55f))
-        .border(1.dp, Color.White.copy(alpha = 0.12f), panel)
 
-    var chipSpot by remember { mutableStateOf<Rect?>(null) }
-    var controlsOrigin by remember { mutableStateOf(Offset.Zero) }
-    BoxWithConstraints(modifier.onGloballyPositioned { controlsOrigin = it.positionInRoot() }) {
+    BoxWithConstraints(modifier) {
         val w = constraints.maxWidth
         Box(
             Modifier.fillMaxSize().pointerInput(w) {
@@ -1171,123 +1245,124 @@ private fun Controls(engine: VideoEngine, state: VideoState, target: VideoTarget
                 )
             },
         )
+        // A soft shade at the top and bottom so the controls read on any picture.
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = dim }.background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.55f), 0.28f to Color.Black.copy(alpha = 0.12f), 0.7f to Color.Black.copy(alpha = 0.12f), 1f to Color.Black.copy(alpha = 0.65f))))
         // Jumped: a glass bubble on that side.
-        AnimatedVisibility(jump != 0, Modifier.align(if (jump < 0) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 56.dp), enter = fadeIn(tween(90)) + androidx.compose.animation.scaleIn(initialScale = 0.8f), exit = fadeOut(tween(200))) {
-            Row(
-                Modifier.clip(CircleShape).then(glass).padding(horizontal = 18.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        AnimatedVisibility(jump != 0, Modifier.align(if (jump < 0) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = if (full) 72.dp else 28.dp), enter = fadeIn(tween(90)) + androidx.compose.animation.scaleIn(initialScale = 0.8f), exit = fadeOut(tween(200))) {
+            Row(Modifier.clip(CircleShape).then(glass).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(if (jump < 0) Icons.Rounded.Replay10 else Icons.Rounded.Forward10, null, tint = Color.White)
-                Text(if (jump < 0) "10 seconds back" else "10 seconds on", color = Color.White, style = body(14.sp, FontWeight.SemiBold))
+                Text("10 seconds", color = Color.White, style = body(14.sp, FontWeight.SemiBold))
             }
-        }
-        // Paused: a quiet play mark in the middle, so it's clear at a glance.
-        AnimatedVisibility(!state.playing && state.firstFrame && !state.ended && state.error == null && !visible, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
-            Box(Modifier.size(72.dp).clip(CircleShape).then(glass), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(36.dp)) }
         }
 
         AnimatedVisibility(visible, Modifier.fillMaxSize(), enter = fadeIn(tween(160)), exit = fadeOut(tween(260))) {
             Box(Modifier.fillMaxSize()) {
-                // Top corners: shrink on the left; quality and listening on the right.
+                // Top: shrink and what's playing; Up next and ⋮ on the right.
                 Row(
-                    Modifier.align(Alignment.TopStart).fillMaxWidth().then(if (full) Modifier.topBarPadding().padding(horizontal = 20.dp, vertical = 14.dp) else Modifier.padding(12.dp)),
+                    Modifier.align(Alignment.TopStart).fillMaxWidth().then(if (full) Modifier.topBarPadding().padding(start = 16.dp, end = 16.dp, top = 10.dp) else Modifier.padding(10.dp)),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    // Sideways: close the video, or back to the upright player (also at the bottom right).
-                    if (full) {
-                        Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onClose), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Close, "Shrink to the mini player", tint = Color.White)
-                        }
-                        Box(Modifier.size(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onUpright), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.FullscreenExit, "Leave full screen", tint = Color.White)
-                        }
+                    GlassIcon(glass, Icons.Rounded.KeyboardArrowDown, "Shrink to the mini player") { actions.onClose() }
+                    if (full) Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                        Text(target.title, color = Color.White, style = display(18.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(target.artist, color = Color.White.copy(alpha = 0.72f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    } else Spacer(Modifier.weight(1f))
+                    GlassIcon(glass, Icons.AutoMirrored.Rounded.QueueMusic, "Up next") { actions.onUpNext() }
+                    GlassIcon(glass, Icons.Rounded.MoreVert, "More options") { at -> actions.onMenu(at) }
+                }
+
+                // Middle: previous · play · next, Wave's play button in the video's color.
+                if (state.firstFrame || state.error != null) Row(
+                    Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(if (full) 40.dp else 22.dp),
+                ) {
+                    val small = if (full) 56.dp else 48.dp
+                    Box(Modifier.size(small).clip(CircleShape).then(glass).pressable(CircleShape, Color.Transparent, pressedScale = 0.86f, enabled = actions.hasPrevious, onClick = actions.onPrevious), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.SkipPrevious, "Previous video", tint = Color.White.copy(alpha = if (actions.hasPrevious) 1f else 0.35f), modifier = Modifier.size(small * 0.5f))
                     }
-                    Spacer(Modifier.weight(1f))
-                    QualityChip(state, glass, onSpot = { chipSpot = it }) { chipSpot?.let { onMenu("quality", it) } }
-                    var speedAt by remember { mutableStateOf(Rect.Zero) }
-                    Row(
-                        Modifier.height(44.dp).onGloballyPositioned { speedAt = it.boundsInRoot() }.clip(CircleShape).then(glass).clickable { onMenu("speed", speedAt) }.padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    val big = if (full) 76.dp else 64.dp
+                    val corner by animateDpAsState(if (state.playing) big * 0.32f else big / 2, WaveMotion.bouncy(), label = "videoPlayShape")
+                    Box(
+                        Modifier.size(width = big * 1.25f, height = big).pressable(RoundedCornerShape(PrismaLook.corner(corner)), c.primary, pressedScale = 0.9f) {
+                            if (state.ended) engine.seekTo(0)
+                            engine.togglePlay(); touched++
+                        },
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Rounded.Speed, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Text(speedName(state.speed), color = Color.White, style = body(14.sp, FontWeight.SemiBold))
+                        Crossfade(when { state.error != null -> 2; state.ended -> 3; else -> 0 }, label = "videoPlay") { s ->
+                            when (s) {
+                                2 -> Icon(Icons.Rounded.Refresh, "Try again", tint = c.onPrimary, modifier = Modifier.size(big * 0.45f))
+                                3 -> Icon(Icons.Rounded.Replay, "Watch again", tint = c.onPrimary, modifier = Modifier.size(big * 0.45f))
+                                else -> PlayPauseIcon(state.playing, c.onPrimary, size = big * 0.45f)
+                            }
+                        }
                     }
-                    if (full) Row(
-                        Modifier.height(44.dp).clip(CircleShape).then(glass).clickable(onClick = actions.onUpNext).padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Text("Up next", color = Color.White, style = body(14.sp, FontWeight.SemiBold))
-                    }
-                    var moreAt by remember { mutableStateOf(Rect.Zero) }
-                    Box(Modifier.size(44.dp).onGloballyPositioned { moreAt = it.boundsInRoot() }.clip(CircleShape).then(glass).clickable { actions.onMenu(moreAt) }, contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.MoreVert, "More options", tint = Color.White)
+                    Box(Modifier.size(small).clip(CircleShape).then(glass).pressable(CircleShape, Color.Transparent, pressedScale = 0.86f, enabled = actions.hasNext, onClick = actions.onNext), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.SkipNext, "Next video", tint = Color.White.copy(alpha = if (actions.hasNext) 1f else 0.35f), modifier = Modifier.size(small * 0.5f))
                     }
                 }
 
-                // The glass bar along the bottom.
+                // Bottom: the time, then quality, speed, loop and full screen right there; the wave below.
                 Column(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .then(if (full) Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp) else Modifier.padding(10.dp))
-                        .widthIn(max = 820.dp)
-                        .fillMaxWidth()
-                        .glassPanel()
-                        .padding(start = 18.dp, end = 12.dp, top = 6.dp, bottom = 10.dp),
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().then(if (full) Modifier.navigationBarsPadding().padding(start = 20.dp, end = 16.dp, bottom = 8.dp) else Modifier.padding(start = 14.dp, end = 10.dp, bottom = 2.dp)),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(formatTime(position), color = Color.White, style = body(12.sp, FontWeight.SemiBold))
-                        WavyProgress(
-                            progress = { if (state.durationMs > 0) (engine.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f },
-                            playing = state.playing && !PrismaLook.calm,
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.25f),
-                            stroke = 4.dp,
-                            amplitude = 3.dp,
-                            wavelength = 24.dp,
-                            showThumb = true,
-                            onSeek = { f -> engine.seekTo((f * state.durationMs).toLong()); touched++ },
-                            modifier = Modifier.weight(1f).height(30.dp),
-                        )
-                        Text(formatTime(state.durationMs), color = Color.White.copy(alpha = 0.7f), style = body(12.sp))
-                    }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (full) Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                            Text(target.title, color = Color.White, style = display(17.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(target.artist, color = Color.White.copy(alpha = 0.7f), style = body(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        } else Spacer(Modifier.weight(1f))
-                        if (full) SoftButton(Icons.Rounded.SkipPrevious, "Previous video", 42.dp, actions.hasPrevious) { actions.onPrevious() }
-                        SoftButton(Icons.Rounded.Replay10, "Back 10 seconds", 46.dp) { engine.seekTo((engine.positionMs - 10_000).coerceAtLeast(0)); touched++ }
-                        // Play: Wave's pill, firm while playing and rounder when paused.
-                        val corner by animateDpAsState(if (state.playing) 16.dp else 26.dp, WaveMotion.bouncy(), label = "videoPlayShape")
-                        Box(
-                            Modifier.size(width = if (full) 76.dp else 64.dp, height = 52.dp).pressable(RoundedCornerShape(PrismaLook.corner(corner)), c.primary, pressedScale = 0.92f, enabled = state.firstFrame || state.error != null) {
-                                if (state.ended) engine.seekTo(0)
-                                engine.togglePlay(); touched++
-                            },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Crossfade(when { state.error != null -> 2; state.ended -> 3; !state.firstFrame -> 1; else -> 0 }, label = "videoPlay") { s ->
-                                when (s) {
-                                    1 -> LoadingIndicator(Modifier.size(30.dp), color = c.onPrimary)
-                                    2 -> Icon(Icons.Rounded.Refresh, "Try again", tint = c.onPrimary, modifier = Modifier.size(26.dp))
-                                    3 -> Icon(Icons.Rounded.Replay, "Watch again", tint = c.onPrimary, modifier = Modifier.size(26.dp))
-                                    else -> PlayPauseIcon(state.playing, c.onPrimary, size = 26.dp)
-                                }
-                            }
-                        }
-                        SoftButton(Icons.Rounded.Forward10, "Forward 10 seconds", 46.dp) { engine.seekTo((engine.positionMs + 10_000).coerceAtMost(state.durationMs.coerceAtLeast(0))); touched++ }
-                        if (full) SoftButton(Icons.Rounded.SkipNext, "Next video", 42.dp, actions.hasNext) { actions.onNext() }
-                        Box(Modifier.padding(horizontal = 4.dp).size(width = 1.dp, height = 26.dp).background(Color.White.copy(alpha = 0.18f)))
-                        SoftButton(if (full) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, if (full) "Leave full screen" else "Full screen", 42.dp, onClick = if (full) actions.onUpright else actions.onFullscreen)
+                        Text(formatTime(position), color = Color.White, style = body(13.sp, FontWeight.SemiBold))
+                        Text("/  " + formatTime(state.durationMs), color = Color.White.copy(alpha = 0.7f), style = body(13.sp))
+                        Spacer(Modifier.weight(1f))
+                        if (state.heights.any { it >= 144 }) GlassPill(glass, Icons.Rounded.Tune, state.cap?.let { "${it}p" } ?: ("Auto" + (state.showing?.let { " · ${it}p" } ?: ""))) { at -> onMenu("quality", at) }
+                        GlassPill(glass, Icons.Rounded.Speed, speedName(state.speed), on = state.speed != 1f) { at -> onMenu("speed", at) }
+                        GlassIcon(glass, Icons.Rounded.RepeatOne, if (state.loop) "Stop looping" else "Loop this video", on = state.loop) { engine.setLoop(!state.loop); touched++ }
+                        GlassIcon(glass, if (full) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, if (full) "Leave full screen" else "Full screen") { if (full) actions.onUpright() else actions.onFullscreen() }
                     }
+                    WavyProgress(
+                        progress = { if (state.durationMs > 0) (engine.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f },
+                        playing = state.playing && !PrismaLook.calm,
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.28f),
+                        stroke = 4.dp,
+                        amplitude = 3.dp,
+                        wavelength = 24.dp,
+                        showThumb = true,
+                        onSeek = { f -> engine.seekTo((f * state.durationMs).toLong()); touched++ },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(30.dp),
+                    )
                 }
             }
         }
+    }
+}
+
+/** A round frosted-glass button over the video; says where it is (for its menu). Lit when [on]. */
+@Composable
+private fun GlassIcon(glass: Modifier, icon: ImageVector, label: String, on: Boolean = false, onClick: (Rect) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    var at by remember { mutableStateOf(Rect.Zero) }
+    Box(
+        Modifier.size(44.dp).onGloballyPositioned { at = it.boundsInRoot() }.clip(CircleShape)
+            .then(if (on) Modifier.background(c.primary) else glass)
+            .pressable(CircleShape, Color.Transparent, pressedScale = 0.86f) { onClick(at) },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = if (on) c.onPrimary else Color.White, modifier = Modifier.size(22.dp)) }
+}
+
+/** A frosted-glass pill with an icon and what it's set to (quality, speed); its menu grows out of it. */
+@Composable
+private fun GlassPill(glass: Modifier, icon: ImageVector, label: String, on: Boolean = false, onClick: (Rect) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    var at by remember { mutableStateOf(Rect.Zero) }
+    Row(
+        Modifier.height(44.dp).onGloballyPositioned { at = it.boundsInRoot() }.clip(CircleShape)
+            .then(if (on) Modifier.background(c.primary) else glass)
+            .pressable(CircleShape, Color.Transparent, pressedScale = 0.94f) { onClick(at) }
+            .padding(start = 12.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(icon, null, tint = if (on) c.onPrimary else Color.White, modifier = Modifier.size(18.dp))
+        Text(label, color = if (on) c.onPrimary else Color.White, style = body(14.sp, FontWeight.SemiBold), maxLines = 1)
     }
 }
 
